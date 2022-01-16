@@ -57,8 +57,8 @@ import org.nut.dynamatrix.*;
 
     dynacfgPipeline.failFast = //true //
         false
-    dynacfgPipeline.delayedIssueAnalysis = //false //
-        true
+    // Build up analysis as we go, so we have some even if a build is aborted
+    dynacfgPipeline.delayedIssueAnalysis = false //true
 
     // In modern builds, use the ci_build.sh recipe which first checks
     // quietly for things that succeed, and summarizes errors in the end
