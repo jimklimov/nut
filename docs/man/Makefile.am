@@ -747,29 +747,33 @@ HTML_MANS = \
 
 # Note: target documents, except nutupsdrv.txt itself, start the
 # list of drivers with `- linkman:nutupsdrv[8]` entry
-linkman-driver-names.txt:
-	@(LC_ALL=C; LANG=C; export LC_ALL LANG; \
-	  ls -1 $(SRC_DRIVERS_PAGES) | grep -vE '^nutupsdrv\.txt$$' | sort -n | uniq \
+$(builddir)/linkman-driver-names.txt:
+	@cd "$(abs_builddir)" || exit ; \
+	 (LC_ALL=C; LANG=C; export LC_ALL LANG; \
+	  for F in $(SRC_DRIVERS_PAGES) ; do echo "$$F" ; done \
+	    | grep -vE '^nutupsdrv\.txt$$' | sort -n | uniq \
 	    | sed 's,^\(.*\)\.txt$$,- linkman:\1[8],' ; \
-	 ) > "$@"
+	 ) > "$(@F)"
 
-linkman-drivertool-names.txt:
-	@(LC_ALL=C; LANG=C; export LC_ALL LANG; \
-	  ls -1 $(SRC_DRIVERTOOL_PAGES) | sort -n | uniq \
+$(builddir)/linkman-drivertool-names.txt:
+	@cd "$(abs_builddir)" || exit ; \
+	 (LC_ALL=C; LANG=C; export LC_ALL LANG; \
+	  for F in $(SRC_DRIVERTOOL_PAGES) ; do echo "$$F" ; done \
+	    | sort -n | uniq \
 	    | sed 's,^\(.*\)\.txt$$,- linkman:\1[8],' ; \
-	 ) > "$@"
+	 ) > "$(@F)"
 
 index.txt index.html \
 upsd.txt upsd.html upsd.8 upsd.pdf \
-nutupsdrv.txt nutupsdrv.html nutupsdrv.8 nutupsdrv.pdf : linkman-driver-names.txt linkman-drivertool-names.txt
+nutupsdrv.txt nutupsdrv.html nutupsdrv.8 nutupsdrv.pdf : $(builddir)/linkman-driver-names.txt $(builddir)/linkman-drivertool-names.txt
 
 # These files are generated when we build from git source so not tracked in
 # git, but we want it as part of tarball just in case the end-user's build
 # does not enable something related to docs:
-EXTRA_DIST += linkman-driver-names.txt
-EXTRA_DIST += linkman-drivertool-names.txt
+EXTRA_DIST += $(builddir)/linkman-driver-names.txt
+EXTRA_DIST += $(builddir)/linkman-drivertool-names.txt
 
-DISTCLEANFILES = linkman-driver-names.txt linkman-drivertool-names.txt
+DISTCLEANFILES = $(builddir)/linkman-driver-names.txt $(builddir)/linkman-drivertool-names.txt
 
 all:
 
@@ -866,6 +870,9 @@ DOCBUILD_BEGIN = { \
         rm -rf "./$${A2X_OUTDIR}" || true ; \
         test -d "$@" && rm -rf "$@" || true ; \
         mkdir -p "./$${A2X_OUTDIR}" || exit ; \
+        for F in linkman-driver-names.txt linkman-drivertool-names.txt ; do \
+            if [ -s "${builddir}/$$F" ] ; then ln -f -s "../../$$F" "./$${A2X_OUTDIR}/" ; fi ; \
+        done ; \
     else A2X_OUTDIR='.' ; fi; \
     if test -s "${builddir}/docbook-xsl.css" \
     && test -r "${builddir}/docbook-xsl.css" \
@@ -881,6 +888,9 @@ DOCBUILD_END = { \
     if test -n "$${A2X_OUTDIR}" && test "$${A2X_OUTDIR}" != '.' ; then \
         chmod -R u+w "./$${A2X_OUTDIR}" || true ; \
         test -d "$@" && rm -rf "$@" || true ; \
+        for F in linkman-driver-names.txt linkman-drivertool-names.txt ; do \
+            rm -f "./$${A2X_OUTDIR}/$$F" || true ; \
+        done ; \
         mv -f "./$${A2X_OUTDIR}/$(@F)" ./ || exit ; \
         mv -f "./$${A2X_OUTDIR}/"*.* ./ 2>/dev/null || true ; \
         rm -rf "./$${A2X_OUTDIR}" ; \
