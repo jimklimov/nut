@@ -36,7 +36,7 @@
 /* Eaton PDU-MIB - Marlin MIB
  * ************************** */
 
-#define EATON_MARLIN_MIB_VERSION	"0.59"
+#define EATON_MARLIN_MIB_VERSION	"0.69"
 #define EATON_MARLIN_SYSOID			".1.3.6.1.4.1.534.6.6.7"
 #define EATON_MARLIN_OID_MODEL_NAME	".1.3.6.1.4.1.534.6.6.7.1.2.1.2.0"
 
@@ -721,7 +721,7 @@ const char *su_temperature_read_fun(void *raw_snmp_value) {
 	NUT_UNUSED_VARIABLE(raw_snmp_value);
 	return "dummy";
 }
-#endif // WITH_SNMP_LKP_FUN_DUMMY
+#endif /* WITH_SNMP_LKP_FUN_DUMMY */
 
 static info_lkp_t eaton_sensor_temperature_unit_info[] = {
 	{ 0, "dummy"
@@ -749,7 +749,7 @@ static info_lkp_t eaton_sensor_temperature_read_info[] = {
 	}
 };
 
-#else // if not WITH_SNMP_LKP_FUN:
+#else /* if not WITH_SNMP_LKP_FUN: */
 
 /* FIXME: For now, DMF codebase falls back to old implementation with static
  * lookup/mapping tables for this, which can easily go into the DMF XML file.
@@ -777,7 +777,7 @@ static info_lkp_t eaton_sensor_temperature_unit_info[] = {
 	}
 };
 
-#endif // WITH_SNMP_LKP_FUN
+#endif /* WITH_SNMP_LKP_FUN */
 
 /* Extracted from powerware-mib.c ; try to commonalize */
 static info_lkp_t marlin_ambient_drycontacts_polarity_info[] = {
@@ -824,7 +824,7 @@ static info_lkp_t marlin_ambient_drycontacts_state_info[] = {
 #if WITH_SNMP_LKP_FUN_DUMMY
 long marlin_device_count_fun(const char *daisy_dev_list)
 		{ return 1; }
-#endif // WITH_SNMP_LKP_FUN_DUMMY
+#endif /* WITH_SNMP_LKP_FUN_DUMMY */
 
 static info_lkp_t marlin_device_count_info[] = {
 	{ 1, "dummy"
@@ -839,13 +839,13 @@ static info_lkp_t marlin_device_count_info[] = {
 	}
 };
 
-#else // if not WITH_SNMP_LKP_FUN:
+#else /* if not WITH_SNMP_LKP_FUN: */
 
 /* FIXME: For now, DMF codebase falls back to old implementation with static
  * lookup/mapping tables for this, which can easily go into the DMF XML file.
  */
 
-#endif // WITH_SNMP_LKP_FUN
+#endif /* WITH_SNMP_LKP_FUN */
 
 
 /* Snmp2NUT lookup table for Eaton Marlin MIB */
@@ -1546,7 +1546,8 @@ static snmp_info_t eaton_marlin_mib[] = {
 	/* Outlet friendly name, which can be modified by the user
 	 * outletName: = OctetString: "Outlet A16"
 	 */
-	/* FIXME: SU_FLAG_SEMI_STATIC or SU_FLAG_SETTING => refreshed from time to time or upon call to setvar */
+	/* FIXME: SU_FLAG_SEMI_STATIC or SU_FLAG_SETTING =>
+	 * refreshed from time to time or upon call to setvar */
 	{ "outlet.%i.desc", ST_FLAG_RW | ST_FLAG_STRING, SU_INFOSIZE,
 		".1.3.6.1.4.1.534.6.6.7.6.1.1.3.%i.%i",
 		NULL, SU_FLAG_SEMI_STATIC | SU_FLAG_OK | SU_OUTLET | SU_TYPE_DAISY_1,
@@ -1555,6 +1556,7 @@ static snmp_info_t eaton_marlin_mib[] = {
 		".1.3.6.1.4.1.534.6.6.7.6.6.1.2.%i.%i",
 		NULL, SU_FLAG_OK | SU_OUTLET | SU_TYPE_DAISY_1,
 		&marlin_outlet_status_info[0] },
+
 	/* Numeric identifier of the outlet, tied to the whole unit */
 	/* NOTE: For daisychain devices ATM the last listed value presented by
 	 * the SNMP device is kept by the driver - no SU_FLAG_UNIQUE here yet.
@@ -1569,8 +1571,8 @@ static snmp_info_t eaton_marlin_mib[] = {
 		".1.3.6.1.4.1.534.6.6.7.6.6.1.7.%i.%i",
 		NULL, SU_FLAG_STATIC | SU_OUTLET | SU_TYPE_DAISY_1,
 		NULL },
-	/* outletID: Outlet physical name, related to its number in the group
-	 * ex: first outlet of the second group (B) is B1 */
+
+	/* Fallback in firmwares issued before Sep 2017 (outletID): */
 	{ "outlet.%i.name", ST_FLAG_STRING, SU_INFOSIZE,
 		".1.3.6.1.4.1.534.6.6.7.6.1.1.2.%i.%i",
 		NULL, SU_FLAG_STATIC | SU_FLAG_UNIQUE | SU_FLAG_OK | SU_OUTLET | SU_TYPE_DAISY_1,
@@ -1693,7 +1695,8 @@ static snmp_info_t eaton_marlin_mib[] = {
 	 * groupName.0.1 = OctetString: Factory Group 1
 	 * groupName.0.2 = OctetString: Branch Circuit B
 	 */
-	/* FIXME: SU_FLAG_SEMI_STATIC or SU_FLAG_SETTING => refreshed from time to time or upon call to setvar */
+	/* FIXME: SU_FLAG_SEMI_STATIC or SU_FLAG_SETTING =>
+	 * refreshed from time to time or upon call to setvar */
 	{ "outlet.group.%i.desc", ST_FLAG_RW | ST_FLAG_STRING, SU_INFOSIZE,
 		".1.3.6.1.4.1.534.6.6.7.5.1.1.3.%i.%i",
 		NULL, SU_FLAG_SEMI_STATIC | SU_OUTLET_GROUP | SU_TYPE_DAISY_1,
@@ -1858,17 +1861,6 @@ static snmp_info_t eaton_marlin_mib[] = {
 		".1.3.6.1.4.1.534.6.6.7.6.6.1.7.%i.%i",
 		NULL, SU_FLAG_NEGINVALID | SU_OUTLET | SU_TYPE_DAISY_1, NULL },
 
-	/* Per-outlet shutdown / startup timers
-	 * outletControlOffCmd.0.1 = INTEGER: -1
-	 * outletControlOnCmd.0.1 = INTEGER: -1
-	 */
-	{ "outlet.%i.timer.shutdown", 0, 1,
-		".1.3.6.1.4.1.534.6.6.7.6.6.1.3.%i.%i",
-		NULL, SU_OUTLET | SU_TYPE_DAISY_1, NULL },
-	{ "outlet.%i.timer.start", 0, 1,
-		".1.3.6.1.4.1.534.6.6.7.6.6.1.4.%i.%i",
-		NULL, SU_OUTLET | SU_TYPE_DAISY_1, NULL },
-
 	/* Delayed version, parameter is mandatory (so dfl is NULL)! */
 	{ "outlet.%i.load.off.delay", 0, 1,
 		".1.3.6.1.4.1.534.6.6.7.6.6.1.3.%i.%i",
@@ -1879,6 +1871,17 @@ static snmp_info_t eaton_marlin_mib[] = {
 	{ "outlet.%i.load.cycle.delay", 0, 1,
 		".1.3.6.1.4.1.534.6.6.7.6.6.1.5.%i.%i",
 		NULL, SU_TYPE_CMD | SU_OUTLET | SU_TYPE_DAISY_1, NULL },
+
+	/* Per-outlet shutdown / startup timers
+	 * outletControlOffCmd.0.1 = INTEGER: -1
+	 * outletControlOnCmd.0.1 = INTEGER: -1
+	 */
+	{ "outlet.%i.timer.shutdown", 0, 1,
+		".1.3.6.1.4.1.534.6.6.7.6.6.1.3.%i.%i",
+		NULL, SU_OUTLET | SU_TYPE_DAISY_1, NULL },
+	{ "outlet.%i.timer.start", 0, 1,
+		".1.3.6.1.4.1.534.6.6.7.6.6.1.4.%i.%i",
+		NULL, SU_OUTLET | SU_TYPE_DAISY_1, NULL },
 
 	/* Delays handling:
 	 * 0-n :Time in seconds until the group command is issued

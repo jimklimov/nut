@@ -202,7 +202,7 @@ static const char *mibvers;
 #else
 # define DRIVER_NAME	"Generic SNMP UPS driver"
 #endif /* WITH_DMFMIB */
-#define DRIVER_VERSION		"1.19" /* 42ity */
+#define DRIVER_VERSION		"1.21" /* 42ity */
 
 /* driver description structure */
 upsdrv_info_t	upsdrv_info = {
@@ -227,7 +227,7 @@ static time_t lastpoll = 0;
 #define COMM_UNKNOWN 0
 #define COMM_OK      1
 #define COMM_LOST    2
-int comm_status = COMM_UNKNOWN;
+static int comm_status = COMM_UNKNOWN;
 
 /* template OIDs index start with 0 or 1 (estimated stable for a MIB),
  * automatically guessed at the first pass */
@@ -288,10 +288,8 @@ void upsdrv_initinfo(void)
 			&& !(su_info_p->flags & SU_OUTLET_GROUP))
 		{
 			/* first check that this OID actually exists */
-
 			/* FIXME: daisychain commands support! */
 			su_addcmd(su_info_p);
-
 /*
 			if (nut_snmp_get(su_info_p->OID) != NULL) {
 				dstate_addcmd(su_info_p->info_type);
@@ -1337,7 +1335,7 @@ static bool_t decode_str(struct snmp_pdu *pdu, char *buf, size_t buf_len, info_l
 		int hex = 0, x;
 		unsigned char *cp;
 		for(cp = pdu->variables->val.string, x = 0; x < (int)pdu->variables->val_len; x++, cp++) {
-			if (!(isprint(*cp) || isspace(*cp))) {
+			if (!(isprint((size_t)*cp) || isspace((size_t)*cp))) {
 				hex = 1;
 			}
 		}
@@ -2949,12 +2947,16 @@ bool_t daisychain_init()
 		daisychain_enabled = TRUE;
 
 		/* Try to get the OID value, if it's not a template */
+		upsdebugx(3, "OID for device.count is %s",
+			su_info_p->OID ? su_info_p->OID : "<null>");
 		if ((su_info_p->OID != NULL) &&
 			(strstr(su_info_p->OID, "%i") == NULL))
 		{
 #if WITH_SNMP_LKP_FUN
 			devices_count = -1;
-			/* First test if we have a generic lookup function */
+			/* First test if we have a generic lookup function
+			 * FIXME: Check if the field type is a string?
+			 */
 			if ( (su_info_p->oid2info != NULL) && (su_info_p->oid2info->fun_s2l != NULL) ) {
 				char buf[1024];
 				upsdebugx(2, "%s: using generic string-to-long lookup function", __func__);
@@ -2965,19 +2967,20 @@ bool_t daisychain_init()
 			}
 
 			if (devices_count == -1) {
-#endif // WITH_SNMP_LKP_FUN
+#endif /* WITH_SNMP_LKP_FUN */
 
-			if (nut_snmp_get_int(su_info_p->OID, &devices_count) == TRUE)
-				upsdebugx(1, "There are %ld device(s) present", devices_count);
-			else
-			{
-				upsdebugx(1, "Error: can't get the number of device(s) present!");
-				upsdebugx(1, "Falling back to 1 device!");
-				devices_count = 1;
-			}
+				if (nut_snmp_get_int(su_info_p->OID, &devices_count) == TRUE)
+					upsdebugx(1, "There are %ld device(s) present", devices_count);
+				else
+				{
+					upsdebugx(1, "Error: can't get the number of device(s) present!");
+					upsdebugx(1, "Falling back to 1 device!");
+					devices_count = 1;
+				}
+
 #if WITH_SNMP_LKP_FUN
 			}
-#endif // WITH_SNMP_LKP_FUN
+#endif /* WITH_SNMP_LKP_FUN */
 		}
 		/* Otherwise (template), use the guesstimation function to get
 		 * the number of devices present */
@@ -3534,7 +3537,9 @@ bool_t su_ups_get(snmp_info_t *su_info_p)
 	upsdebugx(2, "%s: %s %s", __func__, su_info_p->info_type, su_info_p->OID);
 
 	/* Check if this is a daisychain template */
-	if (su_info_p->OID != NULL && (format_char = strchr(su_info_p->OID, '%')) != NULL) {
+	if (su_info_p->OID != NULL
+	&&  (format_char = strchr(su_info_p->OID, '%')) != NULL
+	) {
 		upsdebugx(3, "%s: calling instantiate_info() for "
 			"daisy-chain template", __func__);
 		tmp_info_p = instantiate_info(su_info_p, tmp_info_p);
@@ -3757,7 +3762,9 @@ bool_t su_ups_get(snmp_info_t *su_info_p)
 	/* special treatment for element without oid but with default value */
 	if (su_info_p->OID == NULL && su_info_p->dfl != NULL) {
 		status = TRUE;
+		/* FIXME: strlcpy() would fit here safer; not used in NUT yet */
 		strncpy(buf, su_info_p->dfl, sizeof(buf) - 1);
+		buf[sizeof(buf) - 1] = '\0';
 	}
 	else if (su_info_p->info_flags & ST_FLAG_STRING) {
 		upsdebugx(2, "%s: requesting nut_snmp_get_str(), "
