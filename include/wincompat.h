@@ -27,6 +27,10 @@
 
 #include "common.h"
 
+#ifdef HAVE_PTHREAD_H
+# include <pthread.h>
+#endif
+
 /* This value is defined in the error.h file of the libusb-win32 sources
  * FIXME: Should only be relevant for builds WITH_LIBUSB_0_1 - #ifdef it so?
  * Conflicts with e.g. /msys64/mingw64/include/errno.h which defines it as 138
