@@ -51,6 +51,9 @@ CLEANFILES = $(GENERATED_SNMP_FILES) $(GENERATED_USB_FILES)
 
 all: nut-scanner-deps $(GENERATED_USB_OS_FILES)
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 # This target is called from the making of nut-scanner to ensure its bits
 nut-scanner-deps: $(GENERATED_SNMP_FILES) $(GENERATED_USB_FILES)
 

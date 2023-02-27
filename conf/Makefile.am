@@ -36,6 +36,8 @@ SPELLCHECK_SRC = $(dist_sysconf_DATA) \
 spellcheck spellcheck-interactive spellcheck-sortdict:
 	$(MAKE) -f $(top_builddir)/docs/Makefile SPELLCHECK_SRC="$(SPELLCHECK_SRC)" SPELLCHECK_DIR="$(srcdir)" $@
 
+# Order in court! (If both are requested in parallel builds)
+check: all
 
 MAINTAINERCLEANFILES = Makefile.in .dirstamp
 CLEANFILES = *.pdf *.html *-spellchecked

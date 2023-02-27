@@ -26,6 +26,9 @@ endif
 $(top_builddir)/include/nut_version.h:
 	@cd $(@D) && $(MAKE) $(AM_MAKEFLAGS) $(@F)
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 libcommon_la_SOURCES = state.c str.c upsconf.c
 libcommonclient_la_SOURCES = state.c str.c
 if BUILDING_IN_TREE

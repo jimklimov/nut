@@ -141,6 +141,9 @@ else
  dist_noinst_HEADERS += nut-scan.h nutscan-device.h nutscan-ip.h nutscan-init.h nutscan-serial.h
 endif
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 dummy:
 
 CLEANFILES += *-spellchecked

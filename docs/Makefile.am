@@ -79,6 +79,9 @@ SUFFIXES = .txt .html .pdf -spellchecked
 
 all: doc
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 # This list is defined by configure script choices and options:
 check-local: @DOC_CHECK_LIST@
 

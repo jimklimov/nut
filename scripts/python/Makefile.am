@@ -164,6 +164,9 @@ endif
 
 MAINTAINERCLEANFILES = Makefile.in .dirstamp
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 clean-local:
 	$(AM_V_at)rm -rf *.pyc __pycache__ */*.pyc */__pycache__ */*/*.pyc */*/__pycache__
 	$(AM_V_at)rm -f NUT-Monitor

@@ -31,6 +31,9 @@ if KEEP_NUT_REPORT
 nodist_data_DATA = config.nut_report_feature.log
 endif
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 # ----------------------------------------------------------------------
 # flags to pass to ./configure when calling "make distcheck" and "make
 # distcheck-light". Try to check as many features as possible! Also

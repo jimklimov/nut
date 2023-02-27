@@ -19,6 +19,9 @@ dist-hook:
 		echo "----------------------------------------------------------------------"; \
 	fi
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 # This needs augparse from augeas-tools
 if HAVE_AUGPARSE
 check-local:

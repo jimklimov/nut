@@ -815,6 +815,9 @@ all-html html-man: $(HTML_MANS) index.html
 # configured drivers, daemons, developer aspect, etc.
 all-man man-man: $(MAN_MANS)
 
+# Order in court! (If both are requested in parallel builds)
+check: all-html html-man all-man man-man
+
 if WITH_MANS
 if ! SKIP_MANS
 check-local: check-man

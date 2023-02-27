@@ -1,9 +1,10 @@
 EXTRA_DIST = nit.sh README
 
 if WITH_CHECK_NIT
-check: check-NIT
+check: all check-NIT
 else
-check:
+# Order in court! (If both are requested in parallel builds)
+check: all
 	@echo "NO-OP: $@ in `pwd` is inactive by default. Run 'configure --enable-check-NIT' or 'make check-NIT' explicitly" >&2
 endif
 

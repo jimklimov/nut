@@ -38,6 +38,9 @@ else !HAVE_WINDOWS
   sockdebug_SOURCES = sockdebug.c
 endif !HAVE_WINDOWS
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 dummy:
 
 MAINTAINERCLEANFILES = Makefile.in .dirstamp

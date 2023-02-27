@@ -356,6 +356,9 @@ libdummy_la_LDFLAGS = -no-undefined -static
 libdummy_serial_la_SOURCES = serial.c
 libdummy_serial_la_LDFLAGS = -no-undefined -static
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 dummy:
 
 CLEANFILES = $(EXTRA_LTLIBRARIES) $(EXTRA_PROGRAMS)

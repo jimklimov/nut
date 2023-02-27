@@ -82,6 +82,9 @@ TESTS += $(TESTS_CXX11)
 # Note: we only build it, but do not run directly (NIT prepares the sandbox)
 check_PROGRAMS += cppnit
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 if WITH_VALGRIND
 check-local: $(check_PROGRAMS)
 	RES=0; for P in $^ ; do $(VALGRIND) ./$$P || { RES=$$? ; echo "FAILED: $(VALGRIND) ./$$P" >&2; }; done; exit $$RES

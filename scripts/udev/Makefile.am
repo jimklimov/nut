@@ -34,3 +34,6 @@ MAINTAINERCLEANFILES += nut-usbups.rules.in nut-usbups.rules.in.AUTOGEN_WITHOUT
 
 # Part of dist tarball, regardless of use for current build:
 EXTRA_DIST += nut-usbups.rules.in
+
+# Order in court! (If both are requested in parallel builds)
+check: all

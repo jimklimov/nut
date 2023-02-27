@@ -24,3 +24,6 @@ MAINTAINERCLEANFILES += nut-usb.conf.in.AUTOGEN_WITHOUT
 
 # Part of dist tarball, regardless of use for current build:
 EXTRA_DIST += nut-usb.conf.in
+
+# Order in court! (If both are requested in parallel builds)
+check: all

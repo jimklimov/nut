@@ -80,6 +80,9 @@ endif
 package-solaris-ips:
 	@echo "SKIPPED : Target $@ is not implemented yet"
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 check-local: $(SOLARIS_CHECK_TARGETS)
 
 check-local-solaris-smf: $(SOLARIS_SMF_MANIFESTS)

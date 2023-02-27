@@ -38,6 +38,9 @@ nut_version.h: @FORCE_NUT_VERSION@
 	-cmp -s "$@.tmp" "$@" || cp "$@.tmp" "$@"
 	-rm -f "$@.tmp"
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 FORCE:
 
 # counter part of BUILT_SOURCES: since nut_version is not a direct

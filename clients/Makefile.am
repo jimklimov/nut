@@ -126,6 +126,9 @@ else
 EXTRA_DIST += nutclientmem.h nutclientmem.cpp
 endif
 
+# Order in court! (If both are requested in parallel builds)
+check: all
+
 dummy:
 
 MAINTAINERCLEANFILES = Makefile.in .dirstamp
