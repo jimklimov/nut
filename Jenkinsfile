@@ -111,7 +111,7 @@ pipeline {
                         // it's been skipped because in this version we used an extern upstream
                         print "INFO: Build skipped on 2.8.0 version because used as an upstream"
                         currentBuild.result = 'ABORTED'
-                        return
+                        throw new org.jenkinsci.plugins.workflow.steps.FlowInterruptedException(hudson.model.Result.ABORTED)
                     }
                     
                     milestone ordinal: 20, label: "${env.JOB_NAME}@${env.BRANCH_NAME}"
