@@ -87,10 +87,7 @@ pipeline {
             description: 'When using temporary subdirs in build/test workspaces, wipe them after the whole job is done unsuccessfully (failed)? Note this would not allow postmortems on CI server, but would conserve its disk space.',
             name: 'DO_CLEANUP_AFTER_FAILED_JOB')
     }
-    triggers {
-        pollSCM 'H/5 * * * *'
-    }
-
+   
     // Jenkins tends to reschedule jobs that have not yet completed if they took
     // too long, maybe this happens in combination with polling. Either way, if
     // the server gets into this situation, the snowball of same builds grows as
@@ -108,6 +105,7 @@ pipeline {
 
     stages {       
         stage ('pre-clean') {
+            script {
                     if (env.BRANCH_NAME.contains("release/IPM-2.8.0")) {
                         // it's been skipped because in this version we used an extern upstream
                         print "INFO: Build skipped on 2.8.0 version because used as an upstream"
@@ -123,6 +121,7 @@ pipeline {
                         }
                         sh 'rm -f ccache.log cppcheck.xml'
                     }
+            }
         }
 
         stage ('prepare') {
