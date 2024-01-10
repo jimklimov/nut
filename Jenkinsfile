@@ -105,22 +105,23 @@ pipeline {
 
     stages {       
         stage ('pre-clean') {
-            script {
+            steps {
+                script {
                     if (env.BRANCH_NAME.contains("release/IPM-2.8.0")) {
                         // it's been skipped because in this version we used an extern upstream
                         print "INFO: Build skipped on 2.8.0 version because used as an upstream"
                         currentBuild.result = 'ABORTED'
                         return
                     }
-                    steps {
-                        milestone ordinal: 20, label: "${env.JOB_NAME}@${env.BRANCH_NAME}"
-                        dir("tmp") {
-                            sh 'if [ -s Makefile ]; then make -k distclean || true ; fi'
-                            sh 'chmod -R u+w .'
-                            deleteDir()
-                        }
-                        sh 'rm -f ccache.log cppcheck.xml'
+                    
+                    milestone ordinal: 20, label: "${env.JOB_NAME}@${env.BRANCH_NAME}"
+                    dir("tmp") {
+                        sh 'if [ -s Makefile ]; then make -k distclean || true ; fi'
+                        sh 'chmod -R u+w .'
+                        deleteDir()
                     }
+                    sh 'rm -f ccache.log cppcheck.xml'
+                }
             }
         }
 
