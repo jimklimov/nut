@@ -87,10 +87,7 @@ pipeline {
             description: 'When using temporary subdirs in build/test workspaces, wipe them after the whole job is done unsuccessfully (failed)? Note this would not allow postmortems on CI server, but would conserve its disk space.',
             name: 'DO_CLEANUP_AFTER_FAILED_JOB')
     }
-    triggers {
-        pollSCM 'H/5 * * * *'
-    }
-
+   
     // Jenkins tends to reschedule jobs that have not yet completed if they took
     // too long, maybe this happens in combination with polling. Either way, if
     // the server gets into this situation, the snowball of same builds grows as
@@ -106,17 +103,26 @@ pipeline {
 // Note: your Jenkins setup may benefit from similar setup on side of agents:
 //        PATH="/usr/lib64/ccache:/usr/lib/ccache:/usr/bin:/bin:${PATH}"
 
-    stages {
+    stages {       
         stage ('pre-clean') {
-                    steps {
-                        milestone ordinal: 20, label: "${env.JOB_NAME}@${env.BRANCH_NAME}"
-                        dir("tmp") {
-                            sh 'if [ -s Makefile ]; then make -k distclean || true ; fi'
-                            sh 'chmod -R u+w .'
-                            deleteDir()
-                        }
-                        sh 'rm -f ccache.log cppcheck.xml'
+            steps {
+                script {
+                    if (env.BRANCH_NAME.contains("release/IPM-2.8.0")) {
+                        // it's been skipped because in this version we used an extern upstream
+                        print "INFO: Build skipped on 2.8.0 version because used as an upstream"
+                        currentBuild.result = 'ABORTED'
+                        return
                     }
+                    
+                    milestone ordinal: 20, label: "${env.JOB_NAME}@${env.BRANCH_NAME}"
+                    dir("tmp") {
+                        sh 'if [ -s Makefile ]; then make -k distclean || true ; fi'
+                        sh 'chmod -R u+w .'
+                        deleteDir()
+                    }
+                    sh 'rm -f ccache.log cppcheck.xml'
+                }
+            }
         }
 
         stage ('prepare') {
