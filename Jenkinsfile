@@ -106,14 +106,14 @@ pipeline {
 // Note: your Jenkins setup may benefit from similar setup on side of agents:
 //        PATH="/usr/lib64/ccache:/usr/lib/ccache:/usr/bin:/bin:${PATH}"
 
-    stages {
-        if (env.BRANCH_NAME.contains("release/IPM-2.8.0")) {
-            // it's been skipped because in this version we used an extern upstream
-            print "INFO: Build skipped on 2.8.0 version because used as an upstream"
-            currentBuild.result = 'ABORTED'
-            return
-        }
+    stages {       
         stage ('pre-clean') {
+                    if (env.BRANCH_NAME.contains("release/IPM-2.8.0")) {
+                        // it's been skipped because in this version we used an extern upstream
+                        print "INFO: Build skipped on 2.8.0 version because used as an upstream"
+                        currentBuild.result = 'ABORTED'
+                        return
+                    }
                     steps {
                         milestone ordinal: 20, label: "${env.JOB_NAME}@${env.BRANCH_NAME}"
                         dir("tmp") {
