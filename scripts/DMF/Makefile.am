@@ -316,8 +316,9 @@ DMFLNK_CMD = ( \
 # so we copy stuff below just in case (if needed).
 .PHONY: $(DMFSNMP_SUBDIR)/.uptodate $(DMFNUTSCAN_SUBDIR)/.uptodate $(DMFSNMP_SUBDIR)/.validated $(DMFNUTSCAN_SUBDIR)/.validated \
         $(DMFSNMP_RES_SUBDIR)/.uptodate $(DMFNUTSCAN_RES_SUBDIR)/.uptodate $(DMFSNMP_RES_SUBDIR)/.validated $(DMFNUTSCAN_RES_SUBDIR)/.validated
-$(DMFSNMP_RES_SUBDIR)/.uptodate: $(abs_builddir)/$(DMFSNMP_RES_SUBDIR)/.uptodate
-$(abs_builddir)/$(DMFSNMP_RES_SUBDIR)/.uptodate: $(dmfsnmpres_DMFS)
+$(DMFSNMP_RES_SUBDIR)/.uptodate: $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_RES_SUBDIR)/.uptodate
+$(abs_builddir)/$(DMFSNMP_RES_SUBDIR)/.uptodate: $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_RES_SUBDIR)/.uptodate
+$(abs_top_builddir)/scripts/DMF/$(DMFSNMP_RES_SUBDIR)/.uptodate: $(dmfsnmpres_DMFS)
 	@echo "DMFSNMP_RES_SUBDIR content is now up to date, made of: $(dmfsnmpres_DMFS)" >&2
 	@test -d "$(@D)" -a -w "$(@D)" || $(MKDIR_P) "$(@D)"
 	@if [ "`cd $(abs_builddir) && pwd`" = "`cd $(abs_srcdir) && pwd`" ]; then \
@@ -340,8 +341,9 @@ $(abs_builddir)/$(DMFSNMP_RES_SUBDIR)/.uptodate: $(dmfsnmpres_DMFS)
 	 fi
 	touch "$@"
 
-$(DMFSNMP_SUBDIR)/.uptodate: $(abs_builddir)/$(DMFSNMP_SUBDIR)/.uptodate
-$(abs_builddir)/$(DMFSNMP_SUBDIR)/.uptodate: $(LEGACY_NUT_DMF_SYMLINKS)
+$(DMFSNMP_SUBDIR)/.uptodate: $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_SUBDIR)/.uptodate
+$(abs_builddir)/$(DMFSNMP_SUBDIR)/.uptodate: $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_SUBDIR)/.uptodate
+$(abs_top_builddir)/scripts/DMF/$(DMFSNMP_SUBDIR)/.uptodate: $(LEGACY_NUT_DMF_SYMLINKS)
 	touch "$@"
 
 # The recipe assumes we have separate opening and closing lines in the DMF file
@@ -351,7 +353,7 @@ $(abs_builddir)/$(DMFSNMP_SUBDIR)/.uptodate: $(LEGACY_NUT_DMF_SYMLINKS)
 # TODO: The proper solution (sort, uniq) should probably be in the C code!
 # NOTE: Sorting is a problem now that some MIBs must be last (e.g. ietf) -
 #       so we add them in desired order explicitly...
-DMFNUTSCAN_DEPS = $(DMFSNMP_RES_SUBDIR)/.uptodate
+DMFNUTSCAN_DEPS = $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_RES_SUBDIR)/.uptodate
 EXTRA_DIST += $(DMFNUTSCAN_RES_SUBDIR)/dmfnutscan-snmp.dmf
 $(DMFNUTSCAN_RES_SUBDIR)/dmfnutscan-snmp.dmf: $(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_RES_SUBDIR)/dmfnutscan-snmp.dmf
 
@@ -397,24 +399,30 @@ $(DMFNUTSCAN_SYMLINK): $(DMFNUTSCAN_RES_SUBDIR)/dmfnutscan-snmp.dmf
 $(INSTALL_NUT_DMFNUTSCAN_SYMLINK): $(INSTALL_NUT_DMFNUTSCAN_FILE)
 	@DMFFILE="$(INSTALL_NUT_DMFNUTSCAN_FILE)"; DMFLINK="$@"; $(DMFLNK_CMD)
 
-$(DMFNUTSCAN_RES_SUBDIR)/.uptodate: $(abs_builddir)/$(DMFNUTSCAN_RES_SUBDIR)/.uptodate
-$(abs_builddir)/$(DMFNUTSCAN_RES_SUBDIR)/.uptodate: $(DMFNUTSCAN_RES_SUBDIR)/dmfnutscan-snmp.dmf
+$(DMFNUTSCAN_RES_SUBDIR)/.uptodate: $(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_RES_SUBDIR)/.uptodate
+$(abs_builddir)/$(DMFNUTSCAN_RES_SUBDIR)/.uptodate: $(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_RES_SUBDIR)/.uptodate
+$(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_RES_SUBDIR)/.uptodate: $(DMFNUTSCAN_RES_SUBDIR)/dmfnutscan-snmp.dmf
 	@echo "DMFNUTSCAN_RES_SUBDIR is now up to date" >&2
 	@test -d "$(@D)" -a -w "$(@D)" || $(MKDIR_P) "$(@D)"
 	touch "$@"
 
-$(DMFNUTSCAN_SUBDIR)/.uptodate: $(abs_builddir)/$(DMFNUTSCAN_SUBDIR)/.uptodate
-$(abs_builddir)/$(DMFNUTSCAN_SUBDIR)/.uptodate: $(DMFNUTSCAN_SYMLINK)
+$(DMFNUTSCAN_SUBDIR)/.uptodate: $(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_SUBDIR)/.uptodate
+$(abs_builddir)/$(DMFNUTSCAN_SUBDIR)/.uptodate: $(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_SUBDIR)/.uptodate
+$(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_SUBDIR)/.uptodate: $(DMFNUTSCAN_SYMLINK)
 	@echo "DMFNUTSCAN_SUBDIR is now up to date" >&2
 	@test -d "$(@D)" -a -w "$(@D)" || $(MKDIR_P) "$(@D)"
 	touch "$@"
 
 # Validation requires xmllint, which we have if we succeed with asciidoc usage
 # TODO: Maybe per-DMF *.dmf.validated files would be better?
-$(DMFSNMP_RES_SUBDIR)/.validated: $(abs_builddir)/$(DMFSNMP_RES_SUBDIR)/.validated
-$(DMFSNMP_SUBDIR)/.validated: $(abs_builddir)/$(DMFSNMP_SUBDIR)/.validated
-$(DMFNUTSCAN_RES_SUBDIR)/.validated: $(abs_builddir)/$(DMFNUTSCAN_RES_SUBDIR)/.validated
-$(DMFNUTSCAN_SUBDIR)/.validated: $(abs_builddir)/$(DMFNUTSCAN_SUBDIR)/.validated
+$(DMFSNMP_RES_SUBDIR)/.validated: $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_RES_SUBDIR)/.validated
+$(abs_builddir)/$(DMFSNMP_RES_SUBDIR)/.validated: $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_RES_SUBDIR)/.validated
+$(DMFSNMP_SUBDIR)/.validated: $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_SUBDIR)/.validated
+$(abs_builddir)/$(DMFSNMP_SUBDIR)/.validated: $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_SUBDIR)/.validated
+$(DMFNUTSCAN_RES_SUBDIR)/.validated: $(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_RES_SUBDIR)/.validated
+$(abs_builddir)/$(DMFNUTSCAN_RES_SUBDIR)/.validated: $(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_RES_SUBDIR)/.validated
+$(DMFNUTSCAN_SUBDIR)/.validated: $(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_SUBDIR)/.validated
+$(abs_builddir)/$(DMFNUTSCAN_SUBDIR)/.validated: $(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_SUBDIR)/.validated
 # The DMFLINT_XSD and DMFLINT_OPTION are fed by caller
 if WITH_VALIDATE_DMF_SNMP
   DMFLINT_CMD = ( \
@@ -433,21 +441,27 @@ else
 	)
 endif
 
-$(abs_builddir)/$(DMFSNMP_RES_SUBDIR)/.validated: $(abs_builddir)/$(DMFSNMP_RES_SUBDIR)/.uptodate
+$(abs_top_builddir)/scripts/DMF/$(DMFSNMP_RES_SUBDIR)/.validated: $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_RES_SUBDIR)/.uptodate
 	@DMFLINT_XSD="$(abs_srcdir)/dmfsnmp.xsd" ; DMFLINT_OPTION="--with-dmfsnmp-validate"; $(DMFLINT_CMD)
 
-$(abs_builddir)/$(DMFSNMP_SUBDIR)/.validated: $(abs_builddir)/$(DMFSNMP_SUBDIR)/.uptodate
+$(abs_top_builddir)/scripts/DMF/$(DMFSNMP_SUBDIR)/.validated: $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_SUBDIR)/.uptodate
 	@DMFLINT_XSD="$(abs_srcdir)/dmfsnmp.xsd" ; DMFLINT_OPTION="--with-dmfsnmp-validate"; $(DMFLINT_CMD)
 
-$(abs_builddir)/$(DMFNUTSCAN_RES_SUBDIR)/.validated: $(abs_builddir)/$(DMFNUTSCAN_RES_SUBDIR)/.uptodate
+$(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_RES_SUBDIR)/.validated: $(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_RES_SUBDIR)/.uptodate
 	@DMFLINT_XSD="$(abs_srcdir)/dmfnutscan.xsd" ; DMFLINT_OPTION="--with-dmfnutscan-validate"; $(DMFLINT_CMD)
 
-$(abs_builddir)/$(DMFNUTSCAN_SUBDIR)/.validated: $(abs_builddir)/$(DMFNUTSCAN_SUBDIR)/.uptodate
+$(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_SUBDIR)/.validated: $(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_SUBDIR)/.uptodate
 	@DMFLINT_XSD="$(abs_srcdir)/dmfnutscan.xsd" ; DMFLINT_OPTION="--with-dmfnutscan-validate"; $(DMFLINT_CMD)
 
 
 # Make sure all generated DMFs are up to date vs. C sources and recipes
-dmf-uptodate: $(DMFSNMP_RES_SUBDIR)/.uptodate $(DMFNUTSCAN_RES_SUBDIR)/.uptodate $(DMFSNMP_SUBDIR)/.uptodate $(DMFNUTSCAN_SUBDIR)/.uptodate
+# Alas, gotta use abs dirs to satisfy all our scenarios for all "make"
+# tool implementations tested:
+dmf-uptodate: \
+	$(abs_top_builddir)/scripts/DMF/$(DMFSNMP_RES_SUBDIR)/.uptodate \
+	$(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_RES_SUBDIR)/.uptodate \
+	$(abs_top_builddir)/scripts/DMF/$(DMFSNMP_SUBDIR)/.uptodate \
+	$(abs_top_builddir)/scripts/DMF/$(DMFNUTSCAN_SUBDIR)/.uptodate
 
 # Make sure all present DMFs are valid vs. XSD schema
 dmf-validate: dmf-uptodate $(DMFSNMP_RES_SUBDIR)/.validated $(DMFNUTSCAN_RES_SUBDIR)/.validated $(DMFSNMP_SUBDIR)/.validated $(DMFNUTSCAN_SUBDIR)/.validated
@@ -559,10 +573,10 @@ endif
 # Note: DMF dirs are currently hardcoded (above) so no big need to "cd" anywhere
 # But some data should be prepopulated there before we run leak tests etc.
 if WITH_DMF
-run-dmf-test: dmf-test $(DMFSNMP_SUBDIR)/.uptodate
+run-dmf-test: dmf-test $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_SUBDIR)/.uptodate
 	cd $(DMFSNMP_SUBDIR) && ls -la && DEBUG="$(V)" $(DMF_TEST_RUNNER) $(abs_builddir)/dmf-test
 
-run-dmf-reindex: dmf-reindex $(DMFSNMP_SUBDIR)/.uptodate
+run-dmf-reindex: dmf-reindex $(abs_top_builddir)/scripts/DMF/$(DMFSNMP_SUBDIR)/.uptodate
 	cd $(DMFSNMP_SUBDIR) && ls -la && DEBUG="$(V)" $(DMF_TEST_RUNNER) $(DMF_REINDEX)
 else
 run-dmf-test run-dmf-reindex:
@@ -615,14 +629,16 @@ LUA_EXAMPLE_DMFS = $(abs_srcdir)/testdata-lua/lua-eaton-mib.dmf $(abs_srcdir)/te
 # LUA_EXAMPLE_DMFS += $(abs_srcdir)/testdata-lua/lua-example-mib.dmf
 FUN_EXAMPLE_DMFS = $(abs_srcdir)/testdata-fun/eaton-pdu-marlin-mib_WITH_SNMP_LKP_FUN_DUMMY.dmf
 
-testdata-lua/.uptodate: $(abs_builddir)/testdata-lua/.uptodate
-$(abs_builddir)/testdata-lua/.uptodate: $(LUA_EXAMPLE_DMFS)
+testdata-lua/.uptodate: $(abs_top_builddir)/scripts/DMF/testdata-lua/.uptodate
+$(abs_builddir)/testdata-lua/.uptodate: $(abs_top_builddir)/scripts/DMF/testdata-lua/.uptodate
+$(abs_top_builddir)/scripts/DMF/testdata-lua/.uptodate: $(LUA_EXAMPLE_DMFS)
 	@echo "testdata-lua is now up to date" >&2
 	@test -d "$(@D)" -a -w "$(@D)" || $(MKDIR_P) "$(@D)"
 	touch "$@"
 
-testdata-fun/.uptodate: $(abs_builddir)/testdata-fun/.uptodate
-$(abs_builddir)/testdata-fun/.uptodate: $(FUN_EXAMPLE_DMFS)
+testdata-fun/.uptodate: $(abs_top_builddir)/scripts/DMF/testdata-fun/.uptodate
+$(abs_builddir)/testdata-fun/.uptodate: $(abs_top_builddir)/scripts/DMF/testdata-fun/.uptodate
+$(abs_top_builddir)/scripts/DMF/testdata-fun/.uptodate: $(FUN_EXAMPLE_DMFS)
 	@echo "testdata-fun is now up to date" >&2
 	@test -d "$(@D)" -a -w "$(@D)" || $(MKDIR_P) "$(@D)"
 	touch "$@"
