@@ -9,7 +9,7 @@
 # Be portable - no bash etc... plain minimal shell. Tested with bash, dash,
 # busybox sh and ksh for good measure.
 #
-#   Copyright (C) 2016 Jim Klimov <EvgenyKlimov@eaton.com>
+#   Copyright (C) 2016-2024 Jim Klimov <EvgenyKlimov@eaton.com>
 #
 
 # Relative to here we look for old sources
