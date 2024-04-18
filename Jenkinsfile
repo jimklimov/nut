@@ -107,7 +107,7 @@ pipeline {
         stage ('pre-clean') {
             steps {
                 script {
-                    if (env.BRANCH_NAME.contains("release/IPM-2.8.0")) {
+                    if (false && env.BRANCH_NAME.contains("release/IPM-2.8.0")) {
                         // it's been skipped because in this version we used an extern upstream
                         print "INFO: Build skipped on 2.8.0 version because used as an upstream"
                         currentBuild.result = 'ABORTED'
