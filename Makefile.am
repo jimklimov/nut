@@ -93,13 +93,13 @@ DISTCHECK_DMF_NO = --with-all=auto --with-dmf=no --with-doc=skip --with-dev=yes 
 
 # Note: this rule uses envvar DISTCHECK_FLAGS expanded at run-time
 DISTCHECK_CONFIGURE_FLAGS = ${DISTCHECK_FLAGS}		\
- --with-systemdsystemunitdir='$${prefix}/lib/systemd/system' \
- --with-systemdshutdowndir='$${prefix}/lib/systemd/system-shutdown' \
- --with-systemdtmpfilesdir='$${prefix}/usr/lib/tmpfiles.d' \
- --with-augeas-lenses-dir='$${prefix}/usr/share/augeas/lenses'		\
- --with-hotplug-dir='$${prefix}/etc/hotplug'		\
- --with-udev-dir='$${prefix}/etc/udev'			\
- --with-devd-dir='$${prefix}/etc/devd'			\
+ --with-systemdsystemunitdir='\\$${prefix}/lib/systemd/system' \
+ --with-systemdshutdowndir='\\$${prefix}/lib/systemd/system-shutdown' \
+ --with-systemdtmpfilesdir='\\$${prefix}/usr/lib/tmpfiles.d' \
+ --with-augeas-lenses-dir='\\$${prefix}/usr/share/augeas/lenses'		\
+ --with-hotplug-dir='\\$${prefix}/etc/hotplug'		\
+ --with-udev-dir='\\$${prefix}/etc/udev'			\
+ --with-devd-dir='\\$${prefix}/etc/devd'			\
  --with-pynut=app --with-nut_monitor=force
 
 distcheck-light:
