@@ -119,22 +119,27 @@ memcheck distcheck-valgrind:
 	@echo "See also scripts/valgrind in NUT sources for a helper tool"
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_VALGRIND_FLAGS)" distcheck
 
+distcheck-dmf-features-REGEN_NO: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-dmf-features-REGEN_NO:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_DMF_WITH_REGEN_NO_FLAGS)" distcheck || 	{ RES=$$? ; echo "FAILED with DISTCHECK_DMF_WITH_REGEN_NO_FLAGS" >&2; exit $$RES; }
 	echo "PASSED $@ suite!"
 
+distcheck-dmf-features-LTDL_YES: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-dmf-features-LTDL_YES:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_DMF_WITH_LTDL_YES_FLAGS)" distcheck || 	{ RES=$$? ; echo "FAILED with DISTCHECK_DMF_WITH_LTDL_YES_FLAGS" >&2; exit $$RES; }
 	echo "PASSED $@ suite!"
 
+distcheck-dmf-features-LTDL_NO: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-dmf-features-LTDL_NO:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_DMF_WITH_LTDL_NO_FLAGS)" distcheck ||  	{ RES=$$? ; echo "FAILED with DISTCHECK_DMF_WITH_LTDL_NO_FLAGS" >&2; exit $$RES; }
 	echo "PASSED $@ suite!"
 
+distcheck-dmf-features-LUA_YES: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-dmf-features-LUA_YES:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_DMF_WITH_LUA_YES_FLAGS)" distcheck ||  	{ RES=$$? ; echo "FAILED with DISTCHECK_DMF_WITH_LUA_YES_FLAGS" >&2; exit $$RES; }
 	echo "PASSED $@ suite!"
 
+distcheck-dmf-features-LUA_YESNO: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-dmf-features-LUA_YESNO:
 	@echo "[DEBUG] DISTCHECK_FLAGS (env):     ${DISTCHECK_FLAGS}" >&2
 	@echo "[DEBUG] DISTCHECK_FLAGS (make):    $(DISTCHECK_FLAGS)" >&2
@@ -143,15 +148,18 @@ distcheck-dmf-features-LUA_YESNO:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_DMF_WITH_LUA_YESNO_FLAGS)" distcheck ||	{ RES=$$? ; echo "FAILED with DISTCHECK_DMF_WITH_LUA_YESNO_FLAGS" >&2; exit $$RES; }
 	echo "PASSED $@ suite!"
 
+distcheck-dmf-features-LUA_NO: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-dmf-features-LUA_NO:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_DMF_WITH_LUA_NO_FLAGS)" distcheck ||   	{ RES=$$? ; echo "FAILED with DISTCHECK_DMF_WITH_LUA_NO_FLAGS" >&2; exit $$RES; }
 	echo "PASSED $@ suite!"
 
+distcheck-dmf-features-REGEN_YES: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-dmf-features-REGEN_YES:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_DMF_WITH_REGEN_YES_FLAGS)" distcheck ||	{ RES=$$? ; echo "FAILED with DISTCHECK_DMF_WITH_REGEN_YES_FLAGS" >&2; exit $$RES; }
 	echo "PASSED $@ suite!"
 
 # Intentionally done as one rule, to avoid parallelization and conflicts
+distcheck-dmf-features: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-dmf-features:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" distcheck-dmf-features-REGEN_NO
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" distcheck-dmf-features-LTDL_YES
@@ -164,18 +172,22 @@ distcheck-dmf-features:
 
 # Just test the common useful case of enabling (requiring) everything
 # related to DMF at once
+distcheck-dmf-all-yes: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-dmf-all-yes:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_DMF_ALL)" distcheck ||	{ RES=$$? ; echo "FAILED with DISTCHECK_DMF_ALL" >&2; exit $$RES; }
 	echo "PASSED $@ suite!"
 
+distcheck-dmf-no: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-dmf-no:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_DMF_NO)" distcheck ||	{ RES=$$? ; echo "FAILED with DISTCHECK_DMF_NO" >&2; exit $$RES; }
 	echo "PASSED $@ suite!"
 
+distcheck-dmf-warnings: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-dmf-warnings:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS) --enable-Werror --enable-warnings" DISTCHECK_FLAGS="$(DISTCHECK_DMF_ALL)" distcheck
 	echo "PASSED $@ suite!"
 
+distcheck-dmf: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-dmf:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" distcheck-light-man
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" distcheck-dmf-features
