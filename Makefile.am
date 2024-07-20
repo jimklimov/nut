@@ -91,24 +91,30 @@ DISTCHECK_DMF_ALL = $(DISTCHECK_DMF_WITH_REGEN_YES_FLAGS) --with-snmp_dmf_lua=ye
 # Also have a way to test legacy code structure with no DMF support built in
 DISTCHECK_DMF_NO = --with-all=auto --with-dmf=no --with-doc=skip --with-dev=yes -C
 
+# Note: this prefix is \\$$ for non-default distcheck-something rules
+DISTCHECK_PREFIX_PREPEND=$$
+
 # Note: this rule uses envvar DISTCHECK_FLAGS expanded at run-time
 DISTCHECK_CONFIGURE_FLAGS = ${DISTCHECK_FLAGS}		\
- --with-systemdsystemunitdir='\\$${prefix}/lib/systemd/system' \
- --with-systemdshutdowndir='\\$${prefix}/lib/systemd/system-shutdown' \
- --with-systemdtmpfilesdir='\\$${prefix}/usr/lib/tmpfiles.d' \
- --with-augeas-lenses-dir='\\$${prefix}/usr/share/augeas/lenses'		\
- --with-hotplug-dir='\\$${prefix}/etc/hotplug'		\
- --with-udev-dir='\\$${prefix}/etc/udev'			\
- --with-devd-dir='\\$${prefix}/etc/devd'			\
+ --with-systemdsystemunitdir='$(DISTCHECK_PREFIX_PREPEND){prefix}/lib/systemd/system' \
+ --with-systemdshutdowndir='$(DISTCHECK_PREFIX_PREPEND){prefix}/lib/systemd/system-shutdown' \
+ --with-systemdtmpfilesdir='$(DISTCHECK_PREFIX_PREPEND){prefix}/usr/lib/tmpfiles.d' \
+ --with-augeas-lenses-dir='$(DISTCHECK_PREFIX_PREPEND){prefix}/usr/share/augeas/lenses'		\
+ --with-hotplug-dir='$(DISTCHECK_PREFIX_PREPEND){prefix}/etc/hotplug'		\
+ --with-udev-dir='$(DISTCHECK_PREFIX_PREPEND){prefix}/etc/udev'			\
+ --with-devd-dir='$(DISTCHECK_PREFIX_PREPEND){prefix}/etc/devd'			\
  --with-pynut=app --with-nut_monitor=force
 
+distcheck-light: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-light:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_LIGHT_FLAGS)" distcheck
 
+distcheck-light-man: DISTCHECK_PREFIX_PREPEND=\\$$
 distcheck-light-man:
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_LIGHT_MAN_FLAGS)" distcheck
 
 # Make a distcheck (and check in particular) with enabled valgrind and debug info
+memcheck distcheck-valgrind: DISTCHECK_PREFIX_PREPEND=\\$$
 memcheck distcheck-valgrind:
 	@echo "See also scripts/valgrind in NUT sources for a helper tool"
 	+$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_CONFIGURE_FLAGS="$(DISTCHECK_CONFIGURE_FLAGS)" DISTCHECK_FLAGS="$(DISTCHECK_VALGRIND_FLAGS)" distcheck
