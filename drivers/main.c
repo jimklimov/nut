@@ -807,6 +807,7 @@ int do_loop_shutdown_commands(const char *sdcmds, char **cmdused) {
 	}
 
 	if (upsh.instcmd == NULL) {
+		/* FIXME: support main_instcmd() too? */
 		upsdebugx(1, "This driver does not implement INSTCMD support");
 
 		/* ...but the default one we can short-circuit without
@@ -825,6 +826,9 @@ int do_loop_shutdown_commands(const char *sdcmds, char **cmdused) {
 					sdcmds);
 				upsdrv_shutdown();
 				cmdret = STAT_INSTCMD_HANDLED;
+				/* commented below */
+				if (cmdused && !(*cmdused))
+					*cmdused = xstrdup("shutdown.default");
 			}
 		}
 		goto done;
@@ -834,7 +838,15 @@ int do_loop_shutdown_commands(const char *sdcmds, char **cmdused) {
 	while ((s = strtok(s == NULL ? buf : NULL, ",")) != NULL) {
 		if (!*s)
 			continue;
-		if ((cmdret = upsh.instcmd(s, NULL)) == STAT_INSTCMD_HANDLED) {
+
+		if (!strcmp(s, "shutdown.default")) {
+			upsdrv_shutdown();
+			cmdret = STAT_INSTCMD_HANDLED;
+		} else {
+			cmdret = upsh.instcmd(s, NULL);
+		}
+
+		if (cmdret == STAT_INSTCMD_HANDLED) {
 			/* Shutdown successful */
 
 			/* Note: If we are handling "shutdown.default" here,
@@ -944,9 +956,8 @@ int upsdrv_shutdown_sdcommands_or_default(const char *sdcmds_default, char **cmd
 	return sdret;
 }
 
-/* handle instant commands common for all drivers - fallback for common
- * command names that could be implemented in a driver but were not */
-int main_instcmd_fallback(const char *cmdname, const char *extra, conn_t *conn) {
+/* handle instant commands common for all drivers */
+int main_instcmd(const char *cmdname, const char *extra, conn_t *conn) {
 	char buf[SMALLBUF];
 	if (conn)
 #ifndef WIN32
@@ -978,29 +989,6 @@ int main_instcmd_fallback(const char *cmdname, const char *extra, conn_t *conn) 
 		return STAT_INSTCMD_HANDLED;
 	}
 
-	/* By default, the driver-specific values are
-	 * unknown to shared standard handler */
-	upsdebugx(2, "shared %s() does not handle command %s, "
-		"proceeding to driver-specific handler",
-		__func__, cmdname);
-	return STAT_INSTCMD_UNKNOWN;
-}
-
-/* handle instant commands common for all drivers */
-int main_instcmd(const char *cmdname, const char *extra, conn_t *conn) {
-	char buf[SMALLBUF];
-	if (conn)
-#ifndef WIN32
-		snprintf(buf, sizeof(buf), "socket %d", conn->fd);
-#else
-		snprintf(buf, sizeof(buf), "handle %p", conn->fd);
-#endif
-	else
-		snprintf(buf, sizeof(buf), "(null)");
-
-	upsdebugx(2, "entering main_instcmd(%s, %s) for [%s] on %s",
-		cmdname, extra, NUT_STRARG(upsname), buf);
-
 	if (!strcmp(cmdname, "driver.killpower")) {
 		/* An implementation of `drivername -k` requested from
 		 * the running and connected driver instance by protocol
@@ -1014,7 +1002,9 @@ int main_instcmd(const char *cmdname, const char *extra, conn_t *conn) {
 				"due to socket protocol request", NUT_STRARG(upsname));
 			if (handling_upsdrv_shutdown == 0)
 				handling_upsdrv_shutdown = 1;
+			dstate_setinfo("driver.state", "fsd.killpower");
 			upsdrv_shutdown_sdcommands_or_default(NULL, NULL);
+			dstate_setinfo("driver.state", "quiet");
 			return STAT_INSTCMD_HANDLED;
 		} else {
 			upslogx(LOG_WARNING, "Got socket protocol request for UPS [%s] "
@@ -2772,9 +2762,6 @@ int main(int argc, char **argv)
 		fatalx(EXIT_FAILURE, "Fatal error: broken driver. It probably needs to be converted.\n");
 	}
 
-	if (do_forceshutdown)
-		forceshutdown();
-
 	/* publish the top-level data: version numbers, driver name */
 	dstate_setinfo("driver.version", "%s", UPS_VERSION);
 	dstate_setinfo("driver.version.internal", "%s", upsdrv_info.version);
@@ -2794,6 +2781,11 @@ int main(int argc, char **argv)
 
 	/* Register a way to call upsdrv_shutdown() among `sdcommands` */
 	dstate_addcmd("shutdown.default");
+
+	if (do_forceshutdown) {
+		dstate_setinfo("driver.state", "fsd.killpower");
+		forceshutdown();
+	}
 
 	/* Note: a few drivers also call their upsdrv_updateinfo() during
 	 * their upsdrv_initinfo(), possibly to impact the initialization */

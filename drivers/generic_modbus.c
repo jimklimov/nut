@@ -626,8 +626,6 @@ int upscmd(const char *cmd, const char *arg)
 		/* FIXME: Which one is this actually -
 		 * "shutdown.stayoff" or "shutdown.return"? */
 		int cnt = FSD_REPEAT_CNT;    /* shutdown repeat counter */
-		struct timeval start;
-		long etime;
 
 		/* retry sending shutdown command on error */
 		while ((rval = upscmd("load.off", NULL)) != STAT_INSTCMD_HANDLED && cnt > 0) {
