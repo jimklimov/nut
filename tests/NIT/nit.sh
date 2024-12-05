@@ -577,6 +577,8 @@ generatecfg_upsmon_trivial() {
         if [ -x "${TOP_SRCDIR-}/scripts/misc/notifyme-debug" ] ; then
             echo "NOTIFYCMD \"TEMPDIR='${NUT_STATEPATH}' ${TOP_SRCDIR-}/scripts/misc/notifyme-debug\"" >> "$NUT_CONFPATH/upsmon.conf" || exit
 
+            # NOTE: "SYSLOG" typically ends up in console log of the NIT run and
+            # "EXEC" goes to a log file like tests/NIT/tmp/run/notifyme-399.log
             if [ -s "${TOP_SRCDIR-}/conf/upsmon.conf.sample.in" ] ; then
                 grep -E '# NOTIFYFLAG .*SYSLOG\+WALL$' \
                 < "${TOP_SRCDIR-}/conf/upsmon.conf.sample.in" \
