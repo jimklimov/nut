@@ -580,7 +580,7 @@ generatecfg_upsmon_trivial() {
             if [ -s "${TOP_SRCDIR-}/conf/upsmon.conf.sample.in" ] ; then
                 grep -E '# NOTIFYFLAG .*SYSLOG\+WALL$' \
                 < "${TOP_SRCDIR-}/conf/upsmon.conf.sample.in" \
-                | sed 's,^# \(NOTIFYFLAG[^A-Z_]*[A-Z_]*\)[^A-Z_]*SYSLOG.*$,\1\tEXEC,' \
+                | sed 's,^# \(NOTIFYFLAG[^A-Z_]*[A-Z_]*\)[^A-Z_]*SYSLOG.*$,\1\tEXEC+SYSLOG,' \
                 >> "$NUT_CONFPATH/upsmon.conf" || exit
             fi
         fi
