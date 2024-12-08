@@ -14,11 +14,18 @@ version: 2.1
 #      https://circleci.com/docs/2.0/configuration-reference/#parameters-requires-version-21
 jobs:
   osx-xcode:
+    # https://circleci.com/docs/using-macos/#available-resource-classes
+    # NOTE: Resource class macos for m2pro.large, image xcode:13.4.1 is
+    # not available for your project, or is not a valid resource class.
+    # Same for macos.m1.large.gen1 and m2pro.medium, leaving only the
+    # macos.m1.medium.gen1 at least for the older XCode. Trying best
+    # working option combo option here:
+    resource_class: m2pro.large
     parameters:
       XCODE_VER:
         type: string
         # https://circleci.com/docs/using-macos/#supported-xcode-versions-silicon
-        default: "13.4.1"
+        default: "15.4.0"
       CC:
         type: string
         default: "" # e.g. "clang"
