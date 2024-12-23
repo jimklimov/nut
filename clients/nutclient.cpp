@@ -786,7 +786,7 @@ bool Client::hasFeature(const Feature& feature)
  */
 
 TcpClient::TcpClient():
-Client(),
+ConnectionClient(),
 _host("localhost"),
 _port(3493),
 _timeout(0),
@@ -794,9 +794,8 @@ _socket(new internal::Socket)
 {
 	// Do not connect now
 }
-
 TcpClient::TcpClient(const std::string& host, uint16_t port):
-Client(),
+ConnectionClient(),
 _timeout(0),
 _socket(new internal::Socket)
 {
