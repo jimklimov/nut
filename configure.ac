@@ -2130,6 +2130,11 @@ dnl the usual builds can pass by default on systems without asciidoc.
 NUT_ARG_WITH([docs], [build and install documentation (alias to --with-doc)], [man=auto])
 NUT_ARG_WITH([doc], [build and install documentation (see docs/configure.txt for many variants of the option)], [${nut_with_docs}])
 
+dnl NOTE: Sections may be strings, not pure numbers, on some platforms:
+NUT_ARG_WITH([docs-man-section-api], [man page section for library APIs], [3])
+NUT_ARG_WITH([docs-man-section-cfg], [man page section for configuration files], [5])
+NUT_ARG_WITH([docs-man-section-cmd], [man page section for system management commands], [8])
+
 dnl NOTE: Until X-Mas 2021, the default was "legacy" (now "medium")
 NUT_ARG_ENABLE([warnings],
     [enable warning presets that were picked as useful in maintainership and CI practice (variants include gcc-minimal, gcc-medium, gcc-hard, clang-minimal, clang-medium, clang-hard, all; auto-choosers: hard, medium, minimal, yes=auto='gcc or clang or all at hardcoded default difficulty')],
@@ -3431,6 +3436,10 @@ if echo "${DOC_SKIPBUILD_LIST}" | grep -w "pdf" >/dev/null ; then
 fi
 AM_CONDITIONAL(WITH_PDFS, test "${WITH_PDFS}" = "yes")
 AM_CONDITIONAL(SKIP_PDFS, test "${SKIP_PDFS}" = "yes")
+
+AC_DEFINE_UNQUOTED([MAN_SECTION_API], ["${nut_with_docs_man_section_api}"])
+dnl NOTE: Sections may be strings, not pure numbers, on some platforms:
+NUT_ARG_WITH([docs-man-section-api], [man page section for library APIs], [3])                                                     +NUT_ARG_WITH([docs-man-section-cfg], [man page section for configuration files], [5])                                              +NUT_ARG_WITH([docs-man-section-cmd], [man page section for system management commands], [8])
 
 dnl ----------------------------------------------------------------------
 dnl checks related to --with-dev
