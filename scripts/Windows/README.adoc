@@ -295,12 +295,13 @@ libusb
 [NOTE]
 ======
 If it complains about
-`syntax error near unexpected token 'LIBUSB_1_0,'
- 'PKG_CHECK_MODULES(LIBUSB_1_0, libusb-1.0 >= 0.9.1)'`
-please install pkgconf:
+----
+syntax error near unexpected token 'LIBUSB_1_0,'
+ 'PKG_CHECK_MODULES(LIBUSB_1_0, libusb-1.0 >= 0.9.1)'
+----
+please install `pkgconf`, e.g.:
 
 	:; sudo apt-get install pkgconf
-
 ======
 
 zlib
