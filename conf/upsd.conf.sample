@@ -31,8 +31,8 @@
 
 # =======================================================================
 # ALLOW_NO_DEVICE <Boolean>
-# ALLOW_NO_DEVICE true
-#
+ALLOW_NO_DEVICE true
+
 # Normally upsd requires that at least one device section is defined in ups.conf
 # when the daemon starts, to serve its data.  For automatically managed services
 # it may be preferred to have upsd always running, and reload the configuration
