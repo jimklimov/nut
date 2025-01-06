@@ -36,7 +36,7 @@ typedef std::map<std::string, ListObject> ListDevice;
  * Memory client stub.
  * Class to stub TCPClient for test (data store in local memory).
  */
-class MemClientStub : public Client
+class MemClientStub : public ConnectionClient
 {
 public:
 	/**
@@ -51,7 +51,12 @@ public:
 	}
 	virtual void logout() override {}
 
-	virtual Device getDevice(const std::string& name) override;
+	void connect() override {};
+	void disconnect() override {};
+
+	bool isConnected() const override { return true; }
+
+	//virtual Device getDevice(const std::string& name) override;
 	virtual std::set<std::string> getDeviceNames() override;
 	virtual std::string getDeviceDescription(const std::string& name) override;
 

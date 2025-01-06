@@ -367,10 +367,47 @@ protected:
 };
 
 /**
+ * ConnectionClient client.
+ */
+class ConnectionClient : public Client
+{
+public:
+	/**
+	 * Construct a nut ConnectionClient object.
+	 */
+	ConnectionClient() {};
+	virtual ~ConnectionClient() override {};
+
+	/**
+	 * Connect it to the specified server.
+	 * \param host Server host name.
+	 * \param port Server port.
+	 */
+	//virtual void connect(const std::string& host, int port) = 0;
+
+	/**
+	 * Connect to the server.
+	 * Host name and ports must have already set (usefull for reconnection).
+	 */
+	virtual void connect() = 0;
+
+	/**
+	 * Test if the connection is active.
+	 * \return tru if the connection is active.
+	 */
+	virtual bool isConnected() const = 0;
+	/**
+	 * Force the deconnection.
+	 */
+	virtual void disconnect() = 0;
+};
+
+
+/**
  * TCP NUTD client.
  * It connect to NUTD with a TCP socket.
  */
-class TcpClient : public Client
+class TcpClient : public ConnectionClient
 {
 	/* We have a number of direct-call methods we do not expose
 	 * generally, but still want covered with integration tests
@@ -403,7 +440,7 @@ public:
 	 * Connect to the server.
 	 * Host name and ports must have already set (useful for reconnection).
 	 */
-	void connect();
+	virtual void connect() override;
 
 	/**
 	 * Enable or disable std::cerr tracing of internal Socket operations
@@ -415,11 +452,11 @@ public:
 	 * Test if the connection is active.
 	 * \return tru if the connection is active.
 	 */
-	bool isConnected()const;
+	virtual bool isConnected() const override;
 	/**
 	 * Force the deconnection.
 	 */
-	void disconnect();
+	virtual void disconnect() override;
 
 	/**
 	 * Set the timeout in seconds.

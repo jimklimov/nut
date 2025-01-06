@@ -29,21 +29,20 @@ namespace nut
  *
  */
 
-Device MemClientStub::getDevice(const std::string& name)
-{
-	NUT_UNUSED_VARIABLE(name);
-	throw NutException("Not implemented");
-}
-
 std::set<std::string> MemClientStub::getDeviceNames()
 {
-	throw NutException("Not implemented");
+	std::set<std::string> res;
+	for (auto itr = _values.begin(); itr != _values.end(); itr++)
+	{
+		res.emplace(itr->first);
+	}
+	return res;
 }
 
 std::string MemClientStub::getDeviceDescription(const std::string& name)
 {
 	NUT_UNUSED_VARIABLE(name);
-	throw NutException("Not implemented");
+	return "";
 }
 
 std::set<std::string> MemClientStub::getDeviceVariableNames(const std::string& dev)
