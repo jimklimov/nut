@@ -134,7 +134,7 @@ NUT_CHECK_OS
 NUT_STASH_WARNINGS
 AC_CONFIG_HEADERS([include/config.h])
 AC_PREFIX_DEFAULT(/usr/local/ups)
-AM_INIT_AUTOMAKE([subdir-objects])
+AM_INIT_AUTOMAKE([subdir-objects -Wall])
 
 AS_CASE([${target_os}],
 	[*mingw*], [AS_CASE([${CFLAGS-}${CXXFLAGS-}],
