@@ -185,7 +185,7 @@ check-docs: check-pdf check-html-single check-html-chunked check-man
 # Note this can take 5-10 minutes!
 spellcheck-report-dict-usage: $(NUT_SPELL_DICT).usage-report
 
-pdf: $(ASCIIDOC_PDF)
+pdf-local: $(ASCIIDOC_PDF)
 # also build the HTML manpages with these targets
 html-single: $(ASCIIDOC_HTML_SINGLE)
 html-chunked: $(ASCIIDOC_HTML_CHUNKED)

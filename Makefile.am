@@ -490,7 +490,7 @@ install-bin:
 	+cd drivers; $(MAKE) $(AM_MAKEFLAGS) install
 	+cd server;  $(MAKE) $(AM_MAKEFLAGS) install
 	+cd clients; $(MAKE) $(AM_MAKEFLAGS) install
-install-man: install-data-recursive
+install-man-local: install-data-recursive
 	@echo $(WARN)
 	@echo "Warning: 'make install-man' is deprecated."
 	@echo "Use 'cd docs/man; make install' instead."
