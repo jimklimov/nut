@@ -526,6 +526,110 @@ setver:
 	@echo "Error: 'make setver' no longer exists."
 	@echo "Edit configure.ac to set version number."
 
+# Adjust permissions when installing as `root` into the actual system.
+# We honour DESTDIR anyway, as someone can install into a chroot etc.
+# NOTE: Might be an 'install-data-hook' (for dirs) and/or 'install-exec-hook'
+# (for service restart) but better not force this on everyone?
+# It is also up to the end-user making such an installation to remove (or not)
+# dirs and files made below.
+# To err on the safe side in cross builds, we ignore Windows builds and those
+# not built for the same system as the build host.
+install-data-hook:
+	@case "@target_os@" in *mingw*) exit 0;; esac ; \
+	 if [ x"@host_os@" != x"@build_os@" ]; then exit 0 ; fi ; \
+	 if [ x"@target_os@" != x"@build_os@" ]; then exit 0 ; fi ; \
+	 if (command -v id) && [ x"`id -u`" = x0 ] && [ x"$(DESTDIR)" = x -o x"$(DESTDIR)" = x/ ] ; then \
+		echo "================================================================================" >&2 ; \
+		echo "| NUT data files have been installed into the system, now consider running     |" >&2
+		echo "| '(sudo) make install-as-root' to apply permissions and service state changes |" >&2 ; \
+		echo "================================================================================" >&2 ; \
+	 fi
+
+install-as-root: install
+	@case "@target_os@" in *mingw*) exit 0;; esac ; \
+	 if [ x"@host_os@" != x"@build_os@" ]; then exit 0 ; fi ; \
+	 if [ x"@target_os@" != x"@build_os@" ]; then exit 0 ; fi ; \
+	 if (command -v id) && [ x"`id -u`" = x0 ] ; then \
+		if [ x"$(DESTDIR)" = x -o x"$(DESTDIR)" = x/ ] ; then \
+ifdef HAVE_SYSTEMD
+			echo "$@: Stop NUT services, if any" >&2 ; \
+			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut-monitor.service nut-server.service || true ; \
+			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut-driver.service || true ; \
+			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut-driver.target || true ; \
+			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut.target || true ; \
+endif HAVE_SYSTEMD
+		fi ; \
+		echo "  MKDIR   $(DESTDIR)/@STATEPATH@ $(DESTDIR)/@STATEPATH@/upssched" >&2 ; \
+		$(MKDIR_P) '$(DESTDIR)/@STATEPATH@/upssched' \
+		for D in '@PIDPATH@' '@ALTPIDPATH@' '@ALTSTATEPATH@' '@CONFPATH@' ; do \
+			if [ x"$$D" != x ] ; then \
+				echo "  MKDIR   $(DESTDIR)/$$D" >&2 ; \
+				$(MKDIR_P) "$(DESTDIR)/$$D" \
+				|| exit ; \
+			fi ; \
+		done ; \
+		if (command -v chmod) && (command -v chown) ; then \
+			echo "  CHOWN(@RUN_AS_USER@:@RUN_AS_GROUP@)+CHMOD(0770)   $(DESTDIR)/@STATEPATH@ $(DESTDIR)/@STATEPATH@/upssched" >&2 ; \
+			chown '@RUN_AS_USER@:@RUN_AS_GROUP@' '$(DESTDIR)/@STATEPATH@' '$(DESTDIR)/@STATEPATH@/upssched' \
+			&& chmod 0770 '$(DESTDIR)/@STATEPATH@' '$(DESTDIR)/@STATEPATH@/upssched' \
+			|| exit ; \
+			for D in '@PIDPATH@' '@ALTPIDPATH@' '@ALTSTATEPATH@' ; do \
+				if [ x"$$D" != x ] ; then \
+					echo "  CHOWN(@RUN_AS_USER@:@RUN_AS_GROUP@)+CHMOD(0770)   $(DESTDIR)/$$D" >&2 ; \
+					chown '@RUN_AS_USER@:@RUN_AS_GROUP@' "$(DESTDIR)/$$D" \
+					&& chmod 0770 "$(DESTDIR)/$$D" \
+					|| exit ; \
+				fi ; \
+			done ; \
+			echo "  CHOWN(root:@RUN_AS_GROUP@)+CHMOD(0751)   $(DESTDIR)/@CONFPATH@" >&2 ; \
+			chown 'root:@RUN_AS_GROUP@' '$(DESTDIR)/@CONFPATH@' \
+			&& chmod 0751 '$(DESTDIR)/@CONFPATH@' \
+			|| exit ; \
+			for F in hosts.conf.sample upsstats-single.html.sample upsstats.html.sample upsset.conf.sample ; do \
+				echo "  CHOWN(root:@RUN_AS_GROUP@)+CHMOD(0644)   CGI: $(DESTDIR)/@CONFPATH@/$$F" >&2 ; \
+				chown 'root:@RUN_AS_GROUP@' "$(DESTDIR)/@CONFPATH@/$$F" \
+				&& chmod 0644 "$(DESTDIR)/@CONFPATH@/$$F" \
+ifdef WITH_CGI
+				|| exit ; \
+else !WITH_CGI
+				|| true ; \
+endif !WITH_CGI
+			done ; \
+			for F in nut.conf.sample ups.conf.sample upsd.conf.sample upsd.users.sample upsmon.conf.sample upssched.conf.sample ; do \
+				echo "  CHOWN(root:@RUN_AS_GROUP@)+CHMOD(0640)   $(DESTDIR)/@CONFPATH@/$$F" >&2 ; \
+				chown 'root:@RUN_AS_GROUP@' "$(DESTDIR)/@CONFPATH@/$$F" \
+				&& chmod 0640 "$(DESTDIR)/@CONFPATH@/$$F" \
+				|| exit ; \
+			done ; \
+		else \
+			echo "$@: WARNING: Can not CHOWN and/or CHMOD created locations!" >&2 ; \
+		fi ; \
+		if [ x"$(DESTDIR)" = x -o x"$(DESTDIR)" = x/ ] ; then \
+ifdef HAVE_SYSTEMD
+			echo "$@: Activate default systemd layout, restart services:" >&2 ; \
+ifdef WITH_SYSTEMD_TMPFILES
+			echo "$@: Apply systemd-tmpfiles presets" >&2 ; \
+			@SYSTEMD_TMPFILES_PROGRAM@ --create || exit ; \
+endif WITH_SYSTEMD_TMPFILES
+			echo "$@: Learn systemd definition changes" >&2 ; \
+			@SYSTEMD_SYSTEMCTL_PROGRAM@ daemon-reload || exit ; \
+ifdef WITH_SYSTEMD_PRESET
+			echo "$@: Apply systemd enabled/disabled service presets" >&2 ; \
+			@SYSTEMD_SYSTEMCTL_PROGRAM@ preset-all || exit ; \
+else !WITH_SYSTEMD_PRESET
+			echo "$@: Apply systemd enabled/disabled service defaults" >&2 ; \
+			@SYSTEMD_SYSTEMCTL_PROGRAM@ disable nut.target nut-driver.target nut-monitor nut-server nut-driver-enumerator.path nut-driver-enumerator.service || exit ; \
+			@SYSTEMD_SYSTEMCTL_PROGRAM@ enable  nut.target nut-driver.target nut-monitor nut-server nut-driver-enumerator.path nut-driver-enumerator.service || exit ; \
+endif !WITH_SYSTEMD_PRESET
+			echo "$@: Reconfigure nut-driver-enumerator (service instance wrapping)" >&2 ; \
+			@SYSTEMD_SYSTEMCTL_PROGRAM@ restart udev || true ; \
+			$(top_builddir)/scripts/upsdrvsvcctl/nut-driver-enumerator.sh --reconfigure || exit ; \
+			echo "$@: Restart NUT services" >&2 ; \
+			@SYSTEMD_SYSTEMCTL_PROGRAM@ restart nut-driver-enumerator.service nut-monitor.service nut-server.service || exit ; \
+endif HAVE_SYSTEMD
+		fi ; \
+	 fi
+
 # Clean the dist tarball and packages
 MAINTAINERCLEANFILES_DISTBALL = nut-*.tar.gz
 # HP-UX:
