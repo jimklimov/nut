@@ -3358,6 +3358,28 @@ bool_t snmp_ups_walk(int mode)
 	return status;
 }
 
+bool_t check_mac_addr(const char* mac) {
+	int i = 0;
+	int s = 0;
+
+	if (strcmp(mac, "") == 0)
+		return FALSE;
+
+	while (*mac) {
+		if (isxdigit(*mac)) {
+			i++;
+		}
+		else if (*mac == ':' || *mac == '-' || *mac == ' ') {
+			++s;
+		}
+		else {
+			return FALSE;
+		}
+		++mac;
+	}
+	return (i == 12 && s == 6);
+}
+
 bool_t su_ups_get(snmp_info_t *su_info_p)
 {
 	static char buf[SU_INFOSIZE];
@@ -3611,6 +3633,29 @@ bool_t su_ups_get(snmp_info_t *su_info_p)
 		su_setinfo(su_info_p, buf);
 
 		free_info(tmp_info_p);
+		return TRUE;
+	}
+
+	/* special treatment for mac address with Eaton NM2/NM3 cards
+	 * - take first macaddr1 for NM2 card with version >= 3.X and NM3 card (macaddr2 not the good one)
+	 * - take second macaddr2 for NM2 card with version 2.X (macaddr1 is empty)
+	 */
+	if (!strcasecmp(su_info_p->info_type, "device.macaddr1")
+	||  !strcasecmp(su_info_p->info_type, "device.macaddr2")
+	) {
+		char mac_addr[SU_BUFSIZE];
+		if (nut_snmp_get_str(su_info_p->OID, mac_addr, SU_BUFSIZE, NULL)) {
+			if (check_mac_addr(mac_addr)) {
+				upsdebugx(2, "%s: set device.macaddr=%s", __func__, mac_addr);
+				dstate_setinfo("device.macaddr", "%s", mac_addr);
+			}
+			else {
+				upsdebugx(2, "%s: invalid mac address %s=%s", __func__, su_info_p->OID, mac_addr);
+			}
+		}
+		if (tmp_info_p != NULL) {
+			free_info(tmp_info_p);
+		}
 		return TRUE;
 	}
 

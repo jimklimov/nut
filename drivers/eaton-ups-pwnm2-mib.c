@@ -350,6 +350,12 @@ static snmp_info_t pw_mib[] = {
 	{ "device.contact", ST_FLAG_STRING | ST_FLAG_RW, SU_INFOSIZE, ".1.3.6.1.2.1.1.4.0", NULL, SU_FLAG_OK, NULL },
 	{ "device.location", ST_FLAG_STRING | ST_FLAG_RW, SU_INFOSIZE, ".1.3.6.1.2.1.1.6.0", NULL, SU_FLAG_OK, NULL },
 
+	/* WORKAROUND for NM2 card: use macaddr2 for version 2.X and macaddr1 for all other version (see treatment in snmp-ups.c)
+	 * NOTE: It is important to not change the order of oid reading, the second one take the priority when both are defined
+	 */
+	{ "device.macaddr2", ST_FLAG_STRING, SU_INFOSIZE, ".1.3.6.1.2.1.2.2.1.6.3", "", SU_FLAG_OK | SU_FLAG_STATIC, NULL },
+	{ "device.macaddr1", ST_FLAG_STRING, SU_INFOSIZE, ".1.3.6.1.2.1.2.2.1.6.2", "", SU_FLAG_OK | SU_FLAG_STATIC, NULL },
+
 	/* FIXME: miss device page! */
 	/* UPS page */
 	/* info_type, info_flags, info_len, OID, dfl, flags, oid2info, setvar */
