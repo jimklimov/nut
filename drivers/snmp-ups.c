@@ -3636,7 +3636,10 @@ bool_t su_ups_get(snmp_info_t *su_info_p)
 		return TRUE;
 	}
 
-	/* special traitement for mac address with Eaton NM2/NM3 cards */
+	/* special treatment for mac address with Eaton NM2/NM3 cards
+	 * - take first macaddr1 for NM2 card with version >= 3.X and NM3 card (macaddr2 not the good one)
+	 * - take second macaddr2 for NM2 card with version 2.X (macaddr1 is empty)
+	 */
 	if (!strcasecmp(su_info_p->info_type, "device.macaddr1")
 	||  !strcasecmp(su_info_p->info_type, "device.macaddr2")
 	) {
