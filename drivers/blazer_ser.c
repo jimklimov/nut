@@ -95,7 +95,7 @@ ssize_t blazer_command(const char *cmd, char *buf, size_t buflen)
 			continue;
 		}
 
-		/* TODO: Range-check int vs ssize_t values */
+		/* TODO: Range-check int vs. ssize_t values */
 		return (ssize_t)snprintf(buf, buflen, "%s", testing[i].answer);
 	}
 
@@ -106,7 +106,6 @@ ssize_t blazer_command(const char *cmd, char *buf, size_t buflen)
 
 void upsdrv_help(void)
 {
-	printf("Read The Fine Manual ('man 8 blazer_ser')\n");
 }
 
 

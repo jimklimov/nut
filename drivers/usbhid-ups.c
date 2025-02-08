@@ -571,7 +571,7 @@ static const char *hex_conversion_fun(double value)
 {
 	static char buf[20];
 
-	snprintf(buf, sizeof(buf), "%08lx", (long)value);
+	snprintf(buf, sizeof(buf), "%08lx", (unsigned long)value);
 
 	return buf;
 }
@@ -1025,9 +1025,7 @@ void upsdrv_help(void)
 			printf(", ");
 		printf("\"%s\"", subdriver_list[i]->name);
 	}
-	printf("\n\n");
-
-	printf("Read The Fine Manual ('man 8 usbhid-ups')\n");
+	printf("\n");
 }
 
 void upsdrv_makevartable(void)

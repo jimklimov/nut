@@ -208,6 +208,13 @@ extern const char *UPS_VERSION;
  * have an end-of-line char of its own. */
 const char *describe_NUT_VERSION_once(void);
 
+/* Return a buffer with a (possibly multiline) string that can be printed
+ * as part of program help/usage message. Caller should not free() the buffer.
+ * Optional "progconf" allows to suggest config file(s) to study as well.
+ * NOTE: the string in buffer starts with text and ends with one EOL char.
+ */
+const char *suggest_doc_links(const char *progname, const char *progconf);
+
 /* Based on NUT_QUIET_INIT_BANNER envvar (present and empty or "true")
  * hide the NUT tool name+version banners; show them by default */
 int banner_is_disabled(void);
@@ -536,6 +543,25 @@ char * get_libname(const char* base_libname);
 
 /** @brief (Minimum) Size that a string must have to hold a UUID4 (i.e. UUID4 length + the terminating null character). */
 #define UUID4_LEN	37
+
+#define NUT_PATH_MAX	SMALLBUF
+#if (defined(PATH_MAX)) && PATH_MAX > NUT_PATH_MAX
+# undef NUT_PATH_MAX
+# define NUT_PATH_MAX	PATH_MAX
+#endif
+#if (defined(MAX_PATH)) && MAX_PATH > NUT_PATH_MAX
+/* PATH_MAX is the POSIX equivalent for Microsoft's MAX_PATH */
+# undef NUT_PATH_MAX
+# define NUT_PATH_MAX	MAX_PATH
+#endif
+#if (defined(UNIX_PATH_MAX)) && UNIX_PATH_MAX > NUT_PATH_MAX
+# undef NUT_PATH_MAX
+# define NUT_PATH_MAX	UNIX_PATH_MAX
+#endif
+#if (defined(MAXPATHLEN)) && MAXPATHLEN > NUT_PATH_MAX
+# undef NUT_PATH_MAX
+# define NUT_PATH_MAX	MAXPATHLEN
+#endif
 
 /* Provide declarations for getopt() global variables */
 

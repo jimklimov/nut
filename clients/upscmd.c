@@ -61,13 +61,15 @@ static void usage(const char *prog)
 	printf("  -p <password>	set password for command authentication\n");
 	printf("  -w            wait for the completion of command by the driver\n");
 	printf("                and return its actual result from the device\n");
-	printf("  -t <timeout>	set a timeout when using -w (in seconds, default: %u)\n", DEFAULT_TRACKING_TIMEOUT);
+	printf("  -t <timeout>	set a timeout when using -w (in seconds, default: %d)\n", DEFAULT_TRACKING_TIMEOUT);
 	printf("\n");
 	printf("  <ups>		UPS identifier - <upsname>[@<hostname>[:<port>]]\n");
 	printf("  <command>	Valid instant command - test.panel.start, etc.\n");
 	printf("  [<value>]	Additional data for command - number of seconds, etc.\n");
 
 	nut_report_config_flags();
+
+	printf("\n%s", suggest_doc_links(prog, "upsd.users"));
 }
 
 static void print_cmd(char *cmdname)

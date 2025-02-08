@@ -1,4 +1,4 @@
-personal_ws-1.1 en 3270 utf-8
+personal_ws-1.1 en 3287 utf-8
 AAC
 AAS
 ABI
@@ -768,6 +768,7 @@ Nadav
 Nagios
 Nash
 NaturalDocs
+Naur
 Necedah
 NetBSD
 NetBeans
@@ -1250,6 +1251,7 @@ Tecnoware
 Tefft
 Telecom
 Temurin
+Termux
 Teurlings
 Thanos
 Thecus
@@ -1333,6 +1335,7 @@ VER
 VERFW
 VFI
 VIB
+VLAN
 VM
 VMIN
 VMM
@@ -1486,6 +1489,7 @@ apcsmart
 apctest
 apcupsd
 aphel
+api
 apinames
 appveyor
 ar
@@ -1718,10 +1722,12 @@ cppnit
 cppunit
 cpqpower
 cpsups
+cpu
 cr
 crestfactor
 crit
 criticality
+crle
 crlf
 cron
 crontab
@@ -2266,6 +2272,7 @@ liebertgxt
 lifecycle
 linevoltage
 linkdoc
+linkmanext
 linksingledoc
 linksrcdoc
 linux
@@ -2430,6 +2437,7 @@ natively
 nb
 nbproject
 nbr
+nc
 nd
 nds
 netcat
@@ -2547,6 +2555,7 @@ optiups
 oq
 os
 ostream
+other's
 otheruser
 outliers
 ovmf
@@ -2590,6 +2599,7 @@ pigz
 pijuice
 pinout
 pinouts
+pipedebug
 pipename
 pixmaps
 pkg
@@ -2740,6 +2750,7 @@ roadmap
 rootca
 rootfs
 rootfs'es
+rpc
 rq
 rqt
 rsa
@@ -2866,10 +2877,12 @@ something's
 sp
 spanish
 sparc
+sparcv
 spectype
 spellcheck
 splitaddr
 splitname
+squasher
 sr
 src
 srcdir
@@ -2963,6 +2976,7 @@ syslogd
 systemctl
 systemd
 systemdshutdowndir
+systemdsystempresetdir
 systemdsystemunitdir
 systemdtmpfilesdir
 systemtest
@@ -3024,7 +3038,9 @@ ttyb
 ttyc
 ttymode
 ttyp
+tunables
 tuple
+tuples
 turnon
 tv
 tw
