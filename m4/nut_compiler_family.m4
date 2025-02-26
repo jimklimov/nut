@@ -117,7 +117,7 @@ dnl complain if they are forwarded unknown flags accepted by the front-end.
     AX_CHECK_COMPILE_FLAG([${COMPILERFLAG}],
         [CFLAGS="-Werror $NUT_SAVED_CFLAGS ${COMPILERFLAG}"
          AC_MSG_CHECKING([whether the flag '${COMPILERFLAG}' is still supported in CC linker mode])
-         AX_RUN_OR_LINK_IFELSE([AC_LANG_PROGRAM([],[])],
+         AX_RUN_OR_LINK_IFELSE([AC_LANG_PROGRAM([],[return 0])],
             [GOOD_FLAG=yes],[])
          AC_MSG_RESULT([${GOOD_FLAG}])
         ], [], [])
@@ -133,7 +133,7 @@ dnl complain if they are forwarded unknown flags accepted by the front-end.
     AX_CHECK_COMPILE_FLAG([${COMPILERFLAG}],
         [CXXFLAGS="-Werror $NUT_SAVED_CXXFLAGS ${COMPILERFLAG}"
          AC_MSG_CHECKING([whether the flag '${COMPILERFLAG}' is still supported in CXX linker mode])
-         AX_RUN_OR_LINK_IFELSE([AC_LANG_PROGRAM([],[])],
+         AX_RUN_OR_LINK_IFELSE([AC_LANG_PROGRAM([],[return 0])],
             [GOOD_FLAG=yes],[])
          AC_MSG_RESULT([${GOOD_FLAG}])
         ], [], [])
