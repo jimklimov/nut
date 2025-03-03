@@ -422,10 +422,11 @@ output: Outgoing power/inverter information
 | output.frequency.nominal  | Nominal output frequency (Hz)  | 60
 | output.current            | Output current (A)             | 4.25
 | output.current.nominal    | Nominal output current (A)     | 5.0
-| output.inverter.mode      | A known currently active mode
+| output.inverter.mode      | Known currently active mode(s)
                               of inverter operation, possibly
-                              one of several supported by the
-                              device (see the note below)    | line-interactive
+                              one or more of several supported
+                              by the device (see the note below)
+                                                             | line-interactive vendor:eaton:ECO
 | output.inverter.mode.description | Inverter mode description
                               (opaque string)                | UPS is in ECO
                                                                mode (as defined
@@ -455,16 +456,25 @@ sources include elements that allow them to slide over such a short outage,
 other protected devices (laser printers, Hi-Fi audio) might not, and would
 restart.
 
-The `output.inverter.mode` can have one of the following values:
+The `output.inverter.mode` can have one or more of the following standard
+values, separated by spaces:
 
 - `online`: battery is always charging on one side, and always feeds the
   inverter and so the load on the other (pros: instant protection from
   outages; cons: higher overheads of the UPS itself, possibly faster wear
   of the battery),
-- `line-interactive`: battery is charged and then kept at rest, but in case
-  of outage the inverter is fired up (after a small but non-trivial delay),
-- `bypass`: inverter and battery are bypassed (e.g. for maintenance), input
-  directly feeds the output, until it suddenly does not.
+- `line-interactive`: battery is charged and then kept at rest, load is
+  fed from input, but in case of outage or other troubles the inverter
+  or other compensation mechanism (trim/buck) would be fired up (after
+  a small but non-trivial delay),
+- `bypass`: inverter and battery are bypassed (e.g. for maintenance),
+  so input directly feeds the output, until it suddenly does not,
+- `vendor:VENDORNAME:MODENAME`: we know that the "vendor's marketing
+  buzzword" mode is activated.  Users may read vendor documentation for
+  their device model, and know better than the driver what this actually
+  means for them.  It is recommended to keep vendor names lower-cased
+  and mode names upper-cased, for more deterministic matching and sorting
+  in NUT clients.
 ======
 
 Three-phase additions
