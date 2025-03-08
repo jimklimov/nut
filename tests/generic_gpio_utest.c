@@ -143,6 +143,12 @@ int main(int argc, char **argv) {
 	char testDescFileNameBuf[LARGEBUF];
 	char *testDescFileName = "generic_gpio_test.txt";
 	unsigned int i;
+#ifdef GPIOD_API
+	int version = 1;
+#else
+	int version = 2;
+#endif
+	printf("Tests running for libgpiod library version %d\n", version);
 
 	test_with_exit=0;
 

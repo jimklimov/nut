@@ -27,7 +27,7 @@
 #include "generic_gpio_libgpiod.h"
 
 #define DRIVER_NAME	"GPIO UPS driver"
-#define DRIVER_VERSION	"1.02"
+#define DRIVER_VERSION	"1.03"
 
 /* driver description structure */
 upsdrv_info_t upsdrv_info = {
@@ -77,6 +77,7 @@ static void reserve_lines_libgpiod(struct gpioups_t *gpioupsfdlocal, int inner) 
 	upsdebugx(5, "reserve_lines_libgpiod runOptions 0x%x, inner %d", gpioupsfdlocal->runOptions, inner);
 
 	if(((gpioupsfdlocal->runOptions&ROPT_REQRES) != 0) == inner) {
+#ifdef GPIOD_API
 		struct gpiod_line_request_config config;
 		int gpioRc;
 		config.consumer=upsdrv_info.name;
@@ -99,6 +100,14 @@ static void reserve_lines_libgpiod(struct gpioups_t *gpioupsfdlocal, int inner) 
 			config.request_type,
 			gpioRc
 		);
+#else
+		if(!libgpiod_data->request) {
+			libgpiod_data->request = gpiod_chip_request_lines(libgpiod_data->gpioChipHandle, libgpiod_data->config, libgpiod_data->lineConfig);
+		}
+		if(!libgpiod_data->request) {
+			fatalx(LOG_ERR,	"Failed to create line request");
+		}
+#endif
 	}
 }
 
@@ -110,7 +119,19 @@ void gpio_open(struct gpioups_t *gpioupsfdlocal) {
 	struct libgpiod_data_t *libgpiod_data = xcalloc(1, sizeof(struct libgpiod_data_t));
 	gpioupsfdlocal->lib_data = libgpiod_data;
 
+#ifdef GPIOD_API
 	libgpiod_data->gpioChipHandle = gpiod_chip_open_by_name(gpioupsfdlocal->chipName);
+#else
+	if(!strchr(gpioupsfdlocal->chipName, '/')) {
+		char *pathName = xcalloc(strlen(gpioupsfdlocal->chipName)+6, sizeof(char));
+		strcpy(pathName, "/dev/");
+		strcat(pathName, gpioupsfdlocal->chipName);
+		libgpiod_data->gpioChipHandle = gpiod_chip_open(pathName);
+		free(pathName);
+	} else {
+		libgpiod_data->gpioChipHandle = gpiod_chip_open(gpioupsfdlocal->chipName);
+	}
+#endif
 	if(!libgpiod_data->gpioChipHandle)
 		fatal_with_errno(
 			LOG_ERR,
@@ -119,8 +140,15 @@ void gpio_open(struct gpioups_t *gpioupsfdlocal) {
 		);
 	else {
 		int gpioRc;
+#ifdef GPIOD_API
 		upslogx(LOG_NOTICE, "GPIO chip [%s] opened", gpioupsfdlocal->chipName);
 		gpioupsfdlocal->chipLinesCount = gpiod_chip_num_lines(libgpiod_data->gpioChipHandle);
+#else
+		upslogx(LOG_NOTICE, "GPIO chip [%s] opened, api version 2", gpioupsfdlocal->chipName);
+		struct gpiod_chip_info *chipInfo = gpiod_chip_get_info(libgpiod_data->gpioChipHandle);
+		gpioupsfdlocal->chipLinesCount = gpiod_chip_info_get_num_lines(chipInfo);
+		gpiod_chip_info_free(chipInfo);
+#endif
 		upslogx(LOG_NOTICE, "Find %d lines on GPIO chip [%s]", gpioupsfdlocal->chipLinesCount, gpioupsfdlocal->chipName);
 		if(gpioupsfdlocal->chipLinesCount<gpioupsfdlocal->upsMaxLine) {
 			gpiod_chip_close(libgpiod_data->gpioChipHandle);
@@ -131,6 +159,7 @@ void gpio_open(struct gpioups_t *gpioupsfdlocal) {
 				gpioupsfdlocal->upsMaxLine
 			);
 		}
+#ifdef GPIOD_API
 		gpiod_line_bulk_init(&libgpiod_data->gpioLines);
 		gpiod_line_bulk_init(&libgpiod_data->gpioEventLines);
 		gpioRc = gpiod_chip_get_lines(
@@ -139,6 +168,30 @@ void gpio_open(struct gpioups_t *gpioupsfdlocal) {
 			gpioupsfdlocal->upsLinesCount,
 			&libgpiod_data->gpioLines
 		);
+#else
+		libgpiod_data->values = xcalloc(gpioupsfdlocal->upsLinesCount, sizeof(*libgpiod_data->values));
+		struct gpiod_line_settings *lineSettings = gpiod_line_settings_new();
+		libgpiod_data->lineConfig = gpiod_line_config_new();
+		libgpiod_data->config = gpiod_request_config_new();
+		if(!lineSettings || !libgpiod_data->lineConfig || !libgpiod_data->config) {
+			fatalx(LOG_ERR,	"Failed to allocate configuration structures - out of memory");
+		}
+		gpioRc = gpiod_line_settings_set_direction(lineSettings, GPIOD_LINE_DIRECTION_INPUT);
+		if(gpioRc) {
+			fatal_with_errno(LOG_ERR, "Failed to set lines to GPIOD_LINE_DIRECTION_INPUT");
+		}
+		gpioRc = gpiod_line_settings_set_edge_detection(lineSettings, GPIOD_LINE_EDGE_BOTH);
+		if(gpioRc) {
+			fatal_with_errno(LOG_ERR, "Failed to set lines to GPIOD_LINE_EDGE_BOTH");
+		}
+		gpioRc = gpiod_line_config_add_line_settings(libgpiod_data->lineConfig, (unsigned int *)gpioupsfdlocal->upsLines,
+							  gpioupsfdlocal->upsLinesCount, lineSettings);
+		if(gpioRc) {
+			fatalx(LOG_ERR,	"Failed to attach line settings to line configuration");
+		}
+		gpiod_request_config_set_consumer(libgpiod_data->config, upsdrv_info.name);
+		gpiod_line_settings_free(lineSettings);
+#endif
 		if(gpioRc)
 			fatal_with_errno(
 				LOG_ERR,
@@ -147,6 +200,15 @@ void gpio_open(struct gpioups_t *gpioupsfdlocal) {
 			);
 		upsdebugx(5, "GPIO gpiod_chip_get_lines return code %d", gpioRc);
 		reserve_lines_libgpiod(gpioupsfdlocal, 0);
+#ifdef GPIOD_API
+#else
+	gpioRc=gpiod_line_request_get_values(libgpiod_data->request, gpioupsfdlocal->upsLinesStates);
+	if(gpioRc==0) {
+		for(int i=0; i < gpioupsfdlocal->upsLinesCount; i++) {
+			gpioupsfdlocal->upsLinesStates[i] = libgpiod_data->values[i];
+		}
+	}
+#endif
 	}
 }
 
@@ -157,6 +219,14 @@ void gpio_close(struct gpioups_t *gpioupsfdlocal) {
 	if(gpioupsfdlocal) {
 		struct libgpiod_data_t *libgpiod_data = (struct libgpiod_data_t *)(gpioupsfdlocal->lib_data);
 		if(libgpiod_data) {
+#ifdef GPIOD_API
+#else
+			if(libgpiod_data->values) {
+				free(libgpiod_data->values);
+			}
+			gpiod_line_config_free(libgpiod_data->lineConfig);
+			gpiod_request_config_free(libgpiod_data->config);
+#endif
 			if(libgpiod_data->gpioChipHandle) {
 				gpiod_chip_close(libgpiod_data->gpioChipHandle);
 			}
@@ -175,7 +245,9 @@ void gpio_get_lines_states(struct gpioups_t *gpioupsfdlocal) {
 	struct libgpiod_data_t *libgpiod_data = (struct libgpiod_data_t *)(gpioupsfdlocal->lib_data);
 
 	reserve_lines_libgpiod(gpioupsfdlocal, 1);
+
 	if(gpioupsfdlocal->runOptions&ROPT_EVMODE) {
+#ifdef GPIOD_API
 		struct timespec timeoutLong = {1,0};
 		struct gpiod_line_event event;
 		int monRes;
@@ -224,15 +296,32 @@ void gpio_get_lines_states(struct gpioups_t *gpioupsfdlocal) {
 				);
 			}
 		}
+#else
+		int64_t poll_timeout = 1000000000;	//	in nanoseconds
+		if(gpioupsfdlocal->initial) {
+			poll_timeout = 35000000000;
+		} else {
+			gpioupsfdlocal->initial = 1;
+		}
+		gpioRc = gpiod_line_request_wait_edge_events(libgpiod_data->request, poll_timeout);
+#endif
 	}
 	for(i=0; i < gpioupsfdlocal->upsLinesCount; i++) {
 		gpioupsfdlocal->upsLinesStates[i] = -1;
 	}
+#ifdef GPIOD_API
 	gpioRc=gpiod_line_get_value_bulk(
 		&libgpiod_data->gpioLines,
 		gpioupsfdlocal->upsLinesStates
 	);
-
+#else
+	gpioRc=gpiod_line_request_get_values(libgpiod_data->request, libgpiod_data->values);
+	if(gpioRc==0) {
+		for(i=0; i < gpioupsfdlocal->upsLinesCount; i++) {
+			gpioupsfdlocal->upsLinesStates[i] = libgpiod_data->values[i];
+		}
+	}
+#endif
 	if (gpioRc < 0)
 		fatal_with_errno(LOG_ERR, "GPIO line status read call failed");
 
@@ -250,6 +339,11 @@ void gpio_get_lines_states(struct gpioups_t *gpioupsfdlocal) {
 	}
 
 	if(gpioupsfdlocal->runOptions&ROPT_REQRES) {
+#ifdef GPIOD_API
 		gpiod_line_release_bulk(&libgpiod_data->gpioLines);
+#else
+		gpiod_line_request_release(libgpiod_data->request);
+		libgpiod_data->request = NULL;
+#endif
 	}
 }

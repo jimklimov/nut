@@ -84,7 +84,7 @@ if test -z "${nut_have_gpio_seen}"; then
 	CFLAGS="${CFLAGS_ORIG} ${depCFLAGS}"
 	LIBS="${LIBS_ORIG} ${depLIBS}"
 	AC_CHECK_HEADERS(gpiod.h, [nut_have_gpio=yes], [nut_have_gpio=no], [AC_INCLUDES_DEFAULT])
-	AC_CHECK_FUNCS(gpiod_chip_open_by_name gpiod_chip_close, [nut_gpio_lib="libgpiod"], [nut_have_gpio=no])
+	AC_CHECK_FUNCS(gpiod_chip_open gpiod_chip_close, [nut_gpio_lib="libgpiod"], [nut_have_gpio=no])
 
 	if test "${nut_have_gpio}" = "yes"; then
 		LIBGPIO_CFLAGS="${depCFLAGS}"

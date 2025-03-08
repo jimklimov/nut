@@ -24,11 +24,19 @@
 #define GENERIC_GPIO_LIBGPIOD_H_SEEN 1
 
 #include <gpiod.h>
+#include <poll.h>
 
 typedef struct libgpiod_data_t {
 	struct gpiod_chip	*gpioChipHandle;	/* libgpiod chip handle when opened */
+#ifdef GPIOD_API
 	struct gpiod_line_bulk	gpioLines;	/* libgpiod lines to monitor */
 	struct gpiod_line_bulk	gpioEventLines;	/* libgpiod lines for event monitoring */
+#else
+	struct gpiod_line_config *lineConfig;
+	struct gpiod_request_config *config;
+	struct gpiod_line_request *request;
+	enum gpiod_line_value *values;
+#endif
 } libgpiod_data;
 
 #endif	/* GENERIC_GPIO_LIBGPIOD_H_SEEN */
