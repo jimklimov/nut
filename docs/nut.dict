@@ -1,4 +1,4 @@
-personal_ws-1.1 en 3325 utf-8
+personal_ws-1.1 en 3326 utf-8
 AAC
 AAS
 ABI
@@ -2161,6 +2161,7 @@ interruptonly
 interruptsize
 intltool
 inverter
+invmode
 io
 ioLogik
 ioLogikE
