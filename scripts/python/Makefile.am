@@ -31,11 +31,14 @@ NUT_MONITOR_PY2GTK2 = \
 	app/nut-monitor-py2gtk2.desktop
 
 NUT_MONITOR_PY2GTK2_TEMPLATE = \
+	app/ui/gui-1.3.glade.in \
+	app/ui/gui-1.3.glade.h.in \
 	app/NUT-Monitor-py2gtk2.in
 
 NUT_MONITOR_PY2GTK2_GENERATED_SCRIPT = \
 	app/NUT-Monitor-py2gtk2
 
+# NOTE: app/ui/aboutdialog1.ui is generated from template
 NUT_MONITOR_PY3QT5 = \
 	app/ui/aboutdialog1.ui \
 	app/ui/dialog1.ui \
@@ -44,6 +47,7 @@ NUT_MONITOR_PY3QT5 = \
 	app/nut-monitor-py3qt5.desktop
 
 NUT_MONITOR_PY3QT5_TEMPLATE = \
+	app/ui/aboutdialog1.ui.in \
 	app/NUT-Monitor-py3qt5.in
 
 NUT_MONITOR_PY3QT5_GENERATED_SCRIPT = \

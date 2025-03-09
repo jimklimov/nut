@@ -5808,6 +5808,13 @@ AC_CONFIG_FILES([
  scripts/HP-UX/nut.psf
  scripts/installer/Makefile
  scripts/python/Makefile
+ scripts/python/app/locale/NUT-Monitor.pot.in
+ scripts/python/app/locale/fr/fr.po.in
+ scripts/python/app/locale/it/it.po.in
+ scripts/python/app/locale/ru/ru.po.in
+ scripts/python/app/ui/aboutdialog1.ui
+ scripts/python/app/ui/gui-1.3.glade
+ scripts/python/app/ui/gui-1.3.glade.h
  scripts/python/module/Makefile
  scripts/python/module/PyNUT.py
  scripts/python/module/setup.py
