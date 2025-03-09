@@ -31,11 +31,14 @@ NUT_MONITOR_PY2GTK2 = \
 	app/nut-monitor-py2gtk2.desktop
 
 NUT_MONITOR_PY2GTK2_TEMPLATE = \
+	app/ui/gui-1.3.glade.in \
+	app/ui/gui-1.3.glade.h.in \
 	app/NUT-Monitor-py2gtk2.in
 
 NUT_MONITOR_PY2GTK2_GENERATED_SCRIPT = \
 	app/NUT-Monitor-py2gtk2
 
+# NOTE: app/ui/aboutdialog1.ui is generated from template
 NUT_MONITOR_PY3QT5 = \
 	app/ui/aboutdialog1.ui \
 	app/ui/dialog1.ui \
@@ -44,6 +47,7 @@ NUT_MONITOR_PY3QT5 = \
 	app/nut-monitor-py3qt5.desktop
 
 NUT_MONITOR_PY3QT5_TEMPLATE = \
+	app/ui/aboutdialog1.ui.in \
 	app/NUT-Monitor-py3qt5.in
 
 NUT_MONITOR_PY3QT5_GENERATED_SCRIPT = \
@@ -225,6 +229,15 @@ spellcheck spellcheck-interactive spellcheck-sortdict:
 	+$(MAKE) -f $(top_builddir)/docs/Makefile $(AM_MAKEFLAGS) MKDIR_P="$(MKDIR_P)" builddir="$(builddir)" srcdir="$(srcdir)" top_builddir="$(top_builddir)" top_srcdir="$(top_srcdir)" SPELLCHECK_SRC="$(SPELLCHECK_SRC)" SPELLCHECK_SRCDIR="$(srcdir)" SPELLCHECK_BUILDDIR="$(builddir)" $@
 
 CLEANFILES = *-spellchecked */*-spellchecked
+
+DISTCLEANFILES = \
+	app/locale/NUT-Monitor.pot \
+	app/locale/fr/fr.po \
+	app/locale/it/it.po \
+	app/locale/ru/ru.po \
+	app/ui/aboutdialog1.ui \
+	app/ui/gui-1.3.glade \
+	app/ui/gui-1.3.glade.h
 
 #################################################################
 
