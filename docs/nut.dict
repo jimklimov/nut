@@ -1,4 +1,4 @@
-personal_ws-1.1 en 3323 utf-8
+personal_ws-1.1 en 3327 utf-8
 AAC
 AAS
 ABI
@@ -511,6 +511,7 @@ INTERR
 INTL
 INV
 INVOLT
+IOPlatformPluginFamily
 IPAR
 IPC
 IPM
@@ -1353,6 +1354,7 @@ VLAN
 VM
 VMIN
 VMM
+VMs
 VMware
 VNC
 VPATH
@@ -2204,6 +2206,7 @@ kVA
 kadets
 kaminski
 kde
+kext
 keychain
 keygen
 keyout
@@ -2377,6 +2380,7 @@ mc
 mcedit
 md
 mdadm
+mdutil
 mecer
 megatec
 memset
