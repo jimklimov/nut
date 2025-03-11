@@ -206,7 +206,7 @@ dnl AC_MSG_NOTICE([CXXFLAGS_BEFORE_ACPROG="${CXXFLAGS-}"])
 AC_MSG_CHECKING(for autoconf macro to enable system extensions)
 m4_version_prereq(2.61, [
 	AC_MSG_RESULT(yes)
-        dnl Causes calls to ac_prog stuff, so dittoed below if "no"
+	dnl Causes calls to ac_prog stuff, so dittoed below if "no"
 	AC_USE_SYSTEM_EXTENSIONS
 ], [
 	AC_MSG_RESULT(no)
@@ -445,6 +445,31 @@ case "${target_os}" in
         fi
         ;;
 esac
+
+NUT_ARG_ENABLE([linker-add-dependency-rpath],
+    [Usually pkg-config or --with-depname-libs tell us -L/some/path for build-time linking; they may tell or not the -R/some/path for run-time linking (which then relies on LD_LIBRARY_PATH and similar disliked mechanisms). This option lets us enforce conversion of -L to -R. Value can be a colon-separated list of paths to exempt (e.g. /usr/lib), or "only-R" to extract just -R hits if any.],
+    [auto])
+AS_IF([test x"$nut_enable_linker_add_dependency_rpath" = xauto], [
+    AC_MSG_CHECKING([for auto setting of nut_enable_linker_add_dependency_rpath for ${target_os}])
+    AS_CASE([${target_os}],
+        [*mingw*], [nut_enable_linker_add_dependency_rpath=no],
+        [solaris*|sunos*|SunOS*|illumos*], [
+            for D in /lib /usr/lib ; do
+                if ! test -d "$D" ; then continue ; fi
+                if test x"$nut_enable_linker_add_dependency_rpath" = x ; then
+                    nut_enable_linker_add_dependency_rpath="$D"
+                else
+                    nut_enable_linker_add_dependency_rpath="${nut_enable_linker_add_dependency_rpath}:${D}"
+                fi
+                for S in 32 64 amd64 i386 i86pc sparcv9 sparcv7 sparc ; do
+                    if ! test -d "$D/$S" ; then continue ; fi
+                    nut_enable_linker_add_dependency_rpath="${nut_enable_linker_add_dependency_rpath}:${D}/${S}"
+                done
+            done],
+        [nut_enable_linker_add_dependency_rpath=auto] dnl TBD if any other distros need this by default
+    )
+    AC_MSG_RESULT([${nut_enable_linker_add_dependency_rpath}])
+    ]
 
 dnl Note: this deals with run-time settings so that the newly built
 dnl programs can be "just executed" to use same configuration files
