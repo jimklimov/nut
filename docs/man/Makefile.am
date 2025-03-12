@@ -76,8 +76,9 @@ BUILT_SOURCES = $(abs_top_builddir)/docs/man/.prep-src-docs
 
 all-local: $(abs_top_builddir)/docs/man/.prep-src-docs
 	+@case "$(ALL_TGT)" in \
+	  ""|" "|"  "|"   ") echo "  DOCS_NO_MAN     SKIP: $@ called in docs/man/Makefile: No format of man page rendering is enabled" ; exit 0 ;; \
 	  *all-*) \
-		if [ x"$(DOCS_NO_MAN)" = xtrue ] ; then echo "  DOCS_NO_MAN     SKIP: $@ called in docs/man/Makefile" ; exit 0 ; fi ; \
+		if [ x"$(DOCS_NO_MAN)" = xtrue ] ; then echo "  DOCS_NO_MAN     SKIP: $@ called in docs/man/Makefile: requested to not work in this code path" ; exit 0 ; fi ; \
 		echo "  DOC-FOLLOW-UP	Basic 'make $@' in `pwd` is done, following up with 'make $(ALL_TGT)' to ensure complex document types (if enabled)" ; \
 		$(MAKE) $(AM_MAKEFLAGS) $(ALL_TGT) ; exit ;; \
 	  esac ; exit 0
