@@ -74,6 +74,12 @@ endif !WITH_HTML_SINGLE
 # Ensure early build by default automake "all" rule
 BUILT_SOURCES = $(abs_top_builddir)/docs/man/.prep-src-docs
 
+# Note: all-local is called from all (after BUILT_SOURCES)
+# via all-am (after DATA in particular - so any enabled
+# pages should have got built by this point). This is a
+# somewhat legacy piece of code, aims to ensure that we do
+# have all required recipes (ALL_TGT) built even if other
+# goals lost track of them somehow. Belts and suspenders.
 all-local: $(abs_top_builddir)/docs/man/.prep-src-docs
 	+@case "$(ALL_TGT)" in \
 	  ""|" "|"  "|"   ") echo "  DOCS_NO_MAN     SKIP: $@ called in docs/man/Makefile: No format of man page rendering is enabled" ; exit 0 ;; \
