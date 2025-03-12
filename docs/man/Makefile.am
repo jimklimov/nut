@@ -71,7 +71,10 @@ ALL_TGT += all-html
 endif WITH_HTML_CHUNKED
 endif !WITH_HTML_SINGLE
 
-all: $(abs_top_builddir)/docs/man/.prep-src-docs
+# Ensure early build by default automake "all" rule
+BUILT_SOURCES = $(abs_top_builddir)/docs/man/.prep-src-docs
+
+all-local: $(abs_top_builddir)/docs/man/.prep-src-docs
 	+@case "$(ALL_TGT)" in \
 	  *all-*) \
 		if [ x"$(DOCS_NO_MAN)" = xtrue ] ; then echo "  DOCS_NO_MAN     SKIP: $@ called in docs/man/Makefile" ; exit 0 ; fi ; \
