@@ -118,7 +118,13 @@ class interface :
             self.__glade_file = os.path.join(self.__resdir, "ui", "gui-1.3.glade" )
             # If not exists, we bail out in load attempt below
 
-        self.__widgets["interface"]                   = gtk.glade.XML( self.__glade_file, "window1", APP )
+        if ( platform.system() == "Windows" ) :
+            with open(self.__glade_file, 'rb') as f:
+                text = f.read().decode("cp1250").encode("utf8")
+                self.__widgets["interface"]           = gtk.glade.xml_new_from_buffer( text, len(text), "window1", APP )
+        else :
+            self.__widgets["interface"]               = gtk.glade.XML( self.__glade_file, "window1", APP )
+
         self.__widgets["main_window"]                 = self.__widgets["interface"].get_widget("window1")
         self.__widgets["status_bar"]                  = self.__widgets["interface"].get_widget("statusbar2")
         self.__widgets["ups_host_entry"]              = self.__widgets["interface"].get_widget("entry1")
