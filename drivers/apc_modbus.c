@@ -1508,7 +1508,7 @@ void upsdrv_updateinfo(void)
 			status_set("TEST");
 		}
 		if (value & (1 << 13)) {
-			invmode_set("vendor:APC:HE"); /* High efficiency / ECO mode*/
+			invmode_set("vendor:apc:HE"); /* High efficiency / ECO mode*/
 		}
 		if (value & (1 << 21)) {
 			status_set("OVER");
