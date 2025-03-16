@@ -1,4 +1,4 @@
-personal_ws-1.1 en 3326 utf-8
+personal_ws-1.1 en 3343 utf-8
 AAC
 AAS
 ABI
@@ -245,6 +245,8 @@ DES
 DESTDIR
 DEVICEALARM
 DEVNAME
+DEVREL
+DEXP
 DF
 DHEA
 DIGYS
@@ -331,6 +333,7 @@ ESXi
 ETIME
 EUROCASE
 EXtreme
+EcoFlow
 Economou
 EditorConfig
 Edlman
@@ -406,6 +409,7 @@ GES
 GETADDRINFO
 GETPID
 GID
+GITREV
 GND
 GNUmakefile
 GObject
@@ -511,6 +515,7 @@ INTERR
 INTL
 INV
 INVOLT
+IOPlatformPluginFamily
 IPAR
 IPC
 IPM
@@ -595,6 +600,7 @@ LEDs
 LGTM
 LH
 LIBGD
+LIBGPIO
 LIBNEON
 LIBNETSNMP
 LIBOPENSSL
@@ -900,6 +906,7 @@ PULS
 PV
 PWR
 PXG
+PYTHONIOENCODING
 PYTHONPATH
 PaaS
 Pac
@@ -1355,6 +1362,7 @@ VLAN
 VM
 VMIN
 VMM
+VMs
 VMware
 VNC
 VPATH
@@ -1478,6 +1486,7 @@ advorder
 ae
 aec
 af
+afeb
 aggregator
 ai
 aix
@@ -1815,6 +1824,7 @@ descr
 desde
 designator
 dev
+devclient
 devctl
 devd
 devel
@@ -1937,6 +1947,7 @@ extapi
 extern
 externalConsole
 extradata
+faa
 fabula
 facto
 fallthrough
@@ -2022,6 +2033,7 @@ github
 gitignore
 gitk
 gitlab
+gitlog
 gmail
 gmake
 gmtime
@@ -2207,6 +2219,7 @@ kVA
 kadets
 kaminski
 kde
+kext
 keychain
 keygen
 keyout
@@ -2380,6 +2393,7 @@ mc
 mcedit
 md
 mdadm
+mdutil
 mecer
 megatec
 memset
@@ -2717,7 +2731,9 @@ py
 pycparser
 pydoc
 pygments
+pygtk
 pynut
+pyqt
 qDEB
 qa
 qemu
@@ -2730,6 +2746,7 @@ qxflags
 rD
 raritan
 rb
+rc
 rcctl
 readline
 readonly
