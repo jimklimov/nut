@@ -1787,7 +1787,7 @@ void alarm_set(const char *buf)
 {
 	/* NOTE: Differs from status_set() since we can add whole sentences
 	 *  here, not just unique tokens. Drivers are encouraged to wrap such
-	 *  sentences into brackets, especially many alarms raised at once
+	 *  sentences into brackets, especially when many alarms raised at once
 	 *  are anticipated, for readability.
 	 */
 	int ret;
