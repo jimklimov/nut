@@ -6,5 +6,5 @@ includedir=@includedir@
 Name: libnutconf
 Description: Network UPS Tools configuration management
 Version: @PACKAGE_VERSION@
-Libs: -L${libdir} -lnutconf
+Libs: -L${libdir} -R${libdir} -lnutconf
 Cflags: -I${includedir}
