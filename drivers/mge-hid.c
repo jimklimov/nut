@@ -52,7 +52,7 @@
 # endif
 #endif
 
-#define MGE_HID_VERSION		"MGE HID 1.54"
+#define MGE_HID_VERSION		"MGE HID 1.55"
 
 /* (prev. MGE Office Protection Systems, prev. MGE UPS SYSTEMS) */
 /* Eaton */
@@ -2154,14 +2154,18 @@ static hid_info_t mge_hid2nut[] =
 	{ "outlet.2.load.on", 0, 0, "UPS.OutletSystem.Outlet.[3].DelayBeforeStartup", NULL, "0", HU_TYPE_CMD, NULL },
 
 	/* Command to switch ECO(HE), ESS Mode */
-	{ "experimental.ecomode.disable", 0, 0, "UPS.PowerConverter.Input.[5].Switchable", NULL, "0", HU_TYPE_CMD, NULL },
-	{ "experimental.ecomode.enable", 0, 0, "UPS.PowerConverter.Input.[5].Switchable", NULL, "1", HU_TYPE_CMD, eaton_input_eco_mode_on_off_info },
-	{ "experimental.essmode.enable", 0, 0, "UPS.PowerConverter.Input.[5].Switchable", NULL, "2", HU_TYPE_CMD, NULL },
-	{ "experimental.essmode.disable", 0, 0, "UPS.PowerConverter.Input.[5].Switchable", NULL, "0", HU_TYPE_CMD, NULL },
+	/* NUT-standard call, requires a parameter (no default);
+	 * routes to one of implementations (experimental) below */
+	{ "ups.mode.change", 0, 0, NULL, NULL, NULL, HU_TYPE_CMD, eaton_ups_mode_change },
+	/* Practical implementations that post queries to USB endpoints */
+	{ "experimental.ecomode.disable", 0, 0, "UPS.PowerConverter.Input.[5].Switchable", NULL, "0", HU_TYPE_CMD | HU_FLAG_HIDDEN, NULL },
+	{ "experimental.ecomode.enable",  0, 0, "UPS.PowerConverter.Input.[5].Switchable", NULL, "1", HU_TYPE_CMD | HU_FLAG_HIDDEN, eaton_input_eco_mode_on_off_info },
+	{ "experimental.essmode.enable",  0, 0, "UPS.PowerConverter.Input.[5].Switchable", NULL, "2", HU_TYPE_CMD | HU_FLAG_HIDDEN, NULL },
+	{ "experimental.essmode.disable", 0, 0, "UPS.PowerConverter.Input.[5].Switchable", NULL, "0", HU_TYPE_CMD | HU_FLAG_HIDDEN, NULL },
 	/* Command to switch ECO(HE) Mode with switch to Automatic Bypass Mode on before */
-	{ "experimental.ecomode.start.auto", 0, 0, "UPS.PowerConverter.Input.[5].Switchable", NULL, "1", HU_TYPE_CMD, eaton_input_eco_mode_auto_on_info },
+	{ "experimental.ecomode.start.auto", 0, 0, "UPS.PowerConverter.Input.[5].Switchable", NULL, "1", HU_TYPE_CMD | HU_FLAG_HIDDEN, eaton_input_eco_mode_auto_on_info },
 	/* Command to switch from ECO(HE) Mode with switch from Automatic Bypass Mode on before */
-	{ "experimental.ecomode.stop.auto", 0, 0, "UPS.PowerConverter.Input.[5].Switchable", NULL, "0", HU_TYPE_CMD, eaton_input_eco_mode_auto_on_info },
+	{ "experimental.ecomode.stop.auto", 0, 0, "UPS.PowerConverter.Input.[5].Switchable", NULL, "0", HU_TYPE_CMD | HU_FLAG_HIDDEN, eaton_input_eco_mode_auto_on_info },
 
 	/* Command to switch Automatic Bypass Mode on/off */
 	{ "bypass.start", 0, 0, "UPS.PowerConverter.Input.[2].SwitchOnControl", NULL, "1", HU_TYPE_CMD, eaton_input_bypass_mode_on_info },
