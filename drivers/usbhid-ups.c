@@ -29,7 +29,7 @@
  */
 
 #define DRIVER_NAME	"Generic HID driver"
-#define DRIVER_VERSION	"0.62"
+#define DRIVER_VERSION	"0.63"
 
 #define HU_VAR_WAITBEFORERECONNECT "waitbeforereconnect"
 
