@@ -2063,9 +2063,14 @@ static bool_t hid_ups_walk(walkmode_t mode)
 			item->hiddata->Offset, item->hiddata->Size, value);
 
 		if (item->hidflags & HU_TYPE_CMD) {
-			upsdebugx(3, "Adding command '%s' using Path '%s'",
+			upsdebugx(3, "Adding %scommand '%s' using Path '%s'",
+				(item->hidflags & HU_FLAG_HIDDEN) ? "hidden " : "",
 				item->info_type, item->hidpath);
-			dstate_addcmd(item->info_type);
+			if (item->hidflags & HU_FLAG_HIDDEN) {
+				dstate_addcmd_hidden(item->info_type);
+			} else {
+				dstate_addcmd(item->info_type);
+			}
 			continue;
 		}
 
