@@ -1507,6 +1507,13 @@ const char *dstate_getinfo(const char *var)
 	return state_getinfo(dtree_root, var);
 }
 
+void dstate_addcmd_hidden(const char *cmdname)
+{
+	if (state_addcmd(&cmdhead, cmdname) != 1) {
+		upsdebugx(1, "%s: failed for %s", __func__, cmdname);
+	}
+}
+
 void dstate_addcmd(const char *cmdname)
 {
 	int	ret;

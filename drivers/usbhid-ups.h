@@ -197,7 +197,9 @@ typedef struct {
 							/* use default value. */
 #define HU_FLAG_QUICK_POLL		16		/* Mandatory vars	*/
 #define HU_FLAG_STALE			32		/* data stale, don't try too often. */
+/* note: 64 detailed below with other items for CMD */
 #define HU_FLAG_ENUM			128		/* enum values exist */
+#define HU_FLAG_HIDDEN			256		/* handle this value (e.g. internal implementation of a command) but do not announce its existence */
 
 /* hints for su_ups_set, applicable only to rw vars */
 #define HU_TYPE_CMD				64		/* instant command */
