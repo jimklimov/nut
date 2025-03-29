@@ -387,7 +387,7 @@ man:
 	+@if [ x"$(DOCS_NO_MAN)" = xtrue ] ; then echo "  DOC-NOT-MAN     SKIP: $@ called in docs/Makefile" ; exit 0 ; fi ; \
 	  cd $(abs_top_builddir)/docs/man/ && $(MAKE) $(AM_MAKEFLAGS) -f Makefile all
 
-CLEANFILES = *.xml *.html *.pdf *-spellchecked *-contentchecked .check-* docbook-xsl.css docinfo.xml.in.tmp
+CLEANFILES = *.xml *.html *.pdf *-spellchecked *-contentchecked .check-* docbook-xsl.css docinfo.xml.in.tmp docinfo-since-v*.xml
 CLEANFILES += $(top_builddir)/INSTALL.nut $(top_builddir)/UPGRADING $(top_builddir)/ChangeLog.adoc
 CLEANFILES += $(top_builddir)/*.adoc-parsed *.adoc-parsed
 # These two "must be" there per autotools standards, so a "make clean"
@@ -553,6 +553,15 @@ $(top_builddir)/docs/ChangeLog.html $(top_builddir)/docs/ChangeLog.chunked $(top
 		echo "  DOC-CHANGELOG-RENDER-WRAPPER	`pwd`/$(@F): SUCCESS" ; \
 	  fi
 
+# Assume revisions are sorted in the file, from newest to oldest
+docinfo-since-v2.8.3.xml: docinfo.xml
+	@IN_REVISION=false ; OLDESTSEEN="2.8.2"; \
+	 while read LINE ; do \
+		case "$${LINE}" in \
+			*'<revision>'*) IN_REVISION=true ; \
+			*'</revision>'*) if $$IN_REVISION ; then echo "$$LINE" ; fi ; IN_REVISION=false ; \
+	 done < "$?" > "$@"
+
 # Note: without the "-v", asciidoc (circa 8.6.2) sometimes hangs when
 # generating the chunked HTML. In this case, export the environment
 # variable ASCIIDOC_VERBOSE to "-v", ie:
@@ -560,13 +569,14 @@ $(top_builddir)/docs/ChangeLog.html $(top_builddir)/docs/ChangeLog.chunked $(top
 # Note: `(top_)srcdir` and `(top_)builddir` must end with a path
 # separator, or be empty -- so in all cases letting the resulting
 # string resolve meaningfully in the filesystem during docs build.
+A2X_DOCINFO_DIR=$(builddir)
 A2X_COMMON_OPTS = $(ASCIIDOC_VERBOSE) \
     --attribute=icons \
     --xsltproc-opts="--nonet" \
     --xsltproc-opts="--stringparam nut.localdate \"`TZ=UTC date +%Y-%m-%d`\"" \
     --xsltproc-opts="--stringparam nut.localtime \"`TZ=UTC date +%H:%M:%S`\"" \
     --xsltproc-opts="--stringparam nut.nutversion \"$(PACKAGE_VERSION)\"" \
-    --attribute=docinfodir="$(builddir)" \
+    --attribute=docinfodir="$${A2X_DOCINFO_DIR}" \
     --attribute=iconsdir="$(srcdir)/images" \
     --attribute=badges \
     --attribute=external_title \
@@ -615,7 +625,11 @@ DOCBUILD_BEGIN = { \
         test -d "$@" && rm -rf "$@" || true ; \
         _CWD="`pwd`" && (cd '$(abs_builddir)' && $(MKDIR_P) "$${_CWD}/$${A2X_OUTDIR}") || exit ; \
         case "$${A2X_OUTDIR}" in \
-            tmp/pdf.*) ln -s ../../images "./$${A2X_OUTDIR}" ;; \
+            tmp/pdf.*) ln -s ../../images "./$${A2X_OUTDIR}" ; \
+                case "$(@F)" in \
+                    qa-guide.pdf) ln -s ../../docinfo-since-v2.8.3.xml "./$${A2X_OUTDIR}/docinfo.xml" ;; \
+                esac \
+                ;; \
         esac; \
     else A2X_OUTDIR='.' ; fi; \
     if test -s "${builddir}/docbook-xsl.css" \
@@ -716,11 +730,13 @@ GENERATE_PDF = ( \
 	A2X_OUTDIR="tmp/pdf.$(@F).$$$$" ; \
 	echo "  DOC-PDF	Generating $@"; \
 	$(DOCBUILD_BEGIN) ; RES=0; \
+	if [ -s "${A2X_OUTDIR}/docinfo.xml" ] ; then A2X_DOCINFO_DIR="${A2X_OUTDIR}"; fi \
 	$(A2X) $(A2X_COMMON_OPTS) --attribute=pdf_format --format=pdf -a docinfo1 '$<' || RES=$$? ; \
 	$(DOCBUILD_END) ; exit $$RES ; \
 )
 
 *.pdf: docinfo.xml
+qa-guide.pdf: docinfo-since-v2.8.3.xml
 .txt-prepped.pdf:
 	@$(GENERATE_PDF)
 .adoc-prepped.pdf:
