@@ -158,6 +158,14 @@ Overall, NUT CI farm build times got 25%+ shorter (which is important as
    in parallel. Overall, these changes may save time on multi-CPU systems, if
    compared to a sequential walk of all texts (or their directories) as was
    done before. [#2871]
+   * With a later introduced `SPELLCHECK_INTERACTIVE_QUICK` hack, now when
+     we run `make spellcheck-interactive-quick` (from top dir) and one of
+     the text files in a sub-directory with documents causes a change of the
+     dictionary, re-enter to run the probably-parallel `make spellcheck-quick`
+     (non-interactive) from the top directory again and update timestamps of
+     all text files that agree with the updated dictionary quickly. This may
+     further save time on multi-CPU systems compared to a sequential re-walk
+     of all texts due to the changed dictionary file time stamp.
 
  - The `make dist` goal now takes more care to require availability of the man
    pages to put into the prepared distribution archive. These may come either
