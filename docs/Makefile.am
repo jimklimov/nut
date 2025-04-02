@@ -835,6 +835,16 @@ ASPELL_OUT_NOTERRORS = (^[ \t]*[\*\@]|^$$)
 SPELLCHECK_RECIPE_DEBUG_STREAM = /dev/null
 #SPELLCHECK_RECIPE_DEBUG_STREAM = &2
 
+.spellcheck-noninteractive-quick: $(abs_top_srcdir)/docs/Makefile.am $(abs_srcdir)/$(NUT_SPELL_DICT)
+	+@unset SPELLCHECK_INTERACTIVE || true ; \
+	  unset SPELLCHECK_SRCDIR || true ; \
+	  unset SPELLCHECK_SRC_ONE || true ; \
+	  cd "$(abs_top_builddir)" && \
+	  $(MAKE) $(AM_MAKEFLAGS) SPELLCHECK_INTERACTIVE=false spellcheck-quick
+	@touch "$@"
+
+spellcheck-quick: .spellcheck-noninteractive-quick
+
 # Note: if we do an interactive spell-check, it updates "nut.dict"
 # timestamp even if contents remain. If the caller left a copy of
 # the file as "$(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-sorting",
@@ -916,13 +926,17 @@ spellcheck:
 		echo "ASPELL proceeding to spellchecking job..."; \
 	 else true; fi
 	+@FAILED="" ; LANG=C; LC_ALL=C; export LANG; export LC_ALL; \
-	 for docsrc in $(SPELLCHECK_SRC); do \
-		if test "$(SPELLCHECK_ENV_DEBUG)" != no ; then \
-			echo "ASPELL MAKEFILE DEBUG: Will see from `pwd` if '$(SPELLCHECK_SRCDIR)/$${docsrc}-spellchecked' is up to date" >&2; \
-		else true ; fi ; \
-		$(MAKE) $(AM_MAKEFLAGS) -s -f "$(abs_top_builddir)/docs/Makefile" SPELLCHECK_SRC="" SPELLCHECK_SRC_ONE="$${docsrc}" SPELLCHECK_BUILDDIR="$(SPELLCHECK_BUILDDIR)" SPELLCHECK_SRCDIR="$(SPELLCHECK_SRCDIR)" "$(SPELLCHECK_BUILDDIR)/$${docsrc}-spellchecked" \
-		|| FAILED="$$FAILED $(SPELLCHECK_SRCDIR)/$$docsrc"; \
-	 done ; \
+	 if [ x"$(NUT_MAKE_SKIP_FANOUT)" = xtrue ] ; then \
+		for docsrc in $(SPELLCHECK_SRC); do \
+			if test "$(SPELLCHECK_ENV_DEBUG)" != no ; then \
+				echo "ASPELL MAKEFILE DEBUG: Will see from `pwd` if '$(SPELLCHECK_SRCDIR)/$${docsrc}-spellchecked' is up to date" >&2; \
+			else true ; fi ; \
+			$(MAKE) $(AM_MAKEFLAGS) -s -f "$(abs_top_builddir)/docs/Makefile" SPELLCHECK_SRC="" SPELLCHECK_SRC_ONE="$${docsrc}" SPELLCHECK_BUILDDIR="$(SPELLCHECK_BUILDDIR)" SPELLCHECK_SRCDIR="$(SPELLCHECK_SRCDIR)" "$(SPELLCHECK_BUILDDIR)/$${docsrc}-spellchecked" \
+			|| FAILED="$$FAILED $(SPELLCHECK_SRCDIR)/$$docsrc"; \
+		done ; \
+	 else \
+		
+	 fi ; \
 	 if test -n "$$FAILED" ; then \
 		echo "=====================================================================" ; \
 		echo "FAILED automatic spellcheck for the following sources (relative to `pwd`) using custom dictionary file '$(NUT_SPELL_DICT)': $$FAILED" ; \
