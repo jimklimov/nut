@@ -892,10 +892,12 @@ $(SPELLCHECK_BUILDDIR)/$(SPELLCHECK_SRC_ONE)-spellchecked: $(SPELLCHECK_SRCDIR)/
 				touch -r $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-sorting $(abs_srcdir)/$(NUT_SPELL_DICT) ; \
 			else DICT_UPDATED=true ; fi ; \
 		fi ; fi ; \
+		echo "DETOUR FOR $@ : DICT_UPDATED='$${DICT_UPDATED}' SPELLCHECK_INTERACTIVE_QUICK='$(SPELLCHECK_INTERACTIVE_QUICK)'" ; \
 		if [ x"$${DICT_UPDATED}" = xtrue ] && [ x"$(SPELLCHECK_INTERACTIVE_QUICK)" = xtrue ] ; then ( \
-			unset SPELLCHECK_INTERACTIVE SPELLCHECK_SRCDIR SPELLCHECK_SRC_ONE ; \
+			unset SPELLCHECK_INTERACTIVE SPELLCHECK_SRCDIR SPELLCHECK_SRC_ONE ; set -x ; \
 			cd "$(abs_top_builddir)" && \
-			$(MAKE) $(AM_MAKEFLAGS) SPELLCHECK_INTERACTIVE=false spellcheck-quick || true ; \
+			$(MAKE) $(AM_MAKEFLAGS) -k -s SPELLCHECK_INTERACTIVE=false SPELLCHECK_SRCDIR='' NUT_MAKE_SKIP_FANOUT=false SUBDIR_MAKE_VERBOSE=1 SUBDIR_TGT_MAKEFLAGS='' SPELLCHECK_SRC_ONE='' SPELLCHECK_TGT='' spellcheck-quick || true ; \
+			echo "DETOUR FINISHED FOR $@ : DICT_UPDATED='$${DICT_UPDATED}'" ; \
 		) ; fi ; \
 	 else \
 		echo "  ASPELL   Spell checking on $${REPORT_PREFIX}$${REPORT_SRCDIR}$${REPORT_SRC_ONE}"; \
@@ -1029,7 +1031,7 @@ SPELLCHECK_REPORT_MAYBE_UPDATED_DICT = no
 spellcheck-interactive:
 	@cp -pf $(abs_srcdir)/$(NUT_SPELL_DICT) $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-interactive
 	+@FAILED="" ; for docsrc in $(SPELLCHECK_SRC); do \
-		if test "$(SPELLCHECK_ENV_DEBUG)" != no ; then \
+		if test "$(SPELLCHECK_ENV_DEBUG)" != nno ; then \
 			echo "ASPELL (INTERACTIVE) MAKEFILE DEBUG: Will see from `pwd` if '$(SPELLCHECK_SRCDIR)/$${docsrc}-spellchecked' is up to date" >&2; \
 		else true ; fi ; \
 		$(MAKE) $(AM_MAKEFLAGS) -s -f "$(abs_top_builddir)/docs/Makefile" SPELLCHECK_INTERACTIVE="true" SPELLCHECK_SRC="" SPELLCHECK_SRC_ONE="$${docsrc}" SPELLCHECK_BUILDDIR="$(SPELLCHECK_BUILDDIR)" SPELLCHECK_SRCDIR="$(SPELLCHECK_SRCDIR)" "$(SPELLCHECK_BUILDDIR)/$${docsrc}-spellchecked" \
