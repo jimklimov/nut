@@ -666,7 +666,7 @@ spellcheck-quick:
 spellcheck-interactive-quick:
 	+@$(MAKE) $(AM_MAKEFLAGS) spellcheck-quick && exit ; \
 	  echo "WARNING: in $@: make spellcheck-quick failed, retrying with spellcheck-interactive" >&2 ; \
-	  $(MAKE) $(AM_MAKEFLAGS) spellcheck-interactive
+	  $(MAKE) $(AM_MAKEFLAGS) SPELLCHECK_INTERACTIVE_QUICK=true spellcheck-interactive
 
 # Note: the "all-docs" and "check-docs" targets may require tools not
 # found by `configure` script (and so avoided by conventional recipes)

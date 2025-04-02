@@ -841,7 +841,7 @@ SPELLCHECK_RECIPE_DEBUG_STREAM = /dev/null
 # and/or "$(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-interactive",
 # and the dictionary was NOT in fact modified, restore the timestamp.
 $(SPELLCHECK_BUILDDIR)/$(SPELLCHECK_SRC_ONE)-spellchecked: $(SPELLCHECK_SRCDIR)/$(SPELLCHECK_SRC_ONE) $(abs_top_srcdir)/docs/Makefile.am $(abs_srcdir)/$(NUT_SPELL_DICT)
-	@LANG=C; LC_ALL=C; export LANG; export LC_ALL; \
+	+@LANG=C; LC_ALL=C; export LANG; export LC_ALL; \
 	 if test x"$(SPELLCHECK_SRC_ONE)" = x ; then echo "SKIP: Bogus spellcheck call for empty target filename (with make target $@ from `pwd`)" >&2 ; exit 0; fi; \
 	 case "$@" in *-spellchecked) ;; *) echo "SKIP: Bogus spellcheck call for non '*-spellchecked' target filename (with make target $@ from `pwd`)" >&2 ; exit 0;; esac; \
 	 rm -f "$@" || true ; \
@@ -876,12 +876,22 @@ $(SPELLCHECK_BUILDDIR)/$(SPELLCHECK_SRC_ONE)-spellchecked: $(SPELLCHECK_SRCDIR)/
 	 if [ x"$(SPELLCHECK_INTERACTIVE)" = xtrue ] ; then \
 		echo "  ASPELL   Spell checking (interactively) on $${REPORT_PREFIX}$${REPORT_SRCDIR}$${REPORT_SRC_ONE}"; \
 		LANG=$(ASPELL_ENV_LANG) LC_ALL=$(ASPELL_ENV_LANG) $(ASPELL) check $(ASPELL_NUT_COMMON_ARGS) '$(SPELLCHECK_SRCDIR)/$(SPELLCHECK_SRC_ONE)' || exit ; \
-		if [ -s $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-interactive ] && [ -s $(abs_srcdir)/$(NUT_SPELL_DICT) ] && diff $(abs_srcdir)/$(NUT_SPELL_DICT) $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-interactive >/dev/null ; then \
-			touch -r $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-interactive $(abs_srcdir)/$(NUT_SPELL_DICT) ; \
+		DICT_UPDATED=false ; \
+		if [ -s $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-interactive ] && [ -s $(abs_srcdir)/$(NUT_SPELL_DICT) ] ; then \
+			if diff $(abs_srcdir)/$(NUT_SPELL_DICT) $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-interactive >/dev/null ; then \
+				touch -r $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-interactive $(abs_srcdir)/$(NUT_SPELL_DICT) ; \
+			else DICT_UPDATED=true ; fi ; \
 		else \
-		if [ -s $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-sorting ] && [ -s $(abs_srcdir)/$(NUT_SPELL_DICT) ] && diff $(abs_srcdir)/$(NUT_SPELL_DICT) $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-sorting >/dev/null ; then \
-			touch -r $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-sorting $(abs_srcdir)/$(NUT_SPELL_DICT) ; \
+		if [ -s $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-sorting ] && [ -s $(abs_srcdir)/$(NUT_SPELL_DICT) ] ; then \
+			if diff $(abs_srcdir)/$(NUT_SPELL_DICT) $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-sorting >/dev/null ; then \
+				touch -r $(abs_builddir)/$(NUT_SPELL_DICT).bak-pre-sorting $(abs_srcdir)/$(NUT_SPELL_DICT) ; \
+			else DICT_UPDATED=true ; fi ; \
 		fi ; fi ; \
+		if [ x"$${DICT_UPDATED}" = xtrue ] && [ x"$(SPELLCHECK_INTERACTIVE_QUICK)" = xtrue ] ; then ( \
+			unset SPELLCHECK_INTERACTIVE SPELLCHECK_SRCDIR SPELLCHECK_SRC_ONE ; \
+			cd "$(abs_top_builddir)" && \
+			$(MAKE) $(AM_MAKEFLAGS) SPELLCHECK_INTERACTIVE=false spellcheck-quick || true ; \
+		) ; fi ; \
 	 else \
 		echo "  ASPELL   Spell checking on $${REPORT_PREFIX}$${REPORT_SRCDIR}$${REPORT_SRC_ONE}"; \
 	 fi ; \
