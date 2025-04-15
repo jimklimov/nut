@@ -232,8 +232,12 @@ all-libs-local/tests: all-libs-local/common
 ### Delivers: libnutscan.la
 ### LIB-Requires-ext: drivers/libserial-nutscan.la
 ### LIB-Requires-ext: common/libnutwincompat.la common/libcommonstr.la
+### HDR-Requires-ext: clients/libupsclient-version.h
 ### Requires-int: libnutscan.la
-all-libs-local/tools/nut-scanner: all-libs-local/drivers all-libs-local/clients
+### Note: indirectly (ltdl) may use installed libupsclient.so
+###       however does directly use libupsclient-version.h
+###       for hints to find it at run-time
+all-libs-local/tools/nut-scanner: all-libs-local/drivers all-libs-local/common all-libs-local/clients
 	+@$(SUBDIR_TGT_RULE)
 
 # Handle all SUBDIRS_ALL_RECURSIVE in a way that dependencies can be specified,
@@ -478,6 +482,15 @@ distcheck-light-DIST_ALL_PAGES:
 	+@cd "$(abs_builddir)/docs/man" && $(MAKE) $(AM_MAKEFLAGS) distcheck-light-DIST_ALL_PAGES
 	@echo "Completed $@: preparation of pre-built man pages for dist tarball, possibly faked" >&2
 
+# In some recipes we `configure --with-docs=skip`, so "make dist" should not
+# hiccup on lack of the page files (nor try to make them); not using simple
+# distcheck-light-DIST_ALL_PAGES step due to custom logic!
+distcheck-light-DIST_ALL_PAGES-docs-skipped:
+	@echo "Starting $@" >&2
+	+@cd $(abs_builddir)/docs/man && $(MAKE) $(AM_MAKEFLAGS) prep-src-docs
+	+@cd $(abs_builddir)/docs/man && $(MAKE) $(AM_MAKEFLAGS) FAKE_PAGES_BUMP_SRC=false distcheck-light-DIST_ALL_PAGES
+	@echo "Completed $@: preparation of pre-built man pages for dist tarball, possibly faked" >&2
+
 # Here we generate man pages (if absent) or fake them
 # Require other dependencies as usual distcheck does;
 # be sure to pass through caller's DISTCHECK_FLAGS (if any)
@@ -521,10 +534,9 @@ memcheck:
 # Here we skip docs so "make dist" should not hiccup on lack of the page files
 # (nor try to make them); not using simple distcheck-light-DIST_ALL_PAGES step
 # due to custom logic!
-distcheck-valgrind:
+distcheck-valgrind: distcheck-light-DIST_ALL_PAGES-docs-skipped
 	@echo "Starting $@" >&2
 	@echo "See also scripts/valgrind in NUT sources for a helper tool"
-	+@cd $(builddir)/docs/man && $(MAKE) $(AM_MAKEFLAGS) FAKE_PAGES_BUMP_SRC=false distcheck-light-DIST_ALL_PAGES
 	+prefix='$${prefix}'; $(MAKE) $(AM_MAKEFLAGS) DISTCHECK_FLAGS="$(DISTCHECK_VALGRIND_FLAGS)" distcheck
 	@echo "Completed $@: relaxed distcheck, without man pages ('pre-built' placeholders in dist archive), running tests under valgrind" >&2
 else !HAVE_VALGRIND
@@ -1099,6 +1111,7 @@ install-as-root:
 			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut-monitor.service nut-server.service || true ; \
 			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut-driver.service || true ; \
 			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut-driver.target || true ; \
+			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut-udev-settle.service || true ; \
 			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut.target || true ; \
 		fi ; \
 		if $(WITH_SOLARIS_SMF) || $(WITH_SOLARIS_INIT) ; then \
@@ -1210,8 +1223,8 @@ install-as-root:
 				@SYSTEMD_SYSTEMCTL_PROGRAM@ preset-all || exit ; \
 			else \
 				echo "$@: Apply systemd enabled/disabled service defaults" >&2 ; \
-				@SYSTEMD_SYSTEMCTL_PROGRAM@ disable nut.target nut-driver.target nut-monitor nut-server nut-driver-enumerator.path nut-driver-enumerator.service || exit ; \
-				@SYSTEMD_SYSTEMCTL_PROGRAM@ enable  nut.target nut-driver.target nut-monitor nut-server nut-driver-enumerator.path nut-driver-enumerator.service || exit ; \
+				@SYSTEMD_SYSTEMCTL_PROGRAM@ disable nut.target nut-driver.target nut-udev-settle.service nut-monitor nut-server nut-driver-enumerator.path nut-driver-enumerator.service || exit ; \
+				@SYSTEMD_SYSTEMCTL_PROGRAM@ enable  nut.target nut-driver.target nut-udev-settle.service nut-monitor nut-server nut-driver-enumerator.path nut-driver-enumerator.service || exit ; \
 			fi ; \
 			echo "$@: Reconfigure nut-driver-enumerator (service instance wrapping)" >&2 ; \
 			@SYSTEMD_SYSTEMCTL_PROGRAM@ restart udev && applied_udev=true || true ; \
