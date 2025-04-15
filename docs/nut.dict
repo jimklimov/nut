@@ -1,4 +1,4 @@
-personal_ws-1.1 en 3441 utf-8
+personal_ws-1.1 en 3454 utf-8
 AAC
 AAS
 ABI
@@ -776,6 +776,7 @@ NONUT
 NOP
 NOPARENT
 NOTALARM
+NOTBOOST
 NOTBYPASS
 NOTCAL
 NOTECO
@@ -785,6 +786,8 @@ NOTIFYFLAGS
 NOTIFYMSG
 NOTOFF
 NOTOTHER
+NOTOVER
+NOTTRIM
 NQA
 NTP
 NUT's
@@ -855,6 +858,7 @@ OnLine
 OnTime
 OneAC
 OpenBSD
+OpenIPMI
 OpenIndiana
 OpenPGP
 OpenSSL
@@ -1480,6 +1484,7 @@ Yunto
 ZFS
 ZP
 ZProject
+Zadig
 Zaika
 Zampieri
 Zawadzki
@@ -1519,6 +1524,7 @@ afeb
 aggregator
 ai
 aix
+akeo
 al
 ala
 alertset
@@ -1658,6 +1664,7 @@ bitmapped
 bitmask
 bitness
 bitnesses
+bmake
 bn
 bool
 boolean
@@ -1748,6 +1755,7 @@ cidr
 cis
 clav
 clepple
+cli
 clicky
 cls
 clueful
@@ -2662,6 +2670,7 @@ openipmi
 openjdk
 openlog
 openmp
+openpimi
 openssh
 openssl
 oper
@@ -2723,6 +2732,7 @@ pkg
 pkgconf
 pkgconfig
 pkgin
+pkgsrc
 plaintext
 plugin
 pluma
@@ -2788,6 +2798,7 @@ psu
 pthread
 pthreads
 pts
+ptv
 pty
 pulizzi
 pw
@@ -2875,6 +2886,7 @@ rn
 ro
 roadmap
 rootca
+rootcerts
 rootfs
 rootfs'es
 rpath
@@ -3165,6 +3177,7 @@ tport
 tripplite
 tripplitesu
 troff
+tryconnect
 tsa
 tsd
 tty

@@ -1,9 +1,13 @@
 /*
     nutwriter.cpp - NUT writer
 
-    Copyright (C)
-        2012	Vaclav Krpec  <VaclavKrpec@Eaton.com>
-        2024	Jim Klimov <jimklimov+nut@gmail.com>
+    Copyright (C) 2012 Eaton
+
+        Author: Vaclav Krpec  <VaclavKrpec@Eaton.com>
+
+    Copyright (C) 2024-2025 NUT Community
+
+        Author: Jim Klimov  <jimklimov+nut@gmail.com>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -408,6 +412,12 @@ const NotifyFlagsStrings::TypeStrings NotifyFlagsStrings::type_str = {
 	"NOTECO",	// NOTIFY_NOTECO
 	"ALARM",	// NOTIFY_ALARM
 	"NOTALARM",	// NOTIFY_NOTALARM
+	"OVER",		// NOTIFY_OVER
+	"NOTOVER",	// NOTIFY_NOTOVER
+	"TRIM",		// NOTIFY_TRIM
+	"NOTTRIM",	// NOTIFY_NOTTRIM
+	"BOOST",	// NOTIFY_BOOST
+	"NOTBOOST",	// NOTIFY_NOTBOOST
 	"OTHER",	// NOTIFY_OTHER
 	"NOTOTHER",	// NOTIFY_NOTOTHER
 	"SUSPEND_STARTING",	// NOTIFY_SUSPEND_STARTING

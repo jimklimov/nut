@@ -13,40 +13,8 @@ ChangeLog file (generated for release archives), or to the Git version
 control history for "live" codebase.
 
 
-PLANNED: Release notes for NUT 2.8.4 - what's new since 2.8.3
--------------------------------------------------------------
-
-https://github.com/networkupstools/nut/milestone/9
-
- - `lib/*.pc.in`: propagate `-R/PATH` to NUT library installation location
-   (by default not in system prefix) to help third-party clients link with
-   us automatically. [#2782]
-
- - (expected) Dynamic Mapping Files (DMF) feature supported, to allow
-   the driver binaries to be built once and data mappings to be loaded
-   and modernized on the fly (porting from 42ITy project)
-
- - (expected) Porting of reference packaging from 42ITy project
-
- - (expected) Porting of patches suggested by different distribution packages
-
- - (expected) C code clean-up/consistency (string format security, work with
-   Boolean values, string to number conversions, etc. in the same manner)
-
- - (expected) clean-up of libusb API variants support [#300 and follow-ups]
-
- - (expected) CI automation for coding style
-
- - (expected) CI automation for driver flags and variables to be certainly
-   documented, handled in augeas lenses, nutconf classes, etc.
-
- - (expected) CI automation for use of data points in drivers that conform
-   to patterns defined in link:docs/nut-names.txt[]
-
- - (expected) Bug fixes for fallout possible due to "fightwarn" effort in 2.8.0+
-
-PLANNED: Release notes for NUT 2.8.3 - what's new since 2.8.2
--------------------------------------------------------------
+Release notes for NUT 2.8.3 - what's new since 2.8.2
+----------------------------------------------------
 
 https://github.com/networkupstools/nut/milestone/11
 
@@ -227,17 +195,22 @@ This requirement compromises usability of `make distcheck` on platforms without
    prevent the socket name from being unilaterally printed out when NUT
    drivers start. [#2764]
 
- - The `upsdrvctl` should now warn if executed on systems where NUT was
-   built with support for service management frameworks like systemd or SMF,
-   so nut-driver service units prepared by `nut-driver-enumerator` would
-   conflict with manually-executed driver programs. This warning can be
-   hushed by exporting a `NUT_QUIET_INIT_NDE_WARNING` environment variable
-   with any value.
-
- - Extended `upsdrvctl` with a `list` operation (or `-l` option) to report
-   manageable device configuration names (possible `<ups>` arguments to
-   `start`, `stop` etc. operations), or to confirm a single name that it
-   is known, and a `status` operation for more information. [#2567]
+ - The `upsdrvctl` tool improvements:
+   * It should now warn if executed on systems where NUT was built with
+     support for service management frameworks like systemd or SMF, so
+     nut-driver service units prepared by `nut-driver-enumerator` would
+     conflict with manually-executed driver programs. This warning can
+     be hushed by exporting a `NUT_QUIET_INIT_NDE_WARNING` environment
+     variable with any value.
+   * Extended `upsdrvctl` with a `list` operation (or `-l` option) to report
+     manageable device configuration names (possible `<ups>` arguments to
+     `start`, `stop` etc. operations), or to confirm a single name that it
+     is known, and a `status` operation for more information. [#2567]
+   * Fixed support of `maxstartdelay` at the level of driver section in
+     `ups.conf`; added support of `maxretry` and `retrydelay` at this
+     level; bumped the default `maxstartdelay` from 45 to 75 seconds to
+     accommodate for longer device initialization (e.g. due to support of
+     more Megatec Qx dialects by `nutdrv_qx`). [#2885, #2888]
 
  - riello_ser updates:
    * added `localcalculation` option to compute `battery.runtime` and
@@ -420,9 +393,35 @@ This requirement compromises usability of `make distcheck` on platforms without
    * Updated `upsmon` client with setting to toggle whether an `ALARM`
      status can prompt the UPS to become critical in certain situations.
 
- - New `libupsclient` API methods added, `upscli_str_add_unique_token()` and
-   `upscli_str_contains_token()`, to help C NUT clients process `ups.status` and
-   similarly structured strings same way as NUT core code base. [#2852, #2859]
+ - The `upsmon` client can now also report entering and exiting the `OVER`
+   (UPS overloaded), `TRIM` and `BOOST` (adjusting for bad input voltage)
+   states. [#1074]
+
+ - New `libupsclient` API methods added:
+   * `upscli_str_add_unique_token()` and `upscli_str_contains_token()`,
+     to help C NUT clients process `ups.status` and similarly structured
+     strings same way as NUT core code base. [#2852, #2859]
+   * `upscli_connect()` was previously always blocking; now this is sort of
+     optional, with new `upscli_set_default_connect_timeout()` able to change
+     the implicit timeout from default zero (meaning blocking) to a positive
+     value (or back to 0). Several NUT clients (`upsc`, `upscmd`, `upsrw`,
+     `upslog`, `upsmon`, `upsimage`, `upsset` and `upsstats`) were updated
+     to default with a 10-second timeout in case of name resolution lags or
+     unresponsive hosts (notably a problem with `upsmon` contacting many
+     remote systems at once). The `NUT_DEFAULT_CONNECT_TIMEOUT` environment
+     variable can be used to modify this timeout for all clients. Further
+     new methods here include `upscli_get_default_connect_timeout()` to
+     retrieve a copy of the last stored timeout, and
+     `upscli_init_default_connect_timeout()` to initialize the value from
+     a number of sources with different priorities. [#2847]
+   * Symbols exported from `libupsclient` now include `nut_debug_level*` so
+     that NUT clients can be usefully debugged (e.g. using `NUT_DEBUG_LEVEL`
+     environment variable). [#2847]
+
+ - Several NUT clients including `upscmd`, `upsrw`, `upsimage`, `upsset`,
+   `upsstats`, and `upslog` (during reconnection), did not `UPSCLI_CONN_TRYSSL`
+   so went plaintext even when secure connections were possible. Fixed to at
+   least try being secure, same way as `upsc` does for a long time. [#2847]
 
  - upsmon:
    * it was realized that the `POWERDOWNFLAG` must be explicitly set in the
@@ -485,6 +484,9 @@ This requirement compromises usability of `make distcheck` on platforms without
      suspending the `upsmon` process, etc. [#2597]
    * Introduced delivery of default systemd presets (lists of enabled/disabled
      units). [#2721]
+   * A `nut-udev-settle.service` was introduced to replace dependency on the
+     `systemd-udev-settle.service` which is deprecated and causes warnings on
+     some systems. It was shown to benefit NUT use-cases however. [#2638]
 
  - gamatronic driver revised for safer memory operations; this was reported
    to have fixed a Segmentation Fault seen in earlier NUT releases with

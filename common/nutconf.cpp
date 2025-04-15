@@ -1,9 +1,13 @@
 /*
     nutconf.cpp - configuration API
 
-    Copyright (C)
-        2012	Emilien Kia <emilien.kia@gmail.com>
-        2024	Jim Klimov <jimklimov+nut@gmail.com>
+    Copyright (C) 2012 Eaton
+
+        Author: Emilien Kia <emilien.kia@gmail.com>
+
+    Copyright (C) 2024-2025 NUT Community
+
+        Author: Jim Klimov  <jimklimov+nut@gmail.com>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -1337,6 +1341,18 @@ UpsmonConfiguration::NotifyType UpsmonConfiguration::NotifyTypeFromString(const 
 		return NOTIFY_ALARM;
 	else if(str=="NOTALARM")
 		return NOTIFY_NOTALARM;
+	else if(str=="OVER")
+		return NOTIFY_OVER;
+	else if(str=="NOTOVER")
+		return NOTIFY_NOTOVER;
+	else if(str=="TRIM")
+		return NOTIFY_TRIM;
+	else if(str=="NOTTRIM")
+		return NOTIFY_NOTTRIM;
+	else if(str=="BOOST")
+		return NOTIFY_BOOST;
+	else if(str=="NOTBOOST")
+		return NOTIFY_NOTBOOST;
 	else if(str=="OTHER")
 		return NOTIFY_OTHER;
 	else if(str=="NOTOTHER")
