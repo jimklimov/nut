@@ -45,6 +45,9 @@ import ConfigParser
 import locale
 import gettext
 
+if ( platform.system() == "Windows" ) :
+    import xml.dom.minidom
+
 # Try local development/accompanying packaging first,
 # then system installation
 sys_path_orig = list(sys.path)
@@ -119,9 +122,11 @@ class interface :
             # If not exists, we bail out in load attempt below
 
         if ( platform.system() == "Windows" ) :
-            with open(self.__glade_file, 'rb') as f:
-                text = f.read().decode("cp1250").encode("utf8")
-                self.__widgets["interface"]           = gtk.glade.xml_new_from_buffer( text, len(text), "window1", APP )
+            #with open(self.__glade_file, 'rb') as f:
+            #    text = f.read() # .decode("utf8").encode("cp1250")  # .decode("cp1250").encode("utf8")
+            #    self.__widgets["interface"]           = gtk.glade.xml_new_from_buffer( text, len(text), "window1", APP )
+            doc = xml.dom.minidom.parse(self.__glade_file).toxml().encode("utf-8")
+            self.__widgets["interface"]               = gtk.glade.xml_new_from_buffer( doc, len(doc), "window1", APP )
         else :
             self.__widgets["interface"]               = gtk.glade.XML( self.__glade_file, "window1", APP )
 
