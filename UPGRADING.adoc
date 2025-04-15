@@ -48,6 +48,10 @@ Changes from 2.8.2 to 2.8.3
   disable certain NUT units by default; its comments document each choice.
   [issue #2721]
 
+- A `nut-udev-settle.service` was introduced to replace dependency on the
+  `systemd-udev-settle.service` which is deprecated and causes warnings on
+  some systems. It was shown to benefit NUT use-cases however. [#2638]
+
 - Reference packages prepared by `make package` should now separate the
   `PACKAGE_VERSION` from the platform-dependent prefix by a dash character
   in the ultimate package file name. Previously they were glued together
@@ -251,6 +255,7 @@ Changes from 2.8.2 to 2.8.3
   so "make noise" or "bring invaluable insights" to logs or terminal;
   they can generally be used for services and init scripts via `nut.conf`:
   * See `NUT_IGNORE_CHECKPROCNAME` and `NUT_DEBUG_SYSLOG` above. [#1915]
+  * See `NUT_DEFAULT_CONNECT_TIMEOUT` above. [#2847]
   * A `NUT_QUIET_INIT_BANNER` envvar (presence or "true" value) prevents
     tool name and NUT version banner from being printed out when programs
     start. [issues #1789 vs. #316]
