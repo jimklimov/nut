@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # an auxiliary script to produce a "stub" usbhid-ups subdriver from
 # the output of
@@ -82,7 +82,7 @@ while [ -z "$DRIVER" ]; do
 Please enter a name for this driver. Use only letters and numbers. Use
 natural (upper- and lowercase) capitalization, e.g., 'Belkin', 'APC'."
     read -p "Name of subdriver: " DRIVER < /dev/tty
-    if echo $DRIVER | egrep -q '[^a-zA-Z0-9]'; then
+    if echo $DRIVER | grep -E -q '[^a-zA-Z0-9]'; then
 	echo "Please use only letters and digits"
 	DRIVER=""
     fi
@@ -113,7 +113,7 @@ cat "$UTABLE" | tr '.' $'\n' | sort -u > "$USAGES"
 
 # make up dummy names for unknown usages
 count=0
-cat "$USAGES" | egrep '[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]' |\
+cat "$USAGES" | grep -E '[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]' |\
 while read U; do
     count=`expr $count + 1`
     echo "$U $UDRIVER$count"
@@ -239,6 +239,10 @@ static usage_tables_t ${LDRIVER}_utab[] = {
 
 static hid_info_t ${LDRIVER}_hid2nut[] = {
 
+/* Please revise values discovered by data walk for mappings to
+ * docs/nut-names.txt and group the rest under the ifdef below:
+ */
+#if WITH_UNMAPPED_DATA_POINTS
 EOF
 
 cat "$NEWUTABLE" | sort -u | while read U; do
@@ -249,6 +253,7 @@ EOF
 done
 
 cat >> "$CFILE" <<EOF
+#endif	/* if WITH_UNMAPPED_DATA_POINTS */
 
 	/* end of structure. */
 	{ NULL, 0, 0, NULL, NULL, NULL, 0, NULL }
