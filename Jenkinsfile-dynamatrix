@@ -117,7 +117,7 @@ import org.nut.dynamatrix.*;
         //'stageNameFunc': null,
         //'dynamatrixAxesLabels': [~/^OS_.+/, 'MAKE'],
         'dynamatrixAxesLabels': ['OS_FAMILY', 'OS_DISTRO', 'MAKE'],
-        'single': '( if [ x"\${MAKE-}" = x ]; then echo "WARNING: MAKE is somehow unset, defaulting!" >&2; MAKE=make; fi; \${MAKE} shellcheck )',
+        'single': '( if [ x"\${MAKE-}" = x ]; then echo "WARNING: MAKE is somehow unset, defaulting!" >&2; MAKE=make; fi; \${MAKE} -j 4 shellcheck )',
         'multi': '(cd tests && SERVICE_FRAMEWORK="selftest" SHELL_PROGS="$SHELL_PROGS" ./nut-driver-enumerator-test.sh )',
         'multiLabel': 'SHELL_PROGS',
         'skipShells': [ 'zsh', 'tcsh', 'csh' ]
@@ -259,7 +259,7 @@ import org.nut.dynamatrix.*;
     // cater for documentation files (pre-generated man pages) that
     // must be present in the dist tarball, but may not be available
     // or creatable on the build agent - in that case we fake them.
-    dynacfgPipeline.buildPhases['distcheck'] = """( if [ x"\${MAKE-}" = x ]; then echo "WARNING: MAKE is somehow unset, defaulting!" >&2; MAKE=make; fi; eval \${CONFIG_ENVVARS} time \${MAKE} \${MAKE_OPTS} distcheck-ci DISTCHECK_FLAGS=\${CONFIG_OPTS:+\\"\$CONFIG_OPTS\\"} )"""
+    dynacfgPipeline.buildPhases['distcheck'] = """( if [ x"\${MAKE-}" = x ]; then echo "WARNING: MAKE is somehow unset, defaulting!" >&2; MAKE=make; fi; if [ x"\${MAKE_OPTS-}" = x ]; then MAKE_OPTS="-j 4"; fi ; eval \${CONFIG_ENVVARS} time \${MAKE} \${MAKE_OPTS} distcheck-ci DISTCHECK_FLAGS=\${CONFIG_OPTS:+\\"\$CONFIG_OPTS\\"} )"""
 
     // Note: shellcheck/spellcheck/... require autotools currently
     // or need to be redefined with respective BUILD_TYPE
@@ -382,6 +382,7 @@ set | sort -n """
                 //dynamatrixAxesLabels: ['OS_FAMILY', 'OS_DISTRO', '${COMPILER}VER', 'ARCH${ARCH_BITS}'],
                 //dynamatrixAxesLabels: [~/^OS/, '${COMPILER}VER', 'ARCH${ARCH_BITS}'],
                 excludeCombos: dynacfgPipeline.excludeCombos_DEFAULT_STRICT_C
+                    + [[~/OS_DISTRO=netbsd/]]	// commented in detail below
                     + [dynacfgPipeline.axisCombos_WINDOWS_CROSS]
                 ], body)
             }, // getParStages
@@ -426,6 +427,7 @@ set | sort -n """
                 //dynamatrixAxesLabels: ['OS_FAMILY', 'OS_DISTRO', '${COMPILER}VER', 'ARCH${ARCH_BITS}'],
                 //dynamatrixAxesLabels: [~/^OS/, '${COMPILER}VER', 'ARCH${ARCH_BITS}'],
                 excludeCombos: dynacfgPipeline.excludeCombos_DEFAULT_STRICT_C
+                    + [[~/OS_DISTRO=netbsd/]]	// commented in detail below
                     + [dynacfgPipeline.axisCombos_WINDOWS_CROSS]
                 ], body)
             }, // getParStages
@@ -485,6 +487,10 @@ set | sort -n """
                     // requires a few pkg-config and CFLAGS pre-sets which are
                     // done in ci_build.sh and defeat the purpose of this stage.
                     // So it is easier and more honest to just skip it.
+                    + [[~/OS_DISTRO=netbsd/]]
+                    // NetBSD version on the build agent has issues with pkgsrc
+                    // (lacking -R for some libs) so autotools builds are tricky;
+                    // ci_build.sh imposes some fixes - so see notes for macos.
                 ], body)
             }, // getParStages
         //'bodyParStages': {}

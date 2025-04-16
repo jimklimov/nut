@@ -32,9 +32,10 @@ or:
 Localization
 ------------
 
-For localized UI, you can also request the locale with different precision like
-`export LANG=fr_FR.UTF-8`, `export LANG=it_IT` or `export LANG=ru`
-(see and feel welcome to improve the choice of languages in `locale` directory).
+For localized UI, on some platforms you can also request the locale with different
+precision like `export LANG=fr_FR.UTF-8`, `export LANG=it_IT` or `export LANG=ru`
+(see and feel welcome to improve the choice of languages in `locale` directory);
+however on some others you are required to use the `xx_YY.UTF-8` spec format.
 
 NOTE: Currently, the localization only fully works for Python 2 client, while
 menu names, dialog field labels, etc. remain in default English wording despite
@@ -70,7 +71,8 @@ Development/Testing notes
 
 As Python2 falls out of favor and packaging scope of different distributions,
 one where both variants of the script can be tested simultaneously as of 2025
-is MSYS2 (on Windows), see `docs/config-prereqs.txt` in NUT sources for more
+is MSYS2 (on Windows), see linkdoc:qa-guide[Prerequisites for building NUT
+on different OSes,NUT_Config_Prereqs,docs/config-prereqs.txt] for more
 details about general prerequisites for the NUT build in that environment.
 
 Regarding the Python UI support, you would need:
