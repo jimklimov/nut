@@ -1,9 +1,13 @@
 /*
     nutconf.hpp - Nut configuration file manipulation API
 
-    Copyright (C)
-	2012	Emilien Kia <emilien.kia@gmail.com>
-	2024	Jim Klimov <jimklimov+nut@gmail.com>
+    Copyright (C) 2012 Eaton
+
+        Author: Emilien Kia <emilien.kia@gmail.com>
+
+    Copyright (C) 2024-2025 NUT Community
+
+        Author: Jim Klimov  <jimklimov+nut@gmail.com>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -1541,6 +1545,12 @@ public:
 		NOTIFY_NOTECO,
 		NOTIFY_ALARM,
 		NOTIFY_NOTALARM,
+		NOTIFY_OVER,
+		NOTIFY_NOTOVER,
+		NOTIFY_TRIM,
+		NOTIFY_NOTTRIM,
+		NOTIFY_BOOST,
+		NOTIFY_NOTBOOST,
 
 		NOTIFY_OTHER = 28,
 		NOTIFY_NOTOTHER,

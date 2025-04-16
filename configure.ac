@@ -132,6 +132,10 @@ AS_IF([test x"${NUT_SOURCE_GITREV}" = x],
 AC_CANONICAL_TARGET
 NUT_CHECK_OS
 
+NUT_ARG_ENABLE([configure-debug],
+    [Request that this run of the configure script reports more details about values it discovered, primarily for developer troubleshooting],
+    [no])
+
 dnl Further below we shuffle variants of these values possibly stripped of
 dnl warnings or with added further values. Here we save the most-original copy
 dnl so it can be passed e.g. to "make distcheck" the way the caller intended.
@@ -201,8 +205,10 @@ dnl we need Autoconf 2.61 or better to enable features of Posix that are extensi
 dnl (and actually 2.64 or better for m4/ax_check_compile_flag.m4 when it is sourced)
 dnl UPDATE: As tested on CentOS 6, its "autoconf-2.63-5.1.el6.noarch" also suffices.
 dnl But OpenBSD 6.5 requires autoconf-2.65 and automake-1.13 or newer...
-dnl AC_MSG_NOTICE([CFLAGS_BEFORE_ACPROG="${CFLAGS-}"])
-dnl AC_MSG_NOTICE([CXXFLAGS_BEFORE_ACPROG="${CXXFLAGS-}"])
+AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) CFLAGS_BEFORE_ACPROG="${CFLAGS-}"])
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) CXXFLAGS_BEFORE_ACPROG="${CXXFLAGS-}"])
+])
 AC_MSG_CHECKING(for autoconf macro to enable system extensions)
 m4_version_prereq(2.61, [
 	AC_MSG_RESULT(yes)
@@ -228,8 +234,10 @@ AC_PROG_CXX_C_O
 CFLAGS_AFTER_ACPROG="${CFLAGS-}"
 CXXFLAGS_AFTER_ACPROG="${CXXFLAGS-}"
 
-dnl AC_MSG_NOTICE([CFLAGS_AFTER_ACPROG="${CFLAGS-}"])
-dnl AC_MSG_NOTICE([CXXFLAGS_AFTER_ACPROG="${CXXFLAGS-}"])
+AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) CFLAGS_AFTER_ACPROG="${CFLAGS-}"])
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) CXXFLAGS_AFTER_ACPROG="${CXXFLAGS-}"])
+])
 
 dnl # LEGACY DEFAULT FALLBACK which NUT had since 2005 or before:
 dnl # if autoconf does not set any options, use default/moderate optimizations
@@ -475,8 +483,24 @@ AS_IF([test x"$nut_enable_inplace_runtime" = xyes -a x"${NUT_VERSION_DEPLOYED-}"
     eval conftemp=\"${conftemp}\"
     PREFIX_BINDIR="${conftemp}"
 
+    dnl Not-set CGI or DRV paths would be defaulted in due time,
+    dnl probably to bindir. Do not enforce any opinions here.
+    conftemp="${with_cgipath}"
+    eval conftemp=\"${conftemp}\"
+    eval conftemp=\"${conftemp}\"
+    PREFIX_CGIDIR="${conftemp}"
+    AS_CASE([${PREFIX_CGIDIR}], [yes|no], [PREFIX_CGIDIR=""])
+
+    conftemp="${with_drvpath}"
+    eval conftemp=\"${conftemp}\"
+    eval conftemp=\"${conftemp}\"
+    PREFIX_DRVDIR="${conftemp}"
+    AS_CASE([${PREFIX_DRVDIR}], [yes|no], [PREFIX_DRVDIR=""])
+
     DEPLOYED_SBINDIR="${PREFIX_SBINDIR}"
     DEPLOYED_BINDIR="${PREFIX_BINDIR}"
+    DEPLOYED_CGIDIR="${PREFIX_CGIDIR}"
+    DEPLOYED_DRVDIR="${PREFIX_DRVDIR}"
     dnl Note use of AC_PATH_PROG for specific pathname (not AC_CHECK_PROGS which picks filename variants)!
     dnl Note: "ordinary" users might not have "sbin" in their default PATH, so appending it:
     dnl Note: in some systems, the file in PATH is a shell
@@ -484,6 +508,10 @@ AS_IF([test x"$nut_enable_inplace_runtime" = xyes -a x"${NUT_VERSION_DEPLOYED-}"
     AC_PATH_PROG([DEPLOYED_UPSD], [upsd], [], [${PREFIX_SBINDIR}:${PATH}:/sbin:/usr/sbin:/usr/local/sbin])
     dnl ...however "upsc" is a userland tool so should be there:
     AC_PATH_PROG([DEPLOYED_UPSC], [upsc], [], [${PREFIX_BINDIR}:${PATH}])
+    dnl Assume some driver that is commonly/always installed; check also Debian-ish packaged locations:
+    AC_PATH_PROG([DEPLOYED_DUMMYUPS], [dummy-ups], [], [${PREFIX_DRVDIR}:${PREFIX_BINDIR}:${PATH}:/usr/lib/nut:/lib/nut])
+    dnl The CGI client suite is very optional, may well be absent:
+    AC_PATH_PROG([DEPLOYED_UPSIMAGE], [upsimage.cgi], [], [${PREFIX_CGIDIR}:${PREFIX_BINDIR}:${PATH}:/usr/lib/cgi-bin/nut:/usr/libexec/cgi-bin/nut:/usr/libexec/nut:/usr/libexec/nut/cgi-bin:/usr/lib/nut:/usr/lib/nut/cgi-bin])
     AS_IF([test -x "${DEPLOYED_UPSD}"], [
         AX_REALPATH([$DEPLOYED_UPSD], [DEPLOYED_UPSD])
         DEPLOYED_SBINDIR="`dirname "${DEPLOYED_UPSD}"`"
@@ -491,6 +519,14 @@ AS_IF([test x"$nut_enable_inplace_runtime" = xyes -a x"${NUT_VERSION_DEPLOYED-}"
     AS_IF([test -x "${DEPLOYED_UPSC}"], [
         AX_REALPATH([$DEPLOYED_UPSC], [DEPLOYED_UPSC])
         DEPLOYED_BINDIR="`dirname "${DEPLOYED_UPSC}"`"
+        ])
+    AS_IF([test -x "${DEPLOYED_DUMMYUPS}"], [
+        AX_REALPATH([$DEPLOYED_DUMMYUPS], [DEPLOYED_DUMMYUPS])
+        DEPLOYED_DRVDIR="`dirname "${DEPLOYED_DUMMYUPS}"`"
+        ])
+    AS_IF([test -x "${DEPLOYED_UPSIMAGE}"], [
+        AX_REALPATH([$DEPLOYED_UPSIMAGE], [DEPLOYED_UPSIMAGE])
+        DEPLOYED_CGIDIR="`dirname "${DEPLOYED_UPSIMAGE}"`"
         ])
 
     DEPLOYED_PREFIX=""
@@ -500,15 +536,22 @@ AS_IF([test x"$nut_enable_inplace_runtime" = xyes -a x"${NUT_VERSION_DEPLOYED-}"
             [DEPLOYED_PREFIX="`dirname "${DEPLOYED_BINDIR}"`"])]
     )
 
+    AC_PATH_PROG([LDD], [ldd])
+
     AC_MSG_CHECKING([for CONFIG_FLAGS of an already deployed NUT build (if it reports those)])
 
     CONFIG_FLAGS_DEPLOYED=""
     NUT_VERSION_DEPLOYED=""
+    DEPLOYED_LIBDIR=""
     dnl TODO: Similar query can be done for BINDIR tools
     dnl and for libupsclient-config if deployed locally
+    dnl First check upsc, dummy-ups or nut-scanner (TBD)
+    dnl to detect not only version and CONFIG_OPTS but
+    dnl also the shared library location the best we can.
     for DEPLOYED_TOOL in \
-        "${DEPLOYED_UPSD}" \
         "${DEPLOYED_UPSC}" \
+        "${DEPLOYED_DUMMYUPS}" \
+        "${DEPLOYED_UPSD}" \
     ; do
         AS_IF([test x"${DEPLOYED_TOOL}" = x], [continue])
         AS_IF([test -x "${DEPLOYED_TOOL}"], [], [continue])
@@ -526,6 +569,18 @@ AS_IF([test x"$nut_enable_inplace_runtime" = xyes -a x"${NUT_VERSION_DEPLOYED-}"
         && test x"${NUT_VERSION_DEPLOYED}" != x \
         || NUT_VERSION_DEPLOYED=""
 
+        dnl FIXME: Find some more portable solution? Use a platform-dependent
+        dnl  "case" or various toolkits?
+        dnl  * Probably no need to fuss for Windows builds, as they would
+        dnl    anyway use the DLL near EXE after installation.
+        AS_IF([test -x "${LDD}" 2>/dev/null], [
+            for TOKEN in `$LDD "${DEPLOYED_TOOL}" 2>&1 | grep libupsclient` ; do
+                case "${TOKEN}" in
+                    /*/libupsclient*) DEPLOYED_LIBDIR="`dirname "$TOKEN"`" ;;
+                esac
+            done
+        ])
+
         AS_IF([test x"${CONFIG_FLAGS_DEPLOYED}${NUT_VERSION_DEPLOYED}" = x], [], [break])
     done
 
@@ -536,25 +591,110 @@ AS_IF([test x"$nut_enable_inplace_runtime" = xyes -a x"${NUT_VERSION_DEPLOYED-}"
     ])
 
     dnl Account for custom paths if known/found:
+    AS_CASE(["${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS}"],
+        [*--prefix=*], [
+            for F in ${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS} ; do
+                case "$F" in
+                    "--prefix="*) prefix="`echo "$F" | ( IFS='=' read K V ; echo "$V" )`" ;;
+                esac
+            done
+        ]
+    )
+
     AS_IF([test x"${DEPLOYED_PREFIX}" != x && test x"${DEPLOYED_PREFIX}" != x"${prefix}"],
         AC_MSG_WARN([Deployed NUT installation uses a PREFIX different from one specified (wins) or derived (loses) for this build: '${DEPLOYED_PREFIX}' vs. '${prefix}'])
         [AS_CASE(["${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS}"],
             [*--prefix=*], [],
-            [CONFIG_FLAGS_DEPLOYED="${CONFIG_FLAGS_DEPLOYED} --prefix='${DEPLOYED_PREFIX}'"])
+            [CONFIG_FLAGS_DEPLOYED="${CONFIG_FLAGS_DEPLOYED} --prefix='${DEPLOYED_PREFIX}'"
+             dnl Help re-evaluate it from verbatim defaults in later
+             dnl deployed path determinations e.g. for data(root)dir:
+             prefix="${DEPLOYED_PREFIX}"
+        ])
     ])
+    dnl FIXME? Re-evaluate cgipath and/or drvpath if they are defined with a
+    dnl verbatim '${prefix}' inside, and no hits found in earlier attempts?
 
     AS_IF([test x"${DEPLOYED_SBINDIR}" != x && test x"${DEPLOYED_SBINDIR}" != x"${PREFIX_SBINDIR}"],
-        AC_MSG_WARN([Deployed NUT installation uses a SBINDIR different from one specified (wins) or derived (loses) for this build: '${DEPLOYED_SBINDIR}' vs. '${sbindir}'])
+        AC_MSG_WARN([Deployed NUT installation uses a SBINDIR different from one specified (wins) or derived (loses) for this build: '${DEPLOYED_SBINDIR}' vs. '${PREFIX_SBINDIR}' ('${sbindir}')])
         [AS_CASE(["${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS}"],
             [*--sbindir=*], [],
             [CONFIG_FLAGS_DEPLOYED="${CONFIG_FLAGS_DEPLOYED} --sbindir='${DEPLOYED_SBINDIR}'"])
     ])
 
     AS_IF([test x"${DEPLOYED_BINDIR}" != x && test x"${DEPLOYED_BINDIR}" != x"${PREFIX_BINDIR}"],
-        AC_MSG_WARN([Deployed NUT installation uses a BINDIR different from one specified (wins) or derived (loses) for this build: '${DEPLOYED_BINDIR}' vs. '${bindir}'])
+        AC_MSG_WARN([Deployed NUT installation uses a BINDIR different from one specified (wins) or derived (loses) for this build: '${DEPLOYED_BINDIR}' vs. '${PREFIX_BINDIR}' ('${bindir}')])
         [AS_CASE(["${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS}"],
             [*--bindir=*], [],
             [CONFIG_FLAGS_DEPLOYED="${CONFIG_FLAGS_DEPLOYED} --bindir='${DEPLOYED_BINDIR}'"])
+    ])
+
+    AS_IF([test x"${DEPLOYED_CGIDIR}" != x && test x"${DEPLOYED_CGIDIR}" != x"${PREFIX_CGIDIR}"],
+        AC_MSG_WARN([Deployed NUT installation uses a CGIDIR different from one specified (wins) or derived (loses) for this build: '${DEPLOYED_CGIDIR}' vs. '${PREFIX_CGIDIR}' ('${with_cgipath}')])
+        [AS_CASE(["${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS}"],
+            [*--with-cgipath=*], [],
+            [CONFIG_FLAGS_DEPLOYED="${CONFIG_FLAGS_DEPLOYED} --with-cgipath='${DEPLOYED_CGIDIR}'"])
+    ])
+
+    AS_IF([test x"${DEPLOYED_DRVDIR}" != x && test x"${DEPLOYED_DRVDIR}" != x"${PREFIX_DRVDIR}"],
+        AC_MSG_WARN([Deployed NUT installation uses a DRVDIR different from one specified (wins) or derived (loses) for this build: '${DEPLOYED_DRVDIR}' vs. '${PREFIX_DRVDIR}' ('${with_drvpath}')])
+        [AS_CASE(["${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS}"],
+            [*--with-drvpath=*], [],
+            [CONFIG_FLAGS_DEPLOYED="${CONFIG_FLAGS_DEPLOYED} --with-drvpath='${DEPLOYED_DRVDIR}'"])
+    ])
+
+
+    AS_CASE(["${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS}"],
+        [*--datarootdir=*], [
+            for F in ${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS} ; do
+                case "$F" in
+                    "--datarootdir="*) datarootdir="`echo "$F" | ( IFS='=' read K V ; echo "$V" )`" ;;
+                esac
+            done
+        ]
+    )
+
+    conftemp="${datarootdir}"
+    eval conftemp=\"${conftemp}\"
+    eval conftemp=\"${conftemp}\"
+    PREFIX_DATAROOTDIR="${conftemp}"
+    dnl The dataroot dir (system-wide) here is used to search for datadir candidate info
+
+    AS_CASE(["${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS}"],
+        [*--datadir=*], [
+            for F in ${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS} ; do
+                case "$F" in
+                    "--datadir="*) datadir="`echo "$F" | ( IFS='=' read K V ; echo "$V" )`" ;;
+                esac
+            done
+        ]
+    )
+
+    conftemp="${datadir}"
+    eval conftemp=\"${conftemp}\"
+    eval conftemp=\"${conftemp}\"
+    PREFIX_DATADIR="${conftemp}"
+    DATADIR="${PREFIX_DATADIR}"
+    DEPLOYED_DATADIR=""
+
+    AS_IF([test -e "${PREFIX_DATAROOTDIR}/nut/cmdvartab" || test -e "${PREFIX_DATAROOTDIR}/nut/driver.list"],
+        [DEPLOYED_DATADIR="${PREFIX_DATAROOTDIR}/nut"],
+        [AS_IF([test -e "${PREFIX_DATAROOTDIR}/cmdvartab" || test -e "${PREFIX_DATAROOTDIR}/driver.list"],
+            [DEPLOYED_DATADIR="${PREFIX_DATAROOTDIR}"],
+            [dnl FIXME: Be careful on WIN32 and its "find" vs. that in MINGW?
+             DEPLOYED_DATADIR="`find "${PREFIX_DATAROOTDIR}" -name cmdvartab | head -1 | sed 's,/@<:@^/@:>@*$,,'`" || DEPLOYED_DATADIR=""
+             AS_IF([test -z "${DEPLOYED_DATADIR}"], [DEPLOYED_DATADIR="`find "${PREFIX_DATAROOTDIR}" -name driver.list | head -1 | sed 's,/@<:@^/@:>@*$,,'`" || DEPLOYED_DATADIR=""])
+            ]
+        )]
+    )
+    AS_IF([test -z "${DEPLOYED_DATADIR}" && test -d "${PREFIX_DATAROOTDIR}/nut"], [DEPLOYED_DATADIR="${PREFIX_DATAROOTDIR}/nut"])
+
+    AS_IF([test x"${DEPLOYED_DATADIR}" != x && test x"${DEPLOYED_DATADIR}" != x"${PREFIX_DATADIR}"],
+        AC_MSG_WARN([Deployed NUT installation uses a DATADIR different from one specified (wins) or derived (loses) for this build: '${DEPLOYED_DATADIR}' vs. '${PREFIX_DATADIR}' ('${datadir}')])
+        [AS_CASE(["${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS}"],
+            [*--datadir=*], [],
+            [CONFIG_FLAGS_DEPLOYED="${CONFIG_FLAGS_DEPLOYED} --datadir='${DEPLOYED_DATADIR}'"
+             DATADIR="${DEPLOYED_DATADIR}"
+            ])
     ])
 
     AS_CASE(["${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS}"],
@@ -571,7 +711,14 @@ AS_IF([test x"$nut_enable_inplace_runtime" = xyes -a x"${NUT_VERSION_DEPLOYED-}"
         dnl NOTE: Single-quotes are correct for autotools default,
         dnl expanded at runtime (see conftemp tricks below)
 
-        AC_MSG_CHECKING([for in-place replacement default sysconfdir (better than '${sysconfdir}')])
+        conftemp="${sysconfdir}"
+        eval conftemp=\"${conftemp}\"
+        eval conftemp=\"${conftemp}\"
+        dnl Evaluated here for the message; CONFPATH will be re-evaluated
+        dnl below, after we decide on the sysconfdir value we really like.
+        PREFIX_SYSCONFDIR="${conftemp}"
+
+        AC_MSG_CHECKING([for in-place replacement default sysconfdir, better than '${PREFIX_SYSCONFDIR}' ('${sysconfdir}')])
         DEPLOYED_SYSCONFDIR=""
 
         dnl TODO: Any more reasonable defaults? Pile them on here :)
@@ -625,7 +772,17 @@ AS_IF([test x"$nut_enable_inplace_runtime" = xyes -a x"${NUT_VERSION_DEPLOYED-}"
     conftemp="${libdir}"
     eval conftemp=\"${conftemp}\"
     eval conftemp=\"${conftemp}\"
-    LIBDIR="${conftemp}"
+    PREFIX_LIBDIR="${conftemp}"
+    LIBDIR="${PREFIX_LIBDIR}"
+
+    AS_IF([test x"${DEPLOYED_LIBDIR}" != x && test x"${DEPLOYED_LIBDIR}" != x"${PREFIX_LIBDIR}"],
+        AC_MSG_WARN([Deployed NUT installation uses a LIBDIR different from one specified (wins) or derived (loses) for this build: '${DEPLOYED_LIBDIR}' vs. '${PREFIX_LIBDIR}' ('${libdir}')])
+        [AS_CASE(["${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS}"],
+            [*--libdir=*], [],
+            [CONFIG_FLAGS_DEPLOYED="${CONFIG_FLAGS_DEPLOYED} --libdir='${DEPLOYED_LIBDIR}'"
+             LIBDIR="${DEPLOYED_LIBDIR}"
+            ])
+    ])
 
     AS_CASE(["${CONFIG_FLAGS_DEPLOYED} ${CONFIG_FLAGS}"],
         [*--libexecdir=*], [
@@ -752,7 +909,7 @@ AS_IF([test x"$nut_enable_inplace_runtime" = xyes -a x"${NUT_VERSION_DEPLOYED-}"
     ])
 
     AS_IF([test x"${CONFIG_FLAGS_DEPLOYED}" != x], [
-        AC_MSG_NOTICE([Detected CONFIG_FLAGS of an already deployed NUT installation, using them for --inplace-runtime configuration (restarting script)])
+        AC_MSG_NOTICE([Detected CONFIG_FLAGS for an already deployed NUT installation, using them for --inplace-runtime configuration (restarting script)])
         dnl For multiply-specified flags with conflicting values, last mention wins:
         AC_MSG_NOTICE([exec "$0" $CONFIG_FLAGS_DEPLOYED $CONFIG_FLAGS --disable-inplace-runtime])
         AS_IF([test x"${NUT_VERSION_DEPLOYED}" != x], [
@@ -831,9 +988,11 @@ dnl Note: the compiler/pragma/attr methods below are custom for NUT codebase:
 NUT_COMPILER_FAMILY
 
 dnl Note: DO NOT AC_DEFINE the "FULL" items: they are generally multi-line.
-dnl NUT_REPORT_TARGET([CC_VERSION_FULL],  ["${CC_VERSION_FULL}"],  [Version and other details of C compiler])
-dnl NUT_REPORT_TARGET([CXX_VERSION_FULL], ["${CXX_VERSION_FULL}"], [Version and other details of C++ compiler])
-dnl NUT_REPORT_TARGET([CPP_VERSION_FULL], ["${CPP_VERSION_FULL}"], [Version and other details of C preprocessor])
+AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+    NUT_REPORT_TARGET_WITHOUT_AC_DEFINE([CC_VERSION_FULL],  ["${CC_VERSION_FULL}"],  [Version and other details of C compiler])
+    NUT_REPORT_TARGET_WITHOUT_AC_DEFINE([CXX_VERSION_FULL], ["${CXX_VERSION_FULL}"], [Version and other details of C++ compiler])
+    NUT_REPORT_TARGET_WITHOUT_AC_DEFINE([CPP_VERSION_FULL], ["${CPP_VERSION_FULL}"], [Version and other details of C preprocessor])
+])
 NUT_REPORT_TARGET([CC_VERSION],  ["${CC_VERSION}"],  [Compact version of C compiler])
 NUT_REPORT_TARGET([CXX_VERSION], ["${CXX_VERSION}"], [Compact version of C++ compiler])
 NUT_REPORT_TARGET([CPP_VERSION], ["${CPP_VERSION}"], [Compact version of C preprocessor])
@@ -1407,7 +1566,9 @@ LN_S_R="cp -pR"
 if test "$as_ln_s" = "ln -s" ; then
     _abs_srcdir="`cd "${srcdir}" && pwd`" || _abs_srcdir=""
     _abs_builddir="`pwd`"
-    dnl AC_MSG_NOTICE([srcdir='${srcdir}' _abs_srcdir='${_abs_srcdir}' _abs_builddir='${_abs_builddir}'])
+    AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+        AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) srcdir='${srcdir}' _abs_srcdir='${_abs_srcdir}' _abs_builddir='${_abs_builddir}'])
+    ])
     if test x"${_abs_srcdir}" = x"${_abs_builddir}" ; then
         LN_S_R="ln"
     else
@@ -1415,7 +1576,9 @@ if test "$as_ln_s" = "ln -s" ; then
         dnl devices they are mounted from (first column in df output):
         _fs_srcdir="`df "${_abs_srcdir}" | tail -1 | awk '{print $1}'`" || fs_srcdir="XXXs"
         _fs_builddir="`df "${_abs_builddir}" | tail -1 | awk '{print $1}'`" || fs_builddir="XXXb"
-        dnl AC_MSG_NOTICE([_fs_srcdir='${_fs_srcdir}' _fs_builddir='${_fs_builddir}'])
+        AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+            AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) _fs_srcdir='${_fs_srcdir}' _fs_builddir='${_fs_builddir}'])
+        ])
         if test x"${_fs_srcdir}" = x"${_fs_builddir}" ; then
             LN_S_R="ln"
         else
@@ -1451,7 +1614,7 @@ AC_CHECK_FUNCS(vsnprintf snprintf, [], [
 	AC_TYPE_LONG_LONG_INT
 ])
 
-AC_REPLACE_FUNCS(setenv strerror atexit)
+AC_REPLACE_FUNCS(setenv unsetenv strerror atexit)
 
 case ${target_os} in
    solaris2* )
@@ -1746,7 +1909,10 @@ printf("%ld ", GetAdaptersAddresses(AF_INET6, GAA_FLAG_SKIP_ANYCAST, NULL, buf, 
                 ])
                 AS_IF([test x"${ac_cv_func_GetAdaptersAddresses}" = xyes],
                     [AC_DEFINE([HAVE_GETADAPTERSADDRESSES], 1, [defined if system has the GetAdaptersAddresses() method])],
-                    [dnl AC_MSG_WARN([WIN32 library routine GetAdaptersAddresses() not found])
+                    [
+                     AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+                        AC_MSG_WARN([WIN32 library routine GetAdaptersAddresses() not found])
+                     ])
                      AS_CASE([${target_os}],
                          [*mingw*], [AC_MSG_WARN([Windows antivirus might block this test])]
                          )
@@ -1794,7 +1960,10 @@ printf("%ld ", GetAdaptersInfo(buf, &bufsz))
                 ])
                 AS_IF([test x"${ac_cv_func_GetAdaptersInfo}" = xyes],
                     [AC_DEFINE([HAVE_GETADAPTERSINFO], 1, [defined if system has the GetAdaptersInfo() method])],
-                    [dnl AC_MSG_WARN([WIN32 library routine GetAdaptersInfo() not found])
+                    [
+                     AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+                         AC_MSG_WARN([WIN32 library routine GetAdaptersInfo() not found])
+                     ])
                      AS_CASE([${target_os}],
                          [*mingw*], [AC_MSG_WARN([Windows antivirus might block this test])]
                          )
@@ -1990,14 +2159,22 @@ AC_ARG_WITH(drivers,
 			for DRV in $DRIVER_BUILD_LIST ; do
 
 				DRV_HITS=""
-				dnl #DEVEL-DEBUG# AC_MSG_NOTICE([= Checking DRV="$DRV"])
+				AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+					AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) = Checking DRV="$DRV"])
+				])
 				for DRVLIST_NAME in $DRVLIST_NAMES; do
-					dnl #DEVEL-DEBUG# AC_MSG_NOTICE([== Checking DRVLIST_NAME="$DRVLIST_NAME"])
+					AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+						AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) == Checking DRVLIST_NAME="$DRVLIST_NAME"])
+					])
 					eval DRVLIST="\${$DRVLIST_NAME}"
-					dnl #DEVEL-DEBUG# AC_MSG_NOTICE([== Contents DRVLIST="$DRVLIST"])
+					AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+						AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) == Contents DRVLIST="$DRVLIST"])
+					])
 
 					for DN in $DRVLIST ; do
-						dnl #DEVEL-DEBUG# AC_MSG_NOTICE([=== Checking DN="$DN"])
+						AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+							AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) === Checking DN="$DN"])
+						])
 						AS_IF([test x"$DN" = x"$DRV"], [
 							DRV_HITS="$DRV_HITS $DRVLIST_NAME"
 							AS_CASE(["$DRVLIST_NAME"],
@@ -2813,7 +2990,9 @@ dnl TODO: Add a way to define this path? will have app/ maybe module/ inside...
 nut_with_nut_monitor_dir="${datarootdir}/nut-monitor"
 
 PYTHON_FAILED_TEST_DETAILS=""
-dnl ### AC_MSG_NOTICE([nut_with_nut_monitor-1: ${nut_with_nut_monitor}])
+AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) nut_with_nut_monitor-1: ${nut_with_nut_monitor}])
+])
 if test x"${nut_with_nut_monitor}" != xno ; then
     dnl While we might just install for "yes" request, in hopes user would
     dnl get their Python ecosystem in place later, we need some criteria to
@@ -2828,7 +3007,9 @@ if test x"${nut_with_nut_monitor}" != xno ; then
         esac
     fi
 fi
-dnl ### AC_MSG_NOTICE([nut_with_nut_monitor-2: ${nut_with_nut_monitor}])
+AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) nut_with_nut_monitor-2: ${nut_with_nut_monitor}])
+])
 
 if test x"${nut_with_nut_monitor}" != xno ; then
     dnl Note: no double-quoting for use, the command string may be multi-token
@@ -2981,9 +3162,11 @@ if test x"${nut_with_nut_monitor}" != xno ; then
         fi
     fi
 
-    dnl ### AC_MSG_NOTICE([nut_with_nut_monitor-3: ${nut_with_nut_monitor}])
-    dnl ### AC_MSG_NOTICE([nut_with_nut_monitor_py2gtk2: ${nut_with_nut_monitor_py2gtk2}])
-    dnl ### AC_MSG_NOTICE([nut_with_nut_monitor_py3qt5: ${nut_with_nut_monitor_py3qt5}])
+    AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+        AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) nut_with_nut_monitor-3: ${nut_with_nut_monitor}])
+        AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) nut_with_nut_monitor_py2gtk2: ${nut_with_nut_monitor_py2gtk2}])
+        AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) nut_with_nut_monitor_py3qt5: ${nut_with_nut_monitor_py3qt5}])
+    ])
     dnl Can we satisfy any NUT-Monitor installation request?
     if test -n "${nut_with_nut_monitor_py2gtk2}${nut_with_nut_monitor_py3qt5}" ; then
         case "${nut_with_nut_monitor}" in
@@ -3000,7 +3183,9 @@ if test x"${nut_with_nut_monitor}" != xno ; then
 fi
 
 AC_MSG_CHECKING([if we can and should install NUT-Monitor desktop application])
-dnl ### AC_MSG_NOTICE([nut_with_nut_monitor-4: ${nut_with_nut_monitor}])
+AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) nut_with_nut_monitor-4: ${nut_with_nut_monitor}])
+])
 case "${nut_with_nut_monitor}" in
     "no") if test -n "${PYTHON_FAILED_TEST_DETAILS}" ; then
             AC_MSG_RESULT([${nut_with_nut_monitor}: ${PYTHON_FAILED_TEST_DETAILS}])
@@ -3011,7 +3196,9 @@ case "${nut_with_nut_monitor}" in
     *) AC_MSG_RESULT([${nut_with_nut_monitor}]) ;;
 esac
 
-dnl ### AC_MSG_NOTICE([nut_with_nut_monitor-5: ${nut_with_nut_monitor}])
+AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) nut_with_nut_monitor-5: ${nut_with_nut_monitor}])
+])
 if test x"${nut_with_nut_monitor}" != xno ; then
     if (command -v desktop-file-install || which desktop-file-install) >/dev/null 2>/dev/null ; then
         case "${nut_with_nut_monitor}" in
@@ -3026,7 +3213,9 @@ if test x"${nut_with_nut_monitor}" != xno ; then
         esac
     fi
 fi
-dnl ### AC_MSG_NOTICE([nut_with_nut_monitor-6: ${nut_with_nut_monitor}])
+AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) nut_with_nut_monitor-6: ${nut_with_nut_monitor}])
+])
 
 dnl ${nut_with_pynut}: TODO: arg values to request python 2, 3 or both
 AC_MSG_CHECKING([if we can and should install PyNUT module])
@@ -3483,9 +3672,11 @@ dnl not fail if we have no tools to generate it (so add to SKIP list).
 done
 rm -rf "${DOCTESTDIR}"
 
-AC_MSG_NOTICE([DOC_BUILD_LIST:       '${DOC_BUILD_LIST}'])
-AC_MSG_NOTICE([DOC_CANNOTBUILD_LIST: '${DOC_CANNOTBUILD_LIST}'])
-AC_MSG_NOTICE([DOC_SKIPBUILD_LIST:   '${DOC_SKIPBUILD_LIST}'])
+AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) DOC_BUILD_LIST:       '${DOC_BUILD_LIST}'])
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) DOC_CANNOTBUILD_LIST: '${DOC_CANNOTBUILD_LIST}'])
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) DOC_SKIPBUILD_LIST:   '${DOC_SKIPBUILD_LIST}'])
+])
 
 case "${nut_with_doc}" in
 auto)
@@ -4078,7 +4269,7 @@ AC_MSG_RESULT([${solarispkg_ips}])
 AM_CONDITIONAL(WITH_SOLARIS_PKG_IPS, test x"$solarispkg_ips" = x"yes")
 
 
-dnl NOTE: Be sure to customize e.g.  --datarootdir=/usr/share/nut to install
+dnl NOTE: Be sure to customize e.g.  --datadir=/usr/share/nut to install
 dnl these scripts not into default location as e.g. /usr/share/solaris-smf
 AC_MSG_CHECKING(whether to install Solaris SMF files)
 solarissmf="auto"
@@ -5065,6 +5256,9 @@ LIBEXECDIR="${conftemp}"
 NUT_REPORT_SETTING_PATH([System exec-library path],
     LIBEXECDIR, "${conftemp}", [Default path for system exec-libraries])
 
+dnl ----------------------------------------------------------------------
+dnl Check if NUT recipe metadata should propagate an uncommon RPATH
+
 AC_MSG_CHECKING([whether NUT libdir='${LIBDIR}' is among common search paths])
 DEFAULT_SEARCH_DIRS="`LANG=C LC_ALL=C ${CC} --print-search-dirs 2>/dev/null | grep libraries: | sed 's,^@<:@^=@:>@*=,,'`" 2>/dev/null || DEFAULT_SEARCH_DIRS=""
 NUT_LIBDIR_IN_DEFAULT_SEARCH_DIRS=""
@@ -5106,9 +5300,9 @@ else
 	fi
 fi
 AC_MSG_RESULT([${NUT_LIBDIR_IN_DEFAULT_SEARCH_DIRS}])
-dnl # if test x"${DEFAULT_SEARCH_DIRS}" != x ; then
-dnl # 	AC_MSG_NOTICE([Checked paths: ${DEFAULT_SEARCH_DIRS}])
-dnl # fi
+AS_IF([test x"${nut_enable_configure_debug}" = xyes && test x"${DEFAULT_SEARCH_DIRS}" != x], [
+	AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) Checked paths: ${DEFAULT_SEARCH_DIRS}])
+])
 
 dnl Check if we want to expose non-standard RPATH to third-party consumers
 dnl of libupsclient etc. Keep verbatim dollar-var here, expand in pkg-config!
@@ -5190,6 +5384,7 @@ AS_IF([test x"${LDFLAGS_NUT_RPATH_CXX}" = x],
 	]
 )
 
+dnl ----------------------------------------------------------------------
 dnl checks related to --with-snmp enabled on command-line
 
 dnl ${nut_with_snmp}: any value except "yes" or "no" is treated as "auto".
@@ -5947,10 +6142,12 @@ AC_SUBST(PATH_DURING_CONFIGURE)
 dnl Some binaries, like CPPUNIT tests, have similar flags already added
 dnl We might wipe their specific options below if consistently applying
 dnl debug-friendly options to everything
-AC_MSG_NOTICE([CONFIG_CFLAGS='${CONFIG_CFLAGS}'])
-AC_MSG_NOTICE([CONFIG_CXXFLAGS='${CONFIG_CXXFLAGS}'])
-AC_MSG_NOTICE([CONFIG_CPPFLAGS='${CONFIG_CPPFLAGS}'])
-AC_MSG_NOTICE([CONFIG_LDFLAGS='${CONFIG_LDFLAGS}'])
+AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) CONFIG_CFLAGS='${CONFIG_CFLAGS}'])
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) CONFIG_CXXFLAGS='${CONFIG_CXXFLAGS}'])
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) CONFIG_CPPFLAGS='${CONFIG_CPPFLAGS}'])
+    AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) CONFIG_LDFLAGS='${CONFIG_LDFLAGS}'])
+])
 AC_MSG_CHECKING([whether to enable debug info in all NUT binaries])
 nut_with_debuginfo_C="${nut_with_debuginfo}"
 nut_with_debuginfo_CXX="${nut_with_debuginfo}"
@@ -6134,7 +6331,14 @@ m4_foreach_w([SCRIPTFILE], [
 ], [
  dnl Autoconf substitutes the token above specified in plain text,
  dnl e.g. the brace below is empty and bracket gives verbatim varname
- dnl AC_MSG_NOTICE([Script: SCRIPTFILE brace:(${SCRIPTFILE}) bracket:([SCRIPTFILE])])
+ dnl However on at least NetBSD it ends up as a flawed expansion
+ dnl (varname with a slash) due to this generated shell code:
+ dnl   printf ... "Script: lib/libupsclient-config brace:(${lib/libupsclient-config}) bracket:(SCRIPTFILE)"
+ dnl so this block remains commented away until specific troubleshooting
+ dnl is needed by any developers (locally on their systems!)
+ dnl AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+ dnl     AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) Script: SCRIPTFILE brace:(${SCRIPTFILE}) bracket:([SCRIPTFILE])])
+ dnl ])
  AC_CONFIG_FILES(SCRIPTFILE, chmod +x "SCRIPTFILE")
 ])
 
@@ -6175,4 +6379,14 @@ AS_IF([test -s "${ABS_TOP_SRCDIR}/install-sh" && grep -w MKDIRPROG "${ABS_TOP_SR
 		 AC_MSG_WARN([This should not impact parallel builds.])
 		 AC_MSG_WARN([=====================================================])
 	])
+])
+
+AS_IF([test x"${NUT_VERSION_DEPLOYED-}" = x"<reenter>"], [
+	AC_MSG_NOTICE([==========================================================])
+	AC_MSG_NOTICE([You have configured a build for "in-place" replacement])
+	AC_MSG_NOTICE([of an existing NUT installation. You are advised to first])
+	AC_MSG_NOTICE([install into a temporary DESTDIR and verify the fliesystem])
+	AC_MSG_NOTICE([layout of the new build against what you already have.])
+	AC_MSG_NOTICE([Check INSTALL.nut.adoc for practical details and example.])
+	AC_MSG_NOTICE([==========================================================])
 ])
