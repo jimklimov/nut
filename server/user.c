@@ -17,10 +17,14 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 */
 
+#include "config.h"  /* must be the first header */
+
 #include <sys/types.h>
+#ifndef WIN32
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#endif	/* !WIN32 */
 
 #include "common.h"
 #include "parseconf.h"
@@ -464,7 +468,7 @@ static void upsd_user_err(const char *errmsg)
 
 void user_load(void)
 {
-	char	fn[SMALLBUF];
+	char	fn[NUT_PATH_MAX];
 	PCONF_CTX_t	ctx;
 
 	curr_user = NULL;

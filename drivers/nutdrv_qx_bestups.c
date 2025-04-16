@@ -25,11 +25,12 @@
 
 #include "main.h"
 #include "nut_float.h"
+#include "nut_stdint.h"
 #include "nutdrv_qx.h"
 #include "nutdrv_qx_blazer-common.h"
 #include "nutdrv_qx_bestups.h"
 
-#define BESTUPS_VERSION "BestUPS 0.06"
+#define BESTUPS_VERSION "BestUPS 0.07"
 
 /* Support functions */
 static int	bestups_claim(void);
@@ -102,7 +103,7 @@ static item_t	bestups_qx2nut[] = {
 	{ "output.voltage",		0,	NULL,	"Q1\r",	"",	47,	'(',	"",	13,	17,	"%.1f",	0,	NULL,	NULL,	NULL },
 	{ "ups.load",			0,	NULL,	"Q1\r",	"",	47,	'(',	"",	19,	21,	"%.0f",	0,	NULL,	NULL,	NULL },
 	{ "input.frequency",		0,	NULL,	"Q1\r",	"",	47,	'(',	"",	23,	26,	"%.1f",	0,	NULL,	NULL,	NULL },
-	{ "battery.voltage",		0,	NULL,	"Q1\r",	"",	47,	'(',	"",	28,	31,	"%.2f",	0,	NULL,	NULL,	NULL },
+	{ "battery.voltage",		0,	NULL,	"Q1\r",	"",	47,	'(',	"",	28,	31,	"%.2f",	0,	NULL,	NULL,	qx_multiply_battvolt },
 	{ "ups.temperature",		0,	NULL,	"Q1\r",	"",	47,	'(',	"",	33,	36,	"%.1f",	0,	NULL,	NULL,	NULL },
 	/* Status bits */
 	{ "ups.status",			0,	NULL,	"Q1\r",	"",	47,	'(',	"",	38,	38,	NULL,	QX_FLAG_QUICK_POLL,	NULL,	NULL,	blazer_process_status_bits },		/* Utility Fail (Immediate) */
@@ -356,12 +357,14 @@ static int	bestups_preprocess_id_answer(item_t *item, const int len)
 /* *SETVAR(/NONUT)* Preprocess setvars */
 static int	bestups_process_setvar(item_t *item, char *value, const size_t valuelen)
 {
+	double	val;
+
 	if (!strlen(value)) {
 		upsdebugx(2, "%s: value not given for %s", __func__, item->info_type);
 		return -1;
 	}
 
-	double	val = strtod(value, NULL);
+	val = strtod(value, NULL);
 
 	if (!strcasecmp(item->info_type, "pins_shutdown_mode")) {
 
@@ -393,7 +396,7 @@ static int	bestups_process_setvar(item_t *item, char *value, const size_t valuel
 static int	bestups_process_bbb_status_bit(item_t *item, char *value, const size_t valuelen)
 {
 	/* Bypass/Boost/Buck bit is not reliable when a battery test, shutdown or on battery condition occurs: always ignore it in these cases */
-	if (!(qx_status() & STATUS(OL)) || (qx_status() & (STATUS(CAL) | STATUS(FSD)))) {
+	if (!((unsigned int)(qx_status()) & STATUS(OL)) || ((unsigned int)(qx_status()) & (STATUS(CALIB) | STATUS(FSD)))) {
 
 		if (item->value[0] == '1')
 			item->value[0] = '0';
@@ -624,13 +627,20 @@ static int	bestups_batt_packs(item_t *item, char *value, const size_t valuelen)
 static int	bestups_get_pins_shutdown_mode(item_t *item, char *value, const size_t valuelen)
 {
 	item_t	*unskip;
+	long	l;
 
 	if (strspn(item->value, "0123456789") != strlen(item->value)) {
 		upsdebugx(2, "%s: non numerical value [%s: %s]", __func__, item->info_type, item->value);
 		return -1;
 	}
 
-	pins_shutdown_mode = strtol(item->value, NULL, 10);
+	l = strtol(item->value, NULL, 10);
+	if (l > INT_MAX) {
+		upsdebugx(2, "%s: pins_shutdown_mode out of range [%s: %s]",
+			__func__, item->info_type, item->value);
+		return -1;
+	}
+	pins_shutdown_mode = (int)l;
 
 #ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_FORMAT_NONLITERAL
 #pragma GCC diagnostic push
@@ -665,7 +675,8 @@ static int	bestups_get_pins_shutdown_mode(item_t *item, char *value, const size_
 /* Voltage settings */
 static int	bestups_voltage_settings(item_t *item, char *value, const size_t valuelen)
 {
-	int		index, val;
+	long		index;
+	int			val;
 	const char	*nominal_voltage;
 	const struct {
 		const int	low;		/* Low voltage		->	input.transfer.low / input.transfer.boost.low */
@@ -715,7 +726,7 @@ static int	bestups_voltage_settings(item_t *item, char *value, const size_t valu
 	index = strtol(item->value, NULL, 10);
 
 	if (index < 0 || index > 9) {
-		upsdebugx(2, "%s: value '%d' out of range [0..9]", __func__, index);
+		upsdebugx(2, "%s: value '%ld' out of range [0..9]", __func__, index);
 		return -1;
 	}
 

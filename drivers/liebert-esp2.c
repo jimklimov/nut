@@ -28,7 +28,8 @@
 #define IsBitSet(val, bit) ((val) & (1 << (bit)))
 
 #define DRIVER_NAME	"Liebert ESP-II serial UPS driver"
-#define DRIVER_VERSION	"0.04"
+#define DRIVER_VERSION	"0.08"
+
 #define UPS_SHUTDOWN_DELAY 12 /* it means UPS will be shutdown 120 sec */
 #define SHUTDOWN_CMD_LEN  8
 
@@ -131,9 +132,9 @@ static char cksum(const char *buf, const size_t len)
 	return sum;
 }
 
-static int do_command(const unsigned char *command, char *reply, size_t cmd_len)
+static ssize_t do_command(const unsigned char *command, char *reply, size_t cmd_len)
 {
-	int	ret;
+	ssize_t	ret;
 
 	ret = ser_send_buf(upsfd, command, cmd_len);
 	if (ret < 0) {
@@ -176,7 +177,8 @@ void upsdrv_initinfo(void)
 	};
 
 	char	buf[LARGEBUF];
-	int	i, bitn, vari, ret=0, offset=4, readok=0;
+	int	i, bitn, vari, offset=4, readok=0;
+	ssize_t	ret=0;
 	char	command[6], reply[8];
 	unsigned int	value;
 
@@ -200,7 +202,7 @@ void upsdrv_initinfo(void)
 		}
 
 		buf[i<<1] = 0;
-		upsdebugx(1, "return: %d (8=success)", ret);
+		upsdebugx(1, "return: %" PRIiSIZE " (8=success)", ret);
 
 		if (ret == 8) { /* last command successful */
 			dstate_setinfo(vartab[vari].var,"%s",buf);
@@ -225,7 +227,7 @@ void upsdrv_initinfo(void)
 				value+=(1<<(unsigned short int)(bitn - 0));
 		}
 		num_inphases=value;
-		dstate_setinfo("input.phases", "%d", value);
+		dstate_setinfo("input.phases", "%u", value);
 
 		/* output: from bit 4 to bit 5  (2 bits)*/
 		for (value=0,bitn=4;bitn<6;bitn++) {
@@ -233,7 +235,7 @@ void upsdrv_initinfo(void)
 				value+=(1<<(unsigned short int)(bitn - 4));
 		}
 		num_outphases=value;
-		dstate_setinfo("output.phases", "%d", value);
+		dstate_setinfo("output.phases", "%u", value);
 
 		if (reply[5] & (1<<4)) {	/* ISOFFLINE */
 			dstate_setinfo("ups.type", "offline") ;
@@ -386,7 +388,8 @@ void upsdrv_updateinfo(void)
 
 	const char	*val;
 	char	reply[8];
-	int	ret, i;
+	ssize_t	ret;
+	int	i;
 
 	for (i = 0; vartab[i].var; i++) {
 		int16_t	intval;
@@ -550,13 +553,20 @@ void upsdrv_updateinfo(void)
 
 void upsdrv_shutdown(void)
 {
-	char reply[8];
+	/* Only implement "shutdown.default"; do not invoke
+	 * general handling of other `sdcommands` here */
+
+	char	reply[8];
 
 	if(!(do_command(cmd_setOutOffMode, reply, 8) != -1) &&
 	    (do_command(cmd_setOutOffDelay, reply, 8) != -1) &&
 	    (do_command(cmd_sysLoadKey, reply, 6) != -1) &&
-	    (do_command(cmd_shutdown, reply, 8) != -1))
-			upslogx(LOG_ERR, "Failed to shutdown UPS");
+	    (do_command(cmd_shutdown, reply, 8) != -1)
+	) {
+		upslogx(LOG_ERR, "Failed to shutdown UPS");
+		if (handling_upsdrv_shutdown > 0)
+			set_exit_flag(EF_EXIT_FAILURE);
+	}
 }
 
 static int instcmd(const char *cmdname, const char *extra)

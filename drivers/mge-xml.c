@@ -2,8 +2,8 @@
 
    Copyright (C)
 	2008-2009	Arjen de Korte <adkorte-guest@alioth.debian.org>
-	2009		Arnaud Quette <ArnaudQuette@Eaton.com>
-	2017		Jim Klimov <EvgenyKlimov@Eaton.com>
+	2009-2021	Eaton (author: Arnaud Quette <ArnaudQuette@Eaton.com>)
+	2017		Eaton (author: Jim Klimov <EvgenyKlimov@Eaton.com>)
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,6 +20,8 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 */
 
+#include "config.h"	/* must be the first header */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,7 +35,11 @@
 #include "mge-xml.h"
 #include "main.h" /* for testvar() */
 
-#define MGE_XML_VERSION		"MGEXML/0.30"
+#ifdef WIN32
+#include "wincompat.h"
+#endif	/* WIN32 */
+
+#define MGE_XML_VERSION		"MGEXML/0.36"
 
 #define MGE_XML_INITUPS		"/"
 #define MGE_XML_INITINFO	"/mgeups/product.xml /product.xml /ws/product.xml"
@@ -67,8 +73,8 @@ static int	mge_report_deprecation__convert_deci = 1;
 typedef enum {
 	ROOTPARENT = NE_XML_STATEROOT,
 
-	_UNEXPECTED,
-	_PARSEERROR,
+	NETXML_UNEXPECTED,
+	NETXML_PARSEERROR,
 
 	PRODUCT_INFO = 100,	/* "/mgeups/product.xml" */
 
@@ -504,6 +510,8 @@ static const char *mge_beeper_info(const char *arg_val)
 		return "enabled";
 	case 3:
 		return "muted";
+	default:
+		break;
 	}
 	return NULL;
 }
@@ -522,6 +530,8 @@ static const char *mge_upstype_conversion(const char *arg_val)
 		return "online - parallel with hot standy";
 	case 5:
 		return "online - hot standby redundancy";
+	default:
+		break;
 	}
 	return NULL;
 }
@@ -536,13 +546,15 @@ static const char *mge_sensitivity_info(const char *arg_val)
 		return "high";
 	case 2:
 		return "low";
+	default:
+		break;
 	}
 	return NULL;
 }
 
 static const char *mge_test_result_info(const char *arg_val)
 {
-	STATUS_CLR(CAL);
+	STATUS_CLR(CALIB);
 	switch (atoi(arg_val))
 	{
 	case 1:
@@ -554,12 +566,14 @@ static const char *mge_test_result_info(const char *arg_val)
 	case 4:
 		return "aborted";
 	case 5:
-		STATUS_SET(CAL);
+		STATUS_SET(CALIB);
 		return "in progress";
 	case 6:
 		return "no test initiated";
 	case 7:
 		return "test scheduled";
+	default:
+		break;
 	}
 	return NULL;
 }
@@ -570,6 +584,25 @@ static const char *mge_ambient_info(const char *arg_val)
 	{
 	case 1:
 		return arg_val;
+	default:
+		return NULL;
+	}
+}
+
+static const char *mge_drycontact_info(const char *arg_val)
+{
+	/* these values should theoretically be obtained through
+	 * Environment.Input[1].State[x].Description
+	 * Examples:
+	 * <OBJECT name="Environment.Input[1].State[0].Description">open</OBJECT>
+	 * <OBJECT name="Environment.Input[1].State[1].Description">closed</OBJECT>
+	 */
+	switch (atoi(arg_val))
+	{
+	case 0:
+		return "opened";
+	case 1:
+		return "closed";
 	default:
 		return NULL;
 	}
@@ -926,6 +959,7 @@ static xml_info_t mge_xml2nut[] = {
 	{ "battery.runtime", 0, 0, "UPS.PowerSummary.RunTimeToEmpty", 0, 0, NULL },
 	{ "battery.runtime.low", ST_FLAG_RW, 0, "System.RunTimeToEmptyLimit", 0, 0, NULL },
 	{ "battery.temperature", 0, 0, "UPS.BatterySystem.Battery.Temperature", 0, 0, NULL },
+	{ "battery.packs.external", 0, 0, "UPS.BatterySystem.Battery.Count", 0, 0, NULL },
 	{ "battery.type", ST_FLAG_STATIC, 0, "UPS.PowerSummary.iDeviceChemistry", 0, 0, NULL },
 	{ "battery.type", ST_FLAG_STATIC, 0, "UPS.PowerSummary.iDeviceChemistery", 0, 0, NULL }, /* [sic] */
 	{ "battery.voltage.nominal", ST_FLAG_STATIC, 0, "UPS.BatterySystem.ConfigVoltage", 0, 0, NULL },
@@ -958,15 +992,15 @@ static xml_info_t mge_xml2nut[] = {
 	{ "ups.beeper.status", 0 ,0, "UPS.BatterySystem.Battery.AudibleAlarmControl", 0, 0, mge_beeper_info },
 	{ "ups.beeper.status", 0 ,0, "UPS.PowerSummary.AudibleAlarmControl", 0, 0, mge_beeper_info },
 	{ "ups.temperature", 0, 0, "UPS.PowerSummary.Temperature", 0, 0, NULL },
-	{ "ups.power", 0, 0, "UPS.PowerConverter.Output.ApparentPower", 0, 0, NULL },
-	{ "ups.L1.power", 0, 0, "UPS.PowerConverter.Output.Phase[1].ApparentPower", 0, 0, ignore_if_zero },
-	{ "ups.L2.power", 0, 0, "UPS.PowerConverter.Output.Phase[2].ApparentPower", 0, 0, ignore_if_zero },
-	{ "ups.L3.power", 0, 0, "UPS.PowerConverter.Output.Phase[3].ApparentPower", 0, 0, ignore_if_zero },
 	{ "ups.power.nominal", ST_FLAG_STATIC, 0, "UPS.Flow[4].ConfigApparentPower", 0, 0, NULL },
+	{ "ups.power", 0, 0, "UPS.PowerConverter.Output.ApparentPower", 0, 0, NULL },
+	{ "ups.L1.power", 0, 0, "UPS.PowerConverter.Output.Phase[1].ApparentPower", 0, 0, NULL },
+	{ "ups.L2.power", 0, 0, "UPS.PowerConverter.Output.Phase[2].ApparentPower", 0, 0, NULL },
+	{ "ups.L3.power", 0, 0, "UPS.PowerConverter.Output.Phase[3].ApparentPower", 0, 0, NULL },
 	{ "ups.realpower", 0, 0, "UPS.PowerConverter.Output.ActivePower", 0, 0, NULL },
-	{ "ups.L1.realpower", 0, 0, "UPS.PowerConverter.Output.Phase[1].ActivePower", 0, 0, ignore_if_zero },
-	{ "ups.L2.realpower", 0, 0, "UPS.PowerConverter.Output.Phase[2].ActivePower", 0, 0, ignore_if_zero },
-	{ "ups.L3.realpower", 0, 0, "UPS.PowerConverter.Output.Phase[3].ActivePower", 0, 0, ignore_if_zero },
+	{ "ups.L1.realpower", 0, 0, "UPS.PowerConverter.Output.Phase[1].ActivePower", 0, 0, NULL },
+	{ "ups.L2.realpower", 0, 0, "UPS.PowerConverter.Output.Phase[2].ActivePower", 0, 0, NULL },
+	{ "ups.L3.realpower", 0, 0, "UPS.PowerConverter.Output.Phase[3].ActivePower", 0, 0, NULL },
 	{ "ups.realpower.nominal", ST_FLAG_STATIC, 0, "UPS.Flow[4].ConfigActivePower", 0, 0, NULL },
 	{ "ups.start.auto", 0, 0, "UPS.PowerConverter.Input[1].AutomaticRestart", 0, 0, yes_no_info },
 	{ "ups.start.battery", 0, 0, "UPS.PowerConverter.Input[3].StartOnBattery", 0, 0, yes_no_info },
@@ -1056,6 +1090,8 @@ static xml_info_t mge_xml2nut[] = {
 	{ "ambient.temperature.low", ST_FLAG_RW, 0, "Environment.Temperature.LowThreshold", 0, 0, NULL },
 	{ "ambient.temperature.maximum", 0, 0, "Environment.PresentStatus.HighTemperature", 0, 0, mge_ambient_info },
 	{ "ambient.temperature.minimum", 0, 0, "Environment.PresentStatus.LowTemperature", 0, 0, mge_ambient_info },
+	{ "ambient.contacts.1.status", 0, 0, "Environment.Input[1].PresentStatus.State", 0, 0, mge_drycontact_info },
+	{ "ambient.contacts.2.status", 0, 0, "Environment.Input[2].PresentStatus.State", 0, 0, mge_drycontact_info },
 
 	/* Outlet page (using MGE UPS SYSTEMS - PowerShare technology) */
 	{ "outlet.id", 0, 0, "UPS.OutletSystem.Outlet[1].OutletID", 0, 0, NULL },
@@ -1114,7 +1150,7 @@ static xml_info_t mge_xml2nut[] = {
 /* A start-element callback for element with given namespace/name. */
 static int mge_xml_startelm_cb(void *userdata, int parent, const char *nspace, const char *name, const char **atts)
 {
-	int	state = _UNEXPECTED;
+	int	state = NETXML_UNEXPECTED;
 	NUT_UNUSED_VARIABLE(userdata);
 	NUT_UNUSED_VARIABLE(nspace);
 
@@ -1388,6 +1424,10 @@ static int mge_xml_startelm_cb(void *userdata, int parent, const char *nspace, c
 			state = XC_BROADCAST;
 			break;
 		}
+		break;
+
+	default:
+		break;
 	}
 
 	upsdebugx(3, "%s: name <%s> (parent = %d, state = %d)", __func__, name, parent, state);
@@ -1416,6 +1456,9 @@ static int mge_xml_cdata_cb(void *userdata, int state, const char *cdata, size_t
 	case SU_OBJECT:
 	case GO_OBJECT:
 		snprintfcat(val, sizeof(val), "%.*s", (int)len, cdata);
+		break;
+
+	default:
 		break;
 	}
 
@@ -1489,6 +1532,9 @@ static int mge_xml_endelm_cb(void *userdata, int state, const char *nspace, cons
 			&inited_phaseinfo_out, &num_outphases, 0);
 
 		break;
+
+	default:
+		break;
 	}
 
 	return 0;
@@ -1509,9 +1555,9 @@ subdriver_t mge_xml_subdriver = {
 };
 
 const char *vname_nut2mge_xml(const char *name) {
-	assert(NULL != name);
-
 	size_t i = 0;
+
+	assert(NULL != name);
 
 	for (; i < sizeof(mge_xml2nut) / sizeof(xml_info_t); ++i) {
 		xml_info_t *info = mge_xml2nut + i;
@@ -1525,9 +1571,9 @@ const char *vname_nut2mge_xml(const char *name) {
 }
 
 const char *vname_mge_xml2nut(const char *name) {
-	assert(NULL != name);
-
 	size_t i = 0;
+
+	assert(NULL != name);
 
 	for (; i < sizeof(mge_xml2nut) / sizeof(xml_info_t); ++i) {
 		xml_info_t *info = mge_xml2nut + i;
@@ -1541,9 +1587,9 @@ const char *vname_mge_xml2nut(const char *name) {
 }
 
 char *vvalue_mge_xml2nut(const char *name, const char *value, size_t len) {
-	assert(NULL != name);
-
 	size_t i = 0;
+
+	assert(NULL != name);
 
 	for (; i < sizeof(mge_xml2nut) / sizeof(xml_info_t); ++i) {
 		xml_info_t *info = mge_xml2nut + i;

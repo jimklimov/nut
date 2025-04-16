@@ -33,7 +33,7 @@
 #include "serial.h"
 
 #define DRIVER_NAME	"Best Ferrups Series ME/RE/MD driver"
-#define DRIVER_VERSION	"0.03"
+#define DRIVER_VERSION	"0.07"
 
 /* driver description structure */
 upsdrv_info_t upsdrv_info = {
@@ -77,6 +77,7 @@ static struct {
 
 
 /* Forward decls */
+static int instcmd(const char *cmdname, const char *extra);
 
 /* Set up all the funky shared memory stuff used to communicate with upsd */
 void upsdrv_initinfo (void)
@@ -101,9 +102,15 @@ void upsdrv_initinfo (void)
 	fprintf(stderr, "Best Power %s detected\n",
 		dstate_getinfo("ups.model"));
 	fprintf(stderr, "Battery voltages %5.1f nominal, %5.1f full, %5.1f empty\n",
-	 fc.idealbvolts,
-	 fc.fullvolts,
-	 fc.emptyvolts);
+		fc.idealbvolts,
+		fc.fullvolts,
+		fc.emptyvolts);
+
+	/* commands ----------------------------------------------- */
+	dstate_addcmd("shutdown.return");
+
+	/* install handlers */
+	upsh.instcmd = instcmd;
 }
 
 
@@ -114,9 +121,9 @@ time^M^M^JFeb 20, 22:13:32^M^J^M^J=>id^M^JUnit ID "ME3.1K12345"^M^J^M^J=>
 ----------------------------------------------------
 */
 
-static int execute(const char *cmd, char *result, size_t resultsize)
+static ssize_t execute(const char *cmd, char *result, size_t resultsize)
 {
-	int ret;
+	ssize_t ret;
 	char buf[256];
 
 	ser_send(upsfd, "%s", cmd);
@@ -135,7 +142,28 @@ void upsdrv_updateinfo(void)
 	if (! fc.valid) {
 		fprintf(stderr,
 			"upsupdate run before ups_ident() read ups config\n");
+#ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_UNREACHABLE_CODE
+#pragma GCC diagnostic push
+#endif
+#ifdef HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_UNREACHABLE_CODE
+#pragma GCC diagnostic ignored "-Wunreachable-code"
+#endif
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunreachable-code"
+#endif
+		/* NOTE: This assert() always fails because of "0":
+		 * error: will never be executed [-Werror,-Wunreachable-code]
+		 *   ((0) ? (void) (0) : __assert_fail ("0", "bestuferrups.c", 138, __PRETTY_FUNCTION__));
+		 *                  ^
+		 */
 		assert(0);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+#ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_UNREACHABLE_CODE
+#pragma GCC diagnostic pop
+#endif
 	}
 
 	if (execute("f\r", fstring, sizeof(fstring)) > 0) {
@@ -340,12 +368,34 @@ static void ups_sync(void)
 	}
 }
 
+/* handler for commands to be sent to UPS */
+static
+int instcmd(const char *cmdname, const char *extra)
+{
+	NUT_UNUSED_VARIABLE(extra);
+
+	if (!strcasecmp(cmdname, "shutdown.return")) {
+		/* NB: hard-wired password */
+		ser_send(upsfd, "pw377\r");
+		/* power off in 1 second and restart when line power returns */
+		ser_send(upsfd, "off 1 a\r");
+
+		return STAT_INSTCMD_HANDLED;
+	}
+
+	upslogx(LOG_NOTICE, "instcmd: unknown command [%s] [%s]", cmdname, extra);
+	return STAT_INSTCMD_UNKNOWN;
+}
+
 /* power down the attached load immediately */
 void upsdrv_shutdown(void)
 {
-/* NB: hard-wired password */
-	ser_send(upsfd, "pw377\r");
-	ser_send(upsfd, "off 1 a\r");	/* power off in 1 second and restart when line power returns */
+	/* Only implement "shutdown.default"; do not invoke
+	 * general handling of other `sdcommands` here */
+
+	int	ret = do_loop_shutdown_commands("shutdown.return", NULL);
+	if (handling_upsdrv_shutdown > 0)
+		set_exit_flag(ret == STAT_INSTCMD_HANDLED ? EF_EXIT_SUCCESS : EF_EXIT_FAILURE);
 }
 
 /* list flags and values that you want to receive via -x */
@@ -399,7 +449,7 @@ static void setup_serial(void)
 }
 
 
-void upsdrv_initups ()
+void upsdrv_initups (void)
 {
 	char	temp[256], fcstring[512];
 

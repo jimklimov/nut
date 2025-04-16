@@ -45,7 +45,7 @@
 #include "serial.h"
 
 #define DRIVER_NAME	"Best Ferrups/Fortress driver"
-#define DRIVER_VERSION	"0.12"
+#define DRIVER_VERSION	"0.16"
 
 /* driver description structure */
 upsdrv_info_t upsdrv_info = {
@@ -103,6 +103,7 @@ static struct {
 static int inverter_status;
 
 /* Forward decls */
+static int instcmd(const char *cmdname, const char *extra);
 
 /* Set up all the funky shared memory stuff used to communicate with upsd */
 void  upsdrv_initinfo (void)
@@ -158,6 +159,12 @@ void  upsdrv_initinfo (void)
 		fc.fullvolts,
 		fc.lowvolts,
 		fc.emptyvolts);
+
+	/* commands ----------------------------------------------- */
+	dstate_addcmd("shutdown.return");
+
+	/* install handlers */
+	upsh.instcmd = instcmd;
 }
 
 
@@ -196,9 +203,9 @@ static void alert_handler(char ch)
 time^M^M^JFeb 20, 22:13:32^M^J^M^J=>id^M^JUnit ID "ME3.1K12345"^M^J^M^J=>
 ----------------------------------------------------
 */
-static int execute(const char *cmd, char *result, size_t resultsize)
+static ssize_t execute(const char *cmd, char *result, size_t resultsize)
 {
-	int ret;
+	ssize_t ret;
 	char buf[SMALLBUF];
 	unsigned char ch;
 
@@ -251,7 +258,28 @@ void upsdrv_updateinfo(void)
 
 	if (! fc.valid) {
 		upsdebugx(1, "upsupdate run before ups_ident() read ups config");
+#ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_UNREACHABLE_CODE
+#pragma GCC diagnostic push
+#endif
+#ifdef HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_UNREACHABLE_CODE
+#pragma GCC diagnostic ignored "-Wunreachable-code"
+#endif
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunreachable-code"
+#endif
+		/* NOTE: This assert() always fails because of "0":
+		 * error: will never be executed [-Werror,-Wunreachable-code]
+		 *   ((0) ? (void) (0) : __assert_fail ("0", "bestfcom.c", 254, __PRETTY_FUNCTION__));
+		 *                  ^
+		 */
 		assert(0);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+#ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_UNREACHABLE_CODE
+#pragma GCC diagnostic pop
+#endif
 	}
 
 	if (execute("f\r", fstring, sizeof(fstring)) >= 80) {
@@ -440,12 +468,35 @@ static void ups_sync(void)
 	ser_get_line(upsfd, buf, sizeof(buf), '>', "\012", 3, 0);
 }
 
+/* handler for commands to be sent to UPS */
+static
+int instcmd(const char *cmdname, const char *extra)
+{
+	NUT_UNUSED_VARIABLE(extra);
+
+	if (!strcasecmp(cmdname, "shutdown.return")) {
+		/* NB: hard-wired password */
+		ser_send(upsfd, "pw377\r");
+		/* power off in 10 seconds and restart when line power returns,
+		 * FE7K required a min of 5 seconds for off to function */
+		ser_send(upsfd, "o 10 a\r");
+
+		return STAT_INSTCMD_HANDLED;
+	}
+
+	upslogx(LOG_NOTICE, "instcmd: unknown command [%s] [%s]", cmdname, extra);
+	return STAT_INSTCMD_UNKNOWN;
+}
+
 /* power down the attached load immediately */
 void upsdrv_shutdown(void)
 {
-	/* NB: hard-wired password */
-	ser_send(upsfd, "pw377\r");
-	ser_send(upsfd, "o 10 a\r");	/* power off in 10 seconds and restart when line power returns, FE7K required a min of 5 seconds for off to function */
+	/* Only implement "shutdown.default"; do not invoke
+	 * general handling of other `sdcommands` here */
+
+	int	ret = do_loop_shutdown_commands("shutdown.return", NULL);
+	if (handling_upsdrv_shutdown > 0)
+		set_exit_flag(ret == STAT_INSTCMD_HANDLED ? EF_EXIT_SUCCESS : EF_EXIT_FAILURE);
 }
 
 /* list flags and values that you want to receive via -x */

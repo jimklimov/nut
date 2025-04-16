@@ -1,2 +1,4 @@
-clean-local:
-	rm -f *-spellchecked
+# Network UPS Tools: cable docs
+
+CLEANFILES = *-spellchecked
+MAINTAINERCLEANFILES = Makefile.in .dirstamp

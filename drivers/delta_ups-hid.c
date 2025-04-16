@@ -23,12 +23,14 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
+#include "config.h" /* must be first */
+
 #include "usbhid-ups.h"
 #include "delta_ups-hid.h"
 #include "main.h"	/* for getval() */
 #include "usb-common.h"
 
-#define DELTA_UPS_HID_VERSION	"Delta UPS HID 0.5"
+#define DELTA_UPS_HID_VERSION	"Delta UPS HID 0.6"
 
 /* Delta UPS */
 #define DELTA_UPS_VENDORID	0x05dd
@@ -40,7 +42,7 @@ static usb_device_id_t delta_ups_usb_device_table[] = {
 	{ USB_DEVICE(DELTA_UPS_VENDORID, 0x041b), NULL },
 
 	/* Terminating entry */
-	{ -1, -1, NULL }
+	{ 0, 0, NULL }
 };
 
 /* --------------------------------------------------------------- */
@@ -176,7 +178,7 @@ static hid_info_t delta_ups_hid2nut[] = {
 	{ "input.transfer.low.max", 0, 0, "UPS.PowerConverter.Output.DeltaConfigTransferLowMax", NULL, "%.1f", HU_FLAG_STATIC, NULL },
 	{ "input.transfer.high.min", 0, 0, "UPS.PowerConverter.Output.DeltaConfigTransferHighMin", NULL, "%.1f", HU_FLAG_STATIC, NULL },
 	{ "input.transfer.high.max", 0, 0, "UPS.PowerConverter.Output.DeltaConfigTransferHighMax", NULL, "%.1f", HU_FLAG_STATIC, NULL },
-	/* FIXME: Check vs hardware, is this an "input" or "outlet/outpu" value after all? */
+	/* FIXME: Check vs. hardware, is this an "input" or "outlet/outpu" value after all? */
 	{ "input.source", 0, 0, "UPS.OutletSystem.Outlet.DeltaOutputSource", NULL, "%s", 0, delta_ups_output_source_info },
 	{ "input.frequency", 0, 0, "UPS.PowerConverter.Input.Frequency", NULL, "%.1f", HU_FLAG_QUICK_POLL, NULL },
 
@@ -317,4 +319,5 @@ subdriver_t delta_ups_subdriver = {
 	delta_ups_format_model,
 	delta_ups_format_mfr,
 	delta_ups_format_serial,
+	fix_report_desc,
 };

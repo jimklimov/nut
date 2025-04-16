@@ -27,7 +27,7 @@
 #include "nut-ipmi.h"
 
 #define DRIVER_NAME	"IPMI PSU driver"
-#define DRIVER_VERSION	"0.30"
+#define DRIVER_VERSION	"0.34"
 
 /* driver description structure */
 upsdrv_info_t upsdrv_info = {
@@ -87,10 +87,17 @@ void upsdrv_initinfo(void)
 	if (ipmi_dev.overall_capacity != -1)
 		dstate_setinfo("ups.realpower.nominal", "%i", ipmi_dev.overall_capacity);
 
+	/* FIXME: Did older FreeIPMI with "unsigned int" voltage ranges
+	 * have a way to report invalid readings?
+	 */
+#ifdef HAVE_FREEIPMI_11X_12X
 	if (ipmi_dev.input_minvoltage != -1)
+#endif
 		dstate_setinfo("input.voltage.minimum", "%i", ipmi_dev.input_minvoltage);
 
+#ifdef HAVE_FREEIPMI_11X_12X
 	if (ipmi_dev.input_maxvoltage != -1)
+#endif
 		dstate_setinfo("input.voltage.maximum", "%i", ipmi_dev.input_maxvoltage);
 
 	if (ipmi_dev.input_minfreq != -1)
@@ -137,11 +144,27 @@ void upsdrv_updateinfo(void)
 }
 
 void upsdrv_shutdown(void)
-	__attribute__((noreturn));
-
-void upsdrv_shutdown(void)
 {
-	fatalx(EXIT_FAILURE, "shutdown not supported");
+	/* Only implement "shutdown.default"; do not invoke
+	 * general handling of other `sdcommands` here */
+
+	/*
+	 * WARNING:
+	 * This driver will probably never support this properly:
+	 * In order to be of any use, the driver should be called
+	 * near the end of the system halt script (or a service
+	 * management framework's equivalent, if any). By that
+	 * time we, in all likelyhood, won't have basic network
+	 * capabilities anymore, so we could never send this
+	 * command to the UPS. This is not an error, but rather
+	 * a limitation (on some platforms) of the interface/media
+	 * used for these devices.
+	 */
+
+	/* replace with a proper shutdown function */
+	upslogx(LOG_ERR, "shutdown not supported");
+	if (handling_upsdrv_shutdown > 0)
+		set_exit_flag(EF_EXIT_FAILURE);
 }
 
 /*
@@ -177,7 +200,8 @@ void upsdrv_help(void)
 /* list flags and values that you want to receive via -x */
 void upsdrv_makevartable(void)
 {
-	/* FIXME: need more params.
+	/* FIXME: need more params. */
+/*
 	addvar(VAR_VALUE, "username", "Remote server username");
 	addvar(VAR_VALUE, "password", "Remote server password");
 	addvar(VAR_VALUE, "authtype",
@@ -186,7 +210,9 @@ void upsdrv_makevartable(void)
 		"Type of the device to match ('psu' for \"Power Supply\")");
 
 	addvar(VAR_VALUE, "serial", "Serial number to match a specific device");
-	addvar(VAR_VALUE, "fruid", "FRU identifier to match a specific device"); */
+	addvar(VAR_VALUE, "fruid", "FRU identifier to match a specific device");
+	addvar(VAR_VALUE, "sensorid", "Sensor identifier to match a specific device");
+*/
 }
 
 void upsdrv_initups(void)

@@ -110,15 +110,13 @@ TODO List:
 
 
 #include "main.h"
-#include <math.h>       /* For ldexp() */
-#include <float.h>      /*for FLT_MAX */
-
-#include "nut_stdint.h" /* for uint8_t, uint16_t, uint32_t, ... */
+#include "nut_float.h"	/* For ldexp(), FLT_MAX */
+#include "nut_stdint.h"	/* for uint8_t, uint16_t, uint32_t, ... */
 #include "bcmxcp_io.h"
 #include "bcmxcp.h"
 
-#define DRIVER_NAME    "BCMXCP UPS driver"
-#define DRIVER_VERSION "0.31"
+#define DRIVER_NAME	"BCMXCP UPS driver"
+#define DRIVER_VERSION	"0.36"
 
 #define MAX_NUT_NAME_LENGTH 128
 #define NUT_OUTLET_POSITION   7
@@ -159,8 +157,8 @@ static unsigned char init_outlet(unsigned char len);
 static void init_system_test_capabilities(void);
 static int instcmd(const char *cmdname, const char *extra);
 static int setvar(const char *varname, const char *val);
-static int decode_instcmd_exec(const int res, const unsigned char exec_status, const char *cmdname, const char *success_msg);
-static int decode_setvar_exec(const int res, const unsigned char exec_status, const char *cmdname, const char *success_msg);
+static int decode_instcmd_exec(const ssize_t res, const unsigned char exec_status, const char *cmdname, const char *success_msg);
+static int decode_setvar_exec(const ssize_t res, const unsigned char exec_status, const char *cmdname, const char *success_msg);
 static float calculate_ups_load(const unsigned char *data);
 
 static const char *nut_find_infoval(info_lkp_t *xcp2info, const double value, const bool_t debug_output_nonexisting);
@@ -354,7 +352,7 @@ float get_float(const unsigned char *data)
 	}
 
 	/* Never happens */
-	upslogx(LOG_ERR, "s = %d, e = %d, f = %lu\n", s, e, f);
+	upslogx(LOG_ERR, "s = %d, e = %d, f = %ld", s, e, f);
 	return 0;
 }
 
@@ -389,7 +387,7 @@ unsigned char calc_checksum(const unsigned char *buf)
 	return c;
 }
 
-void init_command_map()
+void init_command_map(void)
 {
 	int i = 0;
 
@@ -442,7 +440,7 @@ void init_command_map()
 	}
 }
 
-void init_meter_map()
+void init_meter_map(void)
 {
 	/* Clean entire map */
 	memset(&bcmxcp_meter_map, 0, sizeof(BCMXCP_METER_MAP_ENTRY_t) * BCMXCP_METER_MAP_MAX);
@@ -519,7 +517,7 @@ void init_meter_map()
 	bcmxcp_meter_map[BCMXCP_METER_MAP_LINE_EVENT_COUNTER].nut_entity = "input.quality";
 }
 
-void init_alarm_map()
+void init_alarm_map(void)
 {
 	/* Clean entire map */
 	memset(&bcmxcp_alarm_map, 0, sizeof(BCMXCP_ALARM_MAP_ENTRY_t) * BCMXCP_ALARM_MAP_MAX);
@@ -777,7 +775,8 @@ bool_t init_command(int size)
 	unsigned char answer[PW_ANSWER_MAX_SIZE];
 	unsigned char commandByte;
 	const char* nutvalue;
-	int res, iIndex = 0, ncounter, NumComms = 0, i;
+	ssize_t res;
+	int iIndex = 0, ncounter, NumComms = 0, i;
 
 	upsdebugx(1, "entering init_command(%i)", size);
 
@@ -793,11 +792,11 @@ bool_t init_command(int size)
 
 		res = answer[iIndex];
 		NumComms = (int)res; /* Number of commands implemented in this UPS */
-		upsdebugx(3, "Number of commands implemented in ups %d", res);
+		upsdebugx(3, "Number of commands implemented in ups %" PRIiSIZE, res);
 		iIndex++;
 		res = answer[iIndex]; /* Entry length - bytes reported for each command */
 		iIndex++;
-		upsdebugx(5, "bytes per command %d", res);
+		upsdebugx(5, "bytes per command %" PRIiSIZE, res);
 
 		/* In case of debug - make explanation of values */
 		upsdebugx(2, "Index\tCmd byte\tDescription");
@@ -857,7 +856,7 @@ void init_ups_meter_map(const unsigned char *map, unsigned char len)
 			bcmxcp_meter_map[iIndex].meter_block_index = iOffset;
 
 			/* Debug info */
-			upsdebugx(2, "%04d\t%04d\t%2x\t%s", iIndex, iOffset, bcmxcp_meter_map[iIndex].format,
+			upsdebugx(2, "%04u\t%04u\t%2x\t%s", iIndex, iOffset, bcmxcp_meter_map[iIndex].format,
 					(bcmxcp_meter_map[iIndex].nut_entity == NULL ? "None" :bcmxcp_meter_map[iIndex].nut_entity));
 
 			iOffset += 4;
@@ -1031,7 +1030,8 @@ unsigned char init_outlet(unsigned char len)
 	 * Callers know it as "outlet_block_len" in their routines and it is greater than 8
 	 */
 	unsigned char answer[PW_ANSWER_MAX_SIZE];
-	int iIndex = 0, res;
+	int iIndex = 0;
+	ssize_t res;
 	unsigned char num_outlet, size_outlet, num;
 	unsigned char outlet_num, outlet_state;
 	uint16_t auto_dly_off, auto_dly_on;
@@ -1041,7 +1041,7 @@ unsigned char init_outlet(unsigned char len)
 	if (res <= 0)
 		fatal_with_errno(EXIT_FAILURE, "Could not communicate with the ups");
 	else
-		upsdebugx(1, "init_outlet(%i), res=%i", len, res);
+		upsdebugx(1, "init_outlet(%i), res=%" PRIiSIZE, len, res);
 
 	num_outlet = answer[iIndex++];
 	upsdebugx(2, "Number of outlets: %u", num_outlet);
@@ -1084,7 +1084,8 @@ unsigned char init_outlet(unsigned char len)
 void init_ext_vars(void)
 {
 	unsigned char answer[PW_ANSWER_MAX_SIZE], cbuf[5];
-	int length=0, index=0;
+	ssize_t length = 0;
+	int index = 0;
 
 	send_write_command(AUTHOR, 4);
 
@@ -1098,7 +1099,7 @@ void init_ext_vars(void)
 	length = command_write_sequence(cbuf, 4, answer);
 	if (length <= 0)
 		fatal_with_errno(EXIT_FAILURE, "Could not communicate with the ups");
-	if (length < 4)  //UPS dont have configurable vars
+	if (length < 4)  /* UPS doesn't have configurable vars */
 		return;
 	for (index=3; index < length; index++) {
 		switch(answer[index]) {
@@ -1157,6 +1158,8 @@ void init_ext_vars(void)
 						dstate_setaux("battery.packs", 1);
 						break;
 
+			default:
+						break;
 		}
 	}
 }
@@ -1166,7 +1169,7 @@ void init_config(void)
 {
 	unsigned char answer[PW_ANSWER_MAX_SIZE];
 	uint16_t voltage = 0, frequency = 0, tmp = 0;
-	int res;
+	ssize_t res;
 	char sValue[17];
 	char sPartNumber[17];
 
@@ -1183,7 +1186,7 @@ void init_config(void)
 		dstate_setinfo("output.voltage.nominal", "%u", voltage);
 
 	/* Nominal Output Frequency */
-	frequency = get_word((answer+BCMXCP_CONFIG_BLOCK_NOMINAL_OUTPUT_FREQ));
+	frequency = get_word((answer + BCMXCP_CONFIG_BLOCK_NOMINAL_OUTPUT_FREQ));
 	if (frequency != 0)
 		dstate_setinfo("output.frequency.nominal", "%u", frequency);
 
@@ -1191,6 +1194,16 @@ void init_config(void)
 	tmp = (uint16_t) *(answer + BCMXCP_CONFIG_BLOCK_BATTERY_DATA_WORD3);
 	if (tmp != 0)
 		dstate_setinfo("battery.packs", "%u", tmp);
+
+#ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_FORMAT_TRUNCATION
+#pragma GCC diagnostic push
+#endif
+#ifdef HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_FORMAT_TRUNCATION
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+	/* NOTE: We intentionally limit the amount of characters picked from
+	 * "answer" into "sValue" and "sPartNumber" buffers (16 byte + NUL).
+	 */
 
 	/* UPS serial number */
 	snprintf(sValue, sizeof(sValue), "%s", answer + BCMXCP_CONFIG_BLOCK_SERIAL_NUMBER);
@@ -1201,13 +1214,16 @@ void init_config(void)
 	snprintf(sPartNumber, sizeof(sPartNumber), "%s", answer + BCMXCP_CONFIG_BLOCK_PART_NUMBER);
 	if (sPartNumber[0] != '\0')
 		dstate_setinfo("device.part", "%s", sPartNumber);
+#ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_FORMAT_TRUNCATION
+#pragma GCC diagnostic pop
+#endif
 }
 
 void init_limit(void)
 {
 	unsigned char answer[PW_ANSWER_MAX_SIZE];
 	uint16_t value;
-	int res;
+	ssize_t res;
 
 	res = command_read_sequence(PW_LIMIT_BLOCK_REQ, answer);
 	if (res <= 0) {
@@ -1231,8 +1247,8 @@ void init_limit(void)
 
 		if (value != 0) {
 			value /= 100;
-			dstate_setinfo("input.frequency.low", "%u", fnom - value);
-			dstate_setinfo("input.frequency.high", "%u", fnom + value);
+			dstate_setinfo("input.frequency.low",  "%d", fnom - value);
+			dstate_setinfo("input.frequency.high", "%d", fnom + value);
 		}
 	}
 
@@ -1255,7 +1271,7 @@ void init_limit(void)
 	if (bcmxcp_status.shutdowndelay > bcmxcp_status.lowbatt)
 		upslogx(LOG_WARNING,
 			"Shutdown delay longer than battery capacity when Low Battery "
-			"warning is given. (max %d seconds)", bcmxcp_status.lowbatt);
+			"warning is given. (max %u seconds)", bcmxcp_status.lowbatt);
 
 	/* Horn Status: */
 	value = answer[BCMXCP_EXT_LIMITS_BLOCK_HORN_STATUS];
@@ -1324,7 +1340,7 @@ void init_topology(void)
 	unsigned char answer[PW_ANSWER_MAX_SIZE];
 	const char* nutvalue;
 	uint16_t value;
-	int res;
+	ssize_t res;
 
 	res = command_read_sequence(PW_UPS_TOP_DATA_REQ, answer);
 	if (res <= 0)
@@ -1341,7 +1357,8 @@ void init_system_test_capabilities(void)
 {
 	unsigned char answer[PW_ANSWER_MAX_SIZE], cbuf[5];
 	const char* nutvalue;
-	int res, value, i;
+	ssize_t res;
+	int value, i;
 
 	/* Query what system test capabilities are supported */
 	send_write_command(AUTHOR, 4);
@@ -1377,7 +1394,7 @@ void upsdrv_initinfo(void)
 	char *pTmp;
 	char outlet_name[64];
 	char power_rating[10];
-	int res;
+	ssize_t res;
 	unsigned int ncpu = 0;
 	size_t buf;
 	uint16_t iRating = 0, iIndex = 0, len;
@@ -1547,11 +1564,11 @@ void upsdrv_initinfo(void)
 		len = init_outlet((unsigned char)outlet_block_len /* arg ignored */);
 
 		for (res = 1 ; (unsigned int)res <= (unsigned int)len ; res++) {
-			snprintf(outlet_name, sizeof(outlet_name) - 1, "outlet.%d.shutdown.return", res);
+			snprintf(outlet_name, sizeof(outlet_name) - 1, "outlet.%" PRIiSIZE ".shutdown.return", res);
 			dstate_addcmd(outlet_name);
-			snprintf(outlet_name, sizeof(outlet_name) - 1, "outlet.%d.load.on", res);
+			snprintf(outlet_name, sizeof(outlet_name) - 1, "outlet.%" PRIiSIZE ".load.on", res);
 			dstate_addcmd(outlet_name);
-			snprintf(outlet_name, sizeof(outlet_name) - 1, "outlet.%d.load.off", res);
+			snprintf(outlet_name, sizeof(outlet_name) - 1, "outlet.%" PRIiSIZE ".load.off", res);
 			dstate_addcmd(outlet_name);
 		}
 	}
@@ -1590,7 +1607,8 @@ void upsdrv_updateinfo(void)
 	unsigned char answer[PW_ANSWER_MAX_SIZE];
 	unsigned char status, topology;
 	char sValue[128];
-	int iIndex, res;
+	int iIndex;
+	ssize_t res;
 	uint16_t value;
 	bool_t has_ups_load = FALSE;
 	int batt_status = 0;
@@ -1930,21 +1948,23 @@ float calculate_ups_load(const unsigned char *answer)
 
 void upsdrv_shutdown(void)
 {
+	/* Only implement "shutdown.default"; do not invoke
+	 * general handling of other `sdcommands` here */
+
 	upsdebugx(1, "upsdrv_shutdown...");
 
-	/* Try to shutdown with delay */
-	if (instcmd("shutdown.return", NULL) == STAT_INSTCMD_HANDLED) {
+	/* First try to shutdown with delay;
+	 * if the above doesn't work, try shutdown.stayoff */
+	if (do_loop_shutdown_commands("shutdown.return,shutdown.stayoff", NULL) == STAT_INSTCMD_HANDLED) {
 		/* Shutdown successful */
+		if (handling_upsdrv_shutdown > 0)
+			set_exit_flag(EF_EXIT_SUCCESS);
 		return;
 	}
 
-	/* If the above doesn't work, try shutdown.stayoff */
-	if (instcmd("shutdown.stayoff", NULL) == STAT_INSTCMD_HANDLED) {
-		/* Shutdown successful */
-		return;
-	}
-
-	fatalx(EXIT_FAILURE, "Shutdown failed!");
+	upslogx(LOG_ERR, "Shutdown failed!");
+	if (handling_upsdrv_shutdown > 0)
+		set_exit_flag(EF_EXIT_FAILURE);
 }
 
 
@@ -1955,7 +1975,8 @@ static int instcmd(const char *cmdname, const char *extra)
 	char namebuf[MAX_NUT_NAME_LENGTH];
 	char varname[32];
 	const char *varvalue = NULL;
-	int res, sec, outlet_num;
+	ssize_t res;
+	int sec, outlet_num;
 	int sddelay = 0x03; /* outlet off in 3 seconds, by default */
 
 	upsdebugx(1, "entering instcmd(%s)(%s)", cmdname, extra);
@@ -2078,6 +2099,8 @@ static int instcmd(const char *cmdname, const char *extra)
 				cbuf[2] = 0x2;
 				break;                  /*mute beeper*/
 				}
+			default:
+				break;
 		}
 		cbuf[3] = 0x0;          /*padding*/
 
@@ -2145,7 +2168,7 @@ static int instcmd(const char *cmdname, const char *extra)
 	return STAT_INSTCMD_UNKNOWN;
 }
 
-static int decode_instcmd_exec(const int res, const unsigned char exec_status, const char *cmdname, const char *success_msg)
+static int decode_instcmd_exec(const ssize_t res, const unsigned char exec_status, const char *cmdname, const char *success_msg)
 {
 	if (res <= 0) {
 		upslogx(LOG_ERR, "[%s] Short read from UPS", cmdname);
@@ -2196,6 +2219,10 @@ void upsdrv_help(void)
 /* list flags and values that you want to receive via -x */
 void upsdrv_makevartable(void)
 {
+	/* NOTE: The USB variant of this driver currently does not
+	 * involve nut_usb_addvars() method like others do. When
+	 * fixing, see also tools/nut-scanner/scan_usb.c "exceptions".
+	 */
 	addvar(VAR_VALUE, "shutdown_delay", "Specify shutdown delay (seconds)");
 	addvar(VAR_VALUE, "baud_rate", "Specify communication speed (ex: 9600)");
 }
@@ -2205,7 +2232,8 @@ int setvar (const char *varname, const char *val)
 	unsigned char answer[128], cbuf[5];
 	char namebuf[MAX_NUT_NAME_LENGTH];
 	char success_msg[SMALLBUF];
-	int res, sec, outlet_num, tmp;
+	ssize_t res;
+	int sec, outlet_num, tmp;
 	int onOff_setting = PW_AUTO_OFF_DELAY;
 
 	upsdebugx(1, "entering setvar(%s, %s)", varname, val);
@@ -2492,7 +2520,7 @@ int setvar (const char *varname, const char *val)
 	return STAT_SET_INVALID;
 }
 
-static int decode_setvar_exec(const int res, const unsigned char exec_status, const char *cmdname, const char *success_msg)
+static int decode_setvar_exec(const ssize_t res, const unsigned char exec_status, const char *cmdname, const char *success_msg)
 {
 	if (res <= 0) {
 		upslogx(LOG_ERR, "[%s] Short read from UPS", cmdname);

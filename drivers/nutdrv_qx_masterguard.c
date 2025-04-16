@@ -24,19 +24,20 @@
 
 #include "nutdrv_qx_masterguard.h"
 #include <stddef.h>
+#include "nut_stdint.h"
 
-#define MASTERGUARD_VERSION "Masterguard 0.01"
+#define MASTERGUARD_VERSION "Masterguard 0.02"
 
 /* series (for un-SKIP) */
-char masterguard_my_series = '?';
+static char masterguard_my_series = '?';
 /* slave address for commands that require it */
 static char masterguard_my_slaveaddr[3] = "??"; /* null-terminated for strtol() in claim() */
 /* next slaveaddr to use after the SS command (which needs the old one) has been run */
-int masterguard_next_slaveaddr;
+static long masterguard_next_slaveaddr;
 /* output current/power computation */
-static int masterguard_my_power = 0;
+static long masterguard_my_power = 0;
 /* battery voltage computation */
-static int masterguard_my_numcells = 0;
+static long masterguard_my_numcells = 0;
 
 
 /* ranges */
@@ -49,7 +50,7 @@ static info_rw_t masterguard_r_slaveaddr[] = {
 
 static info_rw_t masterguard_r_batpacks[] = {
 	{ "0", NULL },	/* actually 1 for most models, see masterguard_model() */
-	{ "9", NULL },  /* varies across models, see masterguard_model() */
+	{ "9", NULL },	/* varies across models, see masterguard_model() */
 	{ "" , NULL }
 };
 
@@ -73,7 +74,7 @@ static info_rw_t *masterguard_e_outvolts = NULL; /* set in masterguard_output_vo
 
 /* preprocess functions */
 
-/* set masterguard_my_slaveaddr (for masterguard_add_slaveaddr */
+/* set masterguard_my_slaveaddr (for masterguard_add_slaveaddr) */
 static int masterguard_slaveaddr(item_t *item, char *value, const size_t valuelen) {
 	if (strlen(item->value) != 2) {
 		upsdebugx(2, "slaveaddr length not 2");
@@ -102,12 +103,13 @@ static int masterguard_series(item_t *item, char *value, const size_t valuelen) 
 	return 0;
 }
 
-/* convert strangely formatted model name in WH output (spaces, -19 only after battery packs) to something readable */
-/* also set min/max battery packs according to model */
+/* Convert strangely formatted model name in WH output
+ * (spaces, -19 only after battery packs) to something readable
+ * Also set min/max battery packs according to model */
 static int masterguard_model(item_t *item, char *value, const size_t valuelen) {
 	char *model;
 	int rack;
-	int min_bp, max_bp;
+	char min_bp, max_bp;
 
 	rack = (strstr(item->value, "-19") != NULL);
 	if (strncmp(item->value, "A  700", 6) == 0) {
@@ -239,10 +241,11 @@ static int masterguard_ups_power(item_t *item, char *value, const size_t valuele
 }
 
 /* helper routine, not to be called from table */
-static int masterguard_output_current_fraction(item_t *item, char *value, const size_t valuelen, float fraction) {
+static int masterguard_output_current_fraction(item_t *item, char *value, const size_t valuelen, double fraction) {
 	NUT_UNUSED_VARIABLE(item);
 
-	snprintf(value, valuelen, "%.2f", fraction * masterguard_my_power / strtod(dstate_getinfo("output.voltage") , NULL) + 0.005);
+	snprintf(value, valuelen, "%.2f",
+		fraction * masterguard_my_power / strtod(dstate_getinfo("output.voltage") , NULL) + 0.005);
 	return 0;
 }
 
@@ -346,22 +349,22 @@ static int masterguard_beeper_status(item_t *item, char *value, const size_t val
 static int masterguard_output_voltages(item_t *item, char *value, const size_t valuelen) {
 	char sep[] = " ";
 	char *w;
-	int n = 0;
+	size_t n = 0;
 
 	strncpy(value, item->value, valuelen); /* save before strtok mangles it */
 	for (w = strtok(item->value, sep); w; w = strtok(NULL, sep)) {
 		n++;
-		upsdebugx(4, "output voltage #%d: %s", n, w);
+		upsdebugx(4, "output voltage #%" PRIuSIZE ": %s", n, w);
 		if ((masterguard_e_outvolts = realloc(masterguard_e_outvolts, n * sizeof(info_rw_t))) == NULL) {
-			upsdebugx(1, "output voltages: allocating #%d failed", n);
+			upsdebugx(1, "output voltages: allocating #%" PRIuSIZE " failed", n);
 			return -1;
 		}
-		strncpy(masterguard_e_outvolts[n - 1].value, w, SMALLBUF);
+		strncpy(masterguard_e_outvolts[n - 1].value, w, SMALLBUF - 1);
 		masterguard_e_outvolts[n - 1].preprocess = NULL;
 	}
 	/* need to do this seperately in case the loop is run zero times */
 	if ((masterguard_e_outvolts = realloc(masterguard_e_outvolts, (n + 1) * sizeof(info_rw_t))) == NULL) {
-		upsdebugx(1, "output voltages: allocating terminator after #%d failed", n);
+		upsdebugx(1, "output voltages: allocating terminator after #%" PRIuSIZE " failed", n);
 		return -1;
 	}
 	masterguard_e_outvolts[n].value[0] = '\0';
@@ -441,10 +444,10 @@ static int masterguard_fault(item_t *item, char *value, const size_t valuelen) {
 
 /* add slave address (from masterguard_my_slaveaddr) to commands that require it */
 static int masterguard_add_slaveaddr(item_t *item, char *command, const size_t commandlen) {
+	size_t l;
+
 	NUT_UNUSED_VARIABLE(item);
 	NUT_UNUSED_VARIABLE(commandlen);
-
-	size_t l;
 
 	l = strlen(command);
 	if (strncmp(command + l - 4, ",XX\r", 4) != 0) {
@@ -462,37 +465,40 @@ static int masterguard_add_slaveaddr(item_t *item, char *command, const size_t c
 /* helper, not to be called directly from table */
 /*!! use parameter from the value field instead of ups.delay.{shutdown,return}?? */
 static int masterguard_shutdown(item_t *item, char *value, const size_t valuelen, const int stayoff) {
-	NUT_UNUSED_VARIABLE(item);
-
-	int offdelay;
+	long offdelay;
 	char *p;
 	const char *val, *name;
 	char offstr[3];
+
+	NUT_UNUSED_VARIABLE(item);
 
 	offdelay = strtol((val = dstate_getinfo(name = "ups.delay.shutdown")), &p, 10);
 	if (*p != '\0') goto ill;
 	if (offdelay < 0) {
 		goto ill;
 	} else if (offdelay < 60) {
-		offstr[0] = '.'; offstr[1] = '0' + offdelay / 6;
+		offstr[0] = '.';
+		offstr[1] = '0' + (char)offdelay / 6;
 	} else if (offdelay <= 99*60) {
-		int m = offdelay / 60;
-		offstr[0] = '0' + m / 10; offstr[1] = '0' + m % 10;
+		int m = (int)(offdelay / 60);
+		offstr[0] = '0' + (char)(m / 10);
+		offstr[1] = '0' + (char)(m % 10);
 	} else goto ill;
 	offstr[2] = '\0';
 	if (stayoff) {
 		snprintf(value, valuelen, "S%s\r", offstr);
 	} else {
-		int ondelay;
+		long ondelay;
 
-		ondelay = strtol((val = dstate_getinfo(name = "ups.delay.return")), &p, 10);
+		ondelay = strtol((val = dstate_getinfo(name = "ups.delay.start")), &p, 10);
 		if (*p != '\0') goto ill;
 		if (ondelay < 0 || ondelay > 9999*60) goto ill;
-		snprintf(value, valuelen, "S%sR%04d\r", offstr, ondelay);
+		snprintf(value, valuelen, "S%sR%04ld\r", offstr, ondelay);
 	}
 	return 0;
 
-ill:	upsdebugx(2, "shutdown: illegal %s %s", name, val);
+ill:
+	upsdebugx(2, "shutdown: illegal %s %s", name, val);
 	return -1;
 }
 
@@ -505,15 +511,16 @@ static int masterguard_shutdown_stayoff(item_t *item, char *value, const size_t 
 }
 
 static int masterguard_test_battery(item_t *item, char *value, const size_t valuelen) {
-	NUT_UNUSED_VARIABLE(item);
-
-	int duration;
+	long duration;
 	char *p;
+
+	NUT_UNUSED_VARIABLE(item);
 
 	if (value[0] == '\0') {
 		upsdebugx(2, "battery test: no duration");
 		return -1;
 	}
+
 	duration = strtol(value, &p, 10);
 	if (*p != '\0') goto ill;
 	if (duration == 10) {
@@ -521,7 +528,7 @@ static int masterguard_test_battery(item_t *item, char *value, const size_t valu
 		return 0;
 	}
 	if (duration < 60 || duration > 99*60) goto ill;
-	snprintf(value, valuelen, "T%02d\r", duration / 60);
+	snprintf(value, valuelen, "T%02ld\r", duration / 60);
 	return 0;
 
 ill:	upsdebugx(2, "battery test: illegal duration %s", value);
@@ -535,8 +542,8 @@ ill:	upsdebugx(2, "battery test: illegal duration %s", value);
 static int masterguard_setvar(item_t *item, char *value, const size_t valuelen) {
 	char *p;
 	char t = 's';
-	long i;
-	double f;
+	long i = 0;
+	double f = 0.0;
 	char s[80];
 
 	if (value[0] == '\0') {
@@ -573,26 +580,35 @@ static int masterguard_setvar(item_t *item, char *value, const size_t valuelen) 
 				return -1;
 		}
 	} else if (strncmp(item->dfl, "thms", 4) == 0) {
-		int t, h, m, sec;
-		if (sscanf(item->value, "%d:%d:%d:%d", &t, &h, &m, &sec) == 4) {
-			if (t < 0 || t > 9999 || h < 0 || h > 23 || m < 0 || m > 59 || sec < 0 || sec > 59) goto ill;
+		int tt, h, m, sec;
+		if (sscanf(item->value, "%d:%d:%d:%d", &tt, &h, &m, &sec) == 4) {
+			if (tt < 0 || tt > 9999 || h < 0 || h > 23 || m < 0 || m > 59 || sec < 0 || sec > 59) goto ill;
 		} else {
 			long l;
-			char *p;
+			char *pl;
 
-			l = strtol(value, &p, 10);
-			if (*p != '\0') goto ill;
+			l = strtol(value, &pl, 10);
+			if (*pl != '\0') goto ill;
 			sec = l % 60; l /= 60;
 			m = l % 60; l /= 60;
 			h = l % 24; l /= 24;
 			if (l > 9999) goto ill;
-			t = l;
+			tt = (int)l;
 		}
-		snprintf(s, sizeof s, "%04d:%02d:%02d:%02d", t, h, m, sec);
+		snprintf(s, sizeof s, "%04d:%02d:%02d:%02d", tt, h, m, sec);
 	} else {
 		upsdebugx(2, "setvar: unknown dfl %s", item->dfl);
 		return -1;
 	}
+#ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_FORMAT_NONLITERAL
+#pragma GCC diagnostic push
+#endif
+#ifdef HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_FORMAT_NONLITERAL
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
+#ifdef HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_FORMAT_SECURITY
+#pragma GCC diagnostic ignored "-Wformat-security"
+#endif
 	switch (t) {
 		case 'd':
 			snprintf(value, valuelen, item->command, i);
@@ -603,7 +619,12 @@ static int masterguard_setvar(item_t *item, char *value, const size_t valuelen) 
 		case 's':
 			snprintf(value, valuelen, item->command, s);
 			break;
+		default:
+			break;
 	}
+#ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_FORMAT_NONLITERAL
+#pragma GCC diagnostic pop
+#endif
 	return 0;
 ill:
 	upsdebugx(2, "setvar: illegal %s value %s", item->dfl, value);
@@ -619,7 +640,7 @@ static int masterguard_set_slaveaddr(item_t *item, char *value, const size_t val
 		upsdebugx(2, "set_slaveaddr: illegal value %s", value);
 		return -1;
 	}
-	upsdebugx(3, "next slaveaddr %d", masterguard_next_slaveaddr);
+	upsdebugx(3, "next slaveaddr %ld", masterguard_next_slaveaddr);
 	return masterguard_setvar(item, value, valuelen);
 }
 
@@ -630,9 +651,13 @@ static int masterguard_set_slaveaddr(item_t *item, char *value, const size_t val
 static int masterguard_new_slaveaddr(item_t *item, const int len) {
 	NUT_UNUSED_VARIABLE(item);
 
-	upsdebugx(3, "saved slaveaddr %d", masterguard_next_slaveaddr);
-	masterguard_my_slaveaddr[0] = '0' + masterguard_next_slaveaddr / 10;
-	masterguard_my_slaveaddr[1] = '0' + masterguard_next_slaveaddr % 10;
+	upsdebugx(3, "saved slaveaddr %ld", masterguard_next_slaveaddr);
+	if (masterguard_next_slaveaddr < 0 || masterguard_next_slaveaddr > 99) {
+		upsdebugx(2, "%s: illegal value %ld", __func__, masterguard_next_slaveaddr);
+		return -1;
+	}
+	masterguard_my_slaveaddr[0] = '0' + (char)(masterguard_next_slaveaddr / 10);
+	masterguard_my_slaveaddr[1] = '0' + (char)(masterguard_next_slaveaddr % 10);
 	upsdebugx(3, "new slaveaddr %s", masterguard_my_slaveaddr);
 	return len;
 }
@@ -664,7 +689,7 @@ static item_t masterguard_qx2nut[] = {
 	{ "ups.firmware",		0,		NULL,			"WH\r",	"",	113,	'(',	"",	4,	8,	"%s",	QX_FLAG_STATIC,				NULL,	NULL,	NULL },
 	{ "ups.firmware.aux",		0,		NULL,			"WH\r",	"",	113,	'(',	"",	10,	14,	"%s",	QX_FLAG_STATIC,				NULL,	NULL,	NULL },
 	/* several values are deduced from the T field */
-	{ "series",			0,		NULL,			"WH\r",	"",	113,	'(',	"",	16,	16,	"%s",	QX_FLAG_STATIC | QX_FLAG_NONUT,		NULL,	NULL,	masterguard_series },
+	{ "experimental.series",			0,		NULL,			"WH\r",	"",	113,	'(',	"",	16,	16,	"%s",	QX_FLAG_STATIC | QX_FLAG_NONUT,		NULL,	NULL,	masterguard_series },
 	{ "device.model",		0,		NULL,			"WH\r",	"",	113,	'(',	"",	16,	45,	"%s",	QX_FLAG_STATIC,				NULL,	NULL,	masterguard_model },
 	{ "ups.power.nominal",		0,		NULL,			"WH\r",	"",	113,	'(',	"",	16,	45,	"%s",	QX_FLAG_STATIC,				NULL,	NULL,	masterguard_power },
 /* not used, use GS instead because the value is settable
@@ -672,12 +697,12 @@ static item_t masterguard_qx2nut[] = {
 */
 	{ "input.voltage.nominal",	0,		NULL,			"WH\r",	"",	113,	'(',	"",	49,	51,	"%.0f",	QX_FLAG_STATIC,				NULL,	NULL,	NULL },
 	{ "input.frequency.nominal",	0,		NULL,			"WH\r",	"",	113,	'(',	"",	53,	57,	"%.2f",	QX_FLAG_STATIC,				NULL,	NULL,	NULL },
-	{ "number_of_battery_cells",	0,		NULL,			"WH\r",	"",	113,	'(',	"",	59,	61,	"%.0f",	QX_FLAG_STATIC | QX_FLAG_NONUT,		NULL,	NULL,	masterguard_numcells },
-	{ "nominal_cell_voltage",	0,		NULL,			"WH\r",	"",	113,	'(',	"",	63,	67,	"%.2f",	QX_FLAG_STATIC | QX_FLAG_NONUT,		NULL,	NULL,	NULL },
+	{ "experimental.number_of_battery_cells",	0,		NULL,			"WH\r",	"",	113,	'(',	"",	59,	61,	"%.0f",	QX_FLAG_STATIC | QX_FLAG_NONUT,		NULL,	NULL,	masterguard_numcells },
+	{ "experimental.nominal_cell_voltage",	0,		NULL,			"WH\r",	"",	113,	'(',	"",	63,	67,	"%.2f",	QX_FLAG_STATIC | QX_FLAG_NONUT,		NULL,	NULL,	NULL },
 	{ "battery.voltage.nominal",	0,		NULL,			"WH\r",	"",	113,	'(',	"",	63,	67,	"%.2f",	QX_FLAG_STATIC,				NULL,	NULL,	masterguard_battvolt},
-	{ "runtime_half",		0,		NULL,			"WH\r",	"",	113,	'(',	"",	69,	74,	"%.0f",	QX_FLAG_STATIC | QX_FLAG_NONUT,		NULL,	NULL,	masterguard_mmm_ss },
-	{ "runtime_full",		0,		NULL,			"WH\r",	"",	113,	'(',	"",	76,	81,	"%.0f",	QX_FLAG_STATIC | QX_FLAG_NONUT,		NULL,	NULL,	masterguard_mmm_ss },
-	{ "recharge_time",		0,		NULL,			"WH\r",	"",	113,	'(',	"",	83,	85,	"%.0f",	QX_FLAG_STATIC | QX_FLAG_NONUT,		NULL,	NULL,	masterguard_hhh },
+	{ "experimental.runtime_half",		0,		NULL,			"WH\r",	"",	113,	'(',	"",	69,	74,	"%.0f",	QX_FLAG_STATIC | QX_FLAG_NONUT,		NULL,	NULL,	masterguard_mmm_ss },
+	{ "experimental.runtime_full",		0,		NULL,			"WH\r",	"",	113,	'(',	"",	76,	81,	"%.0f",	QX_FLAG_STATIC | QX_FLAG_NONUT,		NULL,	NULL,	masterguard_mmm_ss },
+	{ "experimental.recharge_time",		0,		NULL,			"WH\r",	"",	113,	'(',	"",	83,	85,	"%.0f",	QX_FLAG_STATIC | QX_FLAG_NONUT,		NULL,	NULL,	masterguard_hhh },
 /*!! what's the difference between low/high and low.critical/high.critical?? */
 	{ "ambient.0.temperature.low",	0,		NULL,			"WH\r",	"",	113,	'(',	"",	87,	88,	"%.0f",	QX_FLAG_STATIC,				NULL,	NULL,	NULL },
 	{ "ambient.0.temperature.high",	0,		NULL,			"WH\r",	"",	113,	'(',	"",	90,	91,	"%.0f",	QX_FLAG_STATIC,				NULL,	NULL,	NULL },
@@ -697,7 +722,7 @@ static item_t masterguard_qx2nut[] = {
 	 */
 	/* type				flags	rw	command	answer	len	leading	value	from	to	dfl	qxflags			precmd	preans	preproc */
 	{ "input.voltage",		0,	NULL,	"Q3\r",	"",	71,	'(',	"",	4,	8,	"%.1f",	0,			NULL,	NULL,	NULL },
-	{ "input_fault_voltage",	0,	NULL,	"Q3\r",	"",	71,	'(',	"",	10,	14,	"%.1f",	QX_FLAG_NONUT,		NULL,	NULL,	NULL },
+	{ "experimental.input_fault_voltage",	0,	NULL,	"Q3\r",	"",	71,	'(',	"",	10,	14,	"%.1f",	QX_FLAG_NONUT,		NULL,	NULL,	NULL },
 	{ "output.voltage",		0,	NULL,	"Q3\r",	"",	71,	'(',	"",	16,	20,	"%.1f",	0,			NULL,	NULL,	NULL },
 	{ "ups.load",			0,	NULL,	"Q3\r",	"",	71,	'(',	"",	22,	24,	"%.0f",	0,			NULL,	NULL,	NULL },
 	{ "ups.power",			0,	NULL,	"Q3\r",	"",	71,	'(',	"",	22,	24,	"%.0f",	0,			NULL,	NULL,	masterguard_ups_power },
@@ -793,7 +818,7 @@ static item_t masterguard_qx2nut[] = {
 	 *    (220 230 240
 	 */
 	/* type			flags	rw	command		answer	len	leading	value	from	to	dfl	qxflags				precmd	preans	preproc */
-	{ "output_voltages",	0,	NULL,	"MSO\r",	"",	5,	'(',	"",	1,	0,	"%s",	QX_FLAG_STATIC | QX_FLAG_NONUT,	NULL,	NULL,	masterguard_output_voltages },
+	{ "experimental.output_voltages",	0,	NULL,	"MSO\r",	"",	5,	'(',	"",	1,	0,	"%s",	QX_FLAG_STATIC | QX_FLAG_NONUT,	NULL,	NULL,	masterguard_output_voltages },
 
 	/*
 	 * > [PNV\r]
@@ -816,11 +841,11 @@ static item_t masterguard_qx2nut[] = {
 	 *    (01,9 0010 1780:14:57:19 7 0046 0000:21:14:41 0 0000 0000:00:00:00 0 0000 0000:00:00:00 0 0000 0000:00:00:00
 	 */
 	/* type		flags	rw	command		answer	len	leading	value	from	to	dfl	qxflags		precmd				preans	preproc */
-	{ "fault_1",	0,	NULL,	"FLT,XX\r",	"",	108,	'(',	"",	4,	23,	"%s",	QX_FLAG_NONUT,	masterguard_add_slaveaddr,	NULL,	masterguard_fault },
-	{ "fault_2",	0,	NULL,	"FLT,XX\r",	"",	108,	'(',	"",	25,	44,	"%s",	QX_FLAG_NONUT,	masterguard_add_slaveaddr,	NULL,	masterguard_fault },
-	{ "fault_3",	0,	NULL,	"FLT,XX\r",	"",	108,	'(',	"",	46,	65,	"%s",	QX_FLAG_NONUT,	masterguard_add_slaveaddr,	NULL,	masterguard_fault },
-	{ "fault_4",	0,	NULL,	"FLT,XX\r",	"",	108,	'(',	"",	67,	86,	"%s",	QX_FLAG_NONUT,	masterguard_add_slaveaddr,	NULL,	masterguard_fault },
-	{ "fault_5",	0,	NULL,	"FLT,XX\r",	"",	108,	'(',	"",	88,	107,	"%s",	QX_FLAG_NONUT,	masterguard_add_slaveaddr,	NULL,	masterguard_fault },
+	{ "experimental.fault_1",	0,	NULL,	"FLT,XX\r",	"",	108,	'(',	"",	4,	23,	"%s",	QX_FLAG_NONUT,	masterguard_add_slaveaddr,	NULL,	masterguard_fault },
+	{ "experimental.fault_2",	0,	NULL,	"FLT,XX\r",	"",	108,	'(',	"",	25,	44,	"%s",	QX_FLAG_NONUT,	masterguard_add_slaveaddr,	NULL,	masterguard_fault },
+	{ "experimental.fault_3",	0,	NULL,	"FLT,XX\r",	"",	108,	'(',	"",	46,	65,	"%s",	QX_FLAG_NONUT,	masterguard_add_slaveaddr,	NULL,	masterguard_fault },
+	{ "experimental.fault_4",	0,	NULL,	"FLT,XX\r",	"",	108,	'(',	"",	67,	86,	"%s",	QX_FLAG_NONUT,	masterguard_add_slaveaddr,	NULL,	masterguard_fault },
+	{ "experimental.fault_5",	0,	NULL,	"FLT,XX\r",	"",	108,	'(',	"",	88,	107,	"%s",	QX_FLAG_NONUT,	masterguard_add_slaveaddr,	NULL,	masterguard_fault },
 
 
 	/* instant commands */
@@ -898,32 +923,34 @@ how to report nominal hold time at half/full load?
 
 
 /* commands supported by A series */
-char *masterguard_commands_a[] = {
+static char *masterguard_commands_a[] = {
 	"Q", "Q1", "Q3", "T", "TL", "S", "C", "CT", "WH", "M", "N", "O", "DECO", "DRC", "SRC", "FLT", "FCLR", "G", "SS", "GS", "MSO", "PNV", "FOFF", "FON", "TUD", "GBS", "SSN", "GSN", NULL
 };
 
 /* commands supported by E series */
-char *masterguard_commands_e[] = {
+static char *masterguard_commands_e[] = {
 	"Q", "Q1", "Q3", "PSR", "T", "TL", "S", "C", "CT", "WH", "DRC", "SRC", "FLT", "FCLR", "SS", "GS", "MSO", "PNV", "FOFF", "FON", "TUD", "GBS", "SSN", "GSN", "BUS", "V", "INVDC", "BUSP", "BUSN", NULL
 };
 
-/* claim function. fetch some mandatory values, disable unsupported commands, set enum for supported output voltages */
-int masterguard_claim(void) {
+/* claim function. fetch some mandatory values,
+ * disable unsupported commands,
+ * set enum for supported output voltages */
+static int masterguard_claim(void) {
 	item_t *item;
 	/* mandatory values */
 	char *mandatory[] = {
-		"series",		/* SKIP */
+		"experimental.series",	/* SKIP */
 		"device.model",		/* minimal number of battery packs */
 		"ups.power.nominal",	/* load computation */
 		"ups.id",		/* slave address */
-		"output_voltages",	/* output voltages enum */
+		"experimental.output_voltages",	/* output voltages enum */
 #if 0
 		"battery.packs",	/* battery voltage computation */
 #endif
 		NULL
 	};
 	char **sp;
-	int config_slaveaddr;
+	long config_slaveaddr;
 	char *sa;
 	char **commands;
 
@@ -949,12 +976,16 @@ int masterguard_claim(void) {
 			upsdebugx(2, "claim: cannot find %s", *sp);
 			return 0;
 		}
-		/* since qx_process_answer() is not exported, there's no way to avoid sending the same command to the UPS again */
+		/* since qx_process_answer() is not exported, there's no way
+		 * to avoid sending the same command to the UPS again */
 		if (qx_process(item, NULL) < 0) {
 			upsdebugx(2, "claim: cannot process %s", *sp);
 			return 0;
 		}
-		/* only call the preprocess function; don't call ups_infoval_set() because that does a dstate_setinfo() before dstate_setflags() is called (via qx_set_var() in qx_ups_walk() with QX_WALKMODE_INIT); that leads to r/w vars ending up r/o. */
+		/* only call the preprocess function; don't call ups_infoval_set()
+		 * because that does a dstate_setinfo() before dstate_setflags()
+		 * is called (via qx_set_var() in qx_ups_walk() with QX_WALKMODE_INIT);
+		 * that leads to r/w vars ending up r/o. */
 		if (item->preprocess == NULL ) {
 			upsdebugx(2, "claim: no preprocess function for %s", *sp);
 			return 0;
@@ -966,7 +997,7 @@ int masterguard_claim(void) {
 	}
 
 	if (config_slaveaddr >= 0 && config_slaveaddr != strtol(masterguard_my_slaveaddr, NULL, 10)) {
-		upsdebugx(2, "claim: slave address mismatch: want %02d, have %s", config_slaveaddr, masterguard_my_slaveaddr);
+		upsdebugx(2, "claim: slave address mismatch: want %02ld, have %s", config_slaveaddr, masterguard_my_slaveaddr);
 		return 0;
 	}
 
@@ -983,7 +1014,7 @@ int masterguard_claim(void) {
 
 	/* set SKIP flag for unimplemented commands */
 	for (item = masterguard_qx2nut; item->info_type != NULL; item++) {
-		int match;
+		int match = 0;
 		if (item->command == NULL || item->command[0] == '\0') continue;
 		for (sp = commands; sp != NULL; sp++) {
 			const char *p = *sp, *q = item->command;
@@ -1024,7 +1055,7 @@ int masterguard_claim(void) {
 }
 
 
-void masterguard_makevartable(void) {
+static void masterguard_makevartable(void) {
 	addvar(VAR_VALUE, "series", "Series (A/E)");
 	addvar(VAR_VALUE, "slave_address", "Slave address (UPS id) to match");
 	addvar(VAR_VALUE, "input_fault_voltage", "Input fault voltage (whatever that means)");

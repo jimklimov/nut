@@ -22,6 +22,8 @@
 
 */
 
+#include "config.h" /* must be first */
+
 #include <ctype.h>
 #include <stdio.h>
 #include "main.h"
@@ -33,7 +35,7 @@
 #include "microsol-apc.h"
 
 #define DRIVER_NAME	"APC Back-UPS BR series UPS driver"
-#define DRIVER_VERSION	"0.68"
+#define DRIVER_VERSION	"0.72"
 
 /* driver description structure */
 upsdrv_info_t upsdrv_info = {

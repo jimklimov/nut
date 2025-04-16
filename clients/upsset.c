@@ -19,11 +19,16 @@
 
 #include "common.h"
 
+#ifndef WIN32
 #include <netdb.h>
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#else	/* WIN32 */
+#include "wincompat.h"
+#endif	/* WIN32 */
 
+#include "nut_stdint.h"
 #include "upsclient.h"
 #include "cgilib.h"
 #include "parseconf.h"
@@ -39,12 +44,15 @@ struct list_t {
 #define HARD_UPSVAR_LIMIT_NUM	64
 #define HARD_UPSVAR_LIMIT_LEN	256
 
+/* network timeout for initial connection, in seconds */
+#define UPSCLI_DEFAULT_CONNECT_TIMEOUT	"10"
+
 static char	*monups, *username, *password, *function, *upscommand;
 
 /* set once the MAGIC_ENABLE_STRING is found in the upsset.conf */
 static int	magic_string_set = 0;
 
-static	int	port;
+static	uint16_t	port;
 static	char	*upsname, *hostname;
 static	UPSCONN_t	ups;
 
@@ -189,7 +197,7 @@ static void upsset_hosts_err(const char *errmsg)
 /* this defaults to wherever we are now, ups and function-wise */
 static void do_pickups(const char *currfunc)
 {
-	char	hostfn[SMALLBUF];
+	char	hostfn[NUT_PATH_MAX + 1];
 	PCONF_CTX_t	ctx;
 
 	snprintf(hostfn, sizeof(hostfn), "%s/hosts.conf", confpath());
@@ -339,7 +347,7 @@ static void upsd_connect(void)
 		/* NOTREACHED */
 	}
 
-	if (upscli_connect(&ups, hostname, port, 0) < 0) {
+	if (upscli_connect(&ups, hostname, port, UPSCLI_CONN_TRYSSL) < 0) {
 		error_page("showsettings", "Connect failure",
 			"Unable to connect to %s: %s",
 			monups, upscli_strerror(&ups));
@@ -350,7 +358,7 @@ static void upsd_connect(void)
 static void print_cmd(const char *cmd)
 {
 	int	ret;
-	unsigned int	numq, numa;
+	size_t	numq, numa;
 	char	**answer;
 	const	char	*query[4];
 
@@ -373,7 +381,7 @@ static void print_cmd(const char *cmd)
 static void showcmds(void)
 {
 	int	ret;
-	unsigned int	numq, numa;
+	size_t	numq, numa;
 	const	char	*query[2];
 	char	**answer;
 	struct	list_t	*lhead, *llast, *ltmp, *lnext;
@@ -410,7 +418,7 @@ static void showcmds(void)
 		/* CMD upsname cmdname */
 		if (numa < 3) {
 			fprintf(stderr, "Error: insufficient data "
-				"(got %u args, need at least 3)\n", numa);
+				"(got %" PRIuSIZE " args, need at least 3)\n", numa);
 
 			return;
 		}
@@ -617,7 +625,7 @@ static void docmd(void)
 static const char *get_data(const char *type, const char *varname)
 {
 	int	ret;
-	unsigned int	numq, numa;
+	size_t	numq, numa;
 	char	**answer;
 	const	char	*query[4];
 
@@ -655,7 +663,7 @@ static void do_string(const char *varname, int maxlen)
 static void do_enum(const char *varname)
 {
 	int	ret;
-	unsigned int	numq, numa;
+	size_t	numq, numa;
 	char	**answer, *val;
 	const	char	*query[4], *tmp;
 
@@ -697,7 +705,7 @@ static void do_enum(const char *varname)
 
 		if (numa < 4) {
 			fprintf(stderr, "Error: insufficient data "
-				"(got %u args, need at least 4)\n", numa);
+				"(got %" PRIuSIZE " args, need at least 4)\n", numa);
 
 			free(val);
 			return;
@@ -720,7 +728,7 @@ static void do_enum(const char *varname)
 static void do_type(const char *varname)
 {
 	int	ret;
-	unsigned int	i, numq, numa;
+	size_t	i, numq, numa;
 	char	**answer;
 	const	char	*query[4];
 
@@ -746,11 +754,12 @@ static void do_type(const char *varname)
 
 		if (!strncasecmp(answer[i], "STRING:", 7)) {
 			char	*ptr, len;
+			long	l;
 
 			/* split out the :<len> data */
 			ptr = strchr(answer[i], ':');
 			*ptr++ = '\0';
-			long l = strtol(ptr, (char **) NULL, 10);
+			l = strtol(ptr, (char **) NULL, 10);
 			assert(l <= 127);	/* FIXME: Loophole about longer numbers? Why are we limited to char at all here? */
 			len = (char)l;
 
@@ -798,7 +807,7 @@ static void showsettings(void)
 static void showsettings(void)
 {
 	int	ret;
-	unsigned int	numq, numa;
+	size_t	numq, numa;
 	const	char	*query[2];
 	char	**answer, *desc = NULL;
 	struct	list_t	*lhead, *llast, *ltmp, *lnext;
@@ -1014,7 +1023,7 @@ static void upsset_conf_err(const char *errmsg)
 /* see if the user has confirmed their cgi directory's secure state */
 static void check_conf(void)
 {
-	char	fn[SMALLBUF];
+	char	fn[NUT_PATH_MAX + 1];
 	PCONF_CTX_t	ctx;
 
 	snprintf(fn, sizeof(fn), "%s/upsset.conf", confpath());
@@ -1075,6 +1084,8 @@ int main(int argc, char **argv)
 
 	/* see if the magic string is present in the config file */
 	check_conf();
+
+	upscli_init_default_connect_timeout(NULL, NULL, UPSCLI_DEFAULT_CONNECT_TIMEOUT);
 
 	/* see if there's anything waiting .. the server my not close STDIN properly */
 	if (1) {
