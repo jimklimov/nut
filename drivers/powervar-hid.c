@@ -32,7 +32,7 @@
 #include "main.h"	/* for getval() */
 #include "usb-common.h"
 
-#define POWERVAR_HID_VERSION	"Powervar HID 0.19"
+#define POWERVAR_HID_VERSION	"Powervar HID 0.20"
 /* FIXME: experimental flag to be put in upsdrv_info */
 
 /* Powervar */
@@ -119,14 +119,16 @@ static int powervar_claim(HIDDevice_t *hd)
 	case POSSIBLY_SUPPORTED:
 		/* by default, reject, unless the productid option is given */
 		if (getval("productid")) {
-			usb->hid_rep_index = 1;
+			if (!getval("usb_hid_rep_index"))
+				usb->hid_rep_index = 1;
 			return 1;
 		}
 		possibly_supported("Powervar", hd);
 		return 0;
 
 	case SUPPORTED:
-		usb->hid_rep_index = 1;
+		if (!getval("usb_hid_rep_index"))
+			usb->hid_rep_index = 1;
 		return 1;
 
 	case NOT_SUPPORTED:
@@ -143,4 +145,5 @@ subdriver_t powervar_subdriver = {
 	powervar_format_model,
 	powervar_format_mfr,
 	powervar_format_serial,
+	fix_report_desc,
 };

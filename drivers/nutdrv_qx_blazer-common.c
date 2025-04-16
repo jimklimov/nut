@@ -1,4 +1,4 @@
-/* nutdrv_qx_blazer-common.c - Common functions/settings for nutdrv_qx_{mecer,megatec,megatec-old,mustek,q1,voltronic-qs,zinto}.{c,h}
+/* nutdrv_qx_blazer-common.c - Common functions/settings for nutdrv_qx_{innovart31,mecer,megatec,megatec-old,mustek,q1,q2,q6,voltronic-qs,zinto}.{c,h}
  *
  * Copyright (C)
  *   2013 Daniele Pezzini <hyouko@gmail.com>
@@ -145,15 +145,13 @@ void	blazer_initups(item_t *qx2nut)
 			continue;
 
 		/* norating */
-		if (nr && !strncasecmp(item->command, "F\r", strlen("F\r"))) {
+		if (nr && !strcasecmp(item->command, "F\r")) {
 			upsdebugx(2, "%s: skipping %s", __func__, item->info_type);
 			item->qxflags |= QX_FLAG_SKIP;
 		}
 
 		/* novendor */
-		if (nv && (!strncasecmp(item->command, "I\r", strlen("I\r"))
-		|| !strncasecmp(item->command, "FW?\r", strlen("FW?\r")))
-		) {
+		if (nv && (!strcasecmp(item->command, "I\r") || !strcasecmp(item->command, "FW?\r"))) {
 			upsdebugx(2, "%s: skipping %s", __func__, item->info_type);
 			item->qxflags |= QX_FLAG_SKIP;
 		}

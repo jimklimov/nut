@@ -37,20 +37,23 @@
  */
 
 #include "common.h"
+#include "nut_stdint.h"
 #include "upsclient.h"
 #include "cgilib.h"
 #include <stdlib.h>
 #include <gd.h>
 #include <gdfontmb.h>
 
-#include "nut_stdint.h"
 #include "upsimagearg.h"
 
 #define MAX_CGI_STRLEN 64
 
+/* network timeout for initial connection, in seconds */
+#define UPSCLI_DEFAULT_CONNECT_TIMEOUT	"10"
+
 static	char	*monhost = NULL, *cmd = NULL;
 
-static	int	port;
+static	uint16_t	port;
 static	char	*upsname, *hostname;
 static	UPSCONN_t	ups;
 
@@ -623,6 +626,8 @@ int main(int argc, char **argv)
 
 	extractcgiargs();
 
+	upscli_init_default_connect_timeout(NULL, NULL, UPSCLI_DEFAULT_CONNECT_TIMEOUT);
+
 	/* no 'host=' or 'display=' given */
 	if ((!monhost) || (!cmd))
 		noimage("No host or display");
@@ -639,7 +644,7 @@ int main(int argc, char **argv)
 #endif
 	}
 
-	if (upscli_connect(&ups, hostname, port, 0) < 0) {
+	if (upscli_connect(&ups, hostname, port, UPSCLI_CONN_TRYSSL) < 0) {
 		noimage("Can't connect to server:\n%s\n",
 			upscli_strerror(&ups));
 #ifndef HAVE___ATTRIBUTE__NORETURN

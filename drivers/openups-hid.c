@@ -28,7 +28,7 @@
 #include "main.h"		/* for getval() */
 #include "usb-common.h"
 
-#define OPENUPS_HID_VERSION	"openUPS HID 0.4"
+#define OPENUPS_HID_VERSION	"openUPS HID 0.5"
 
 /* Minibox */
 #define OPENUPS_VENDORID	0x04d8
@@ -62,6 +62,8 @@ static void *get_voltage_multiplier(USBDevice_t *device)
 			vout_scale = 0.1;
 			ccharge_scale = 0.1; /* unverified */
 			cdischarge_scale = 0.1; /* unverified */
+			break;
+		default:
 			break;
 	}
 
@@ -121,7 +123,7 @@ static const unsigned int therm_tbl[] =
 	(unsigned int)0x3CC
 };
 
-static const unsigned int therm_tbl_size = sizeof(therm_tbl)/sizeof(therm_tbl[0]);
+static const unsigned int therm_tbl_size = SIZEOF_ARRAY(therm_tbl);
 
 static const char *openups_charging_fun(double value);
 static const char *openups_discharging_fun(double value);
@@ -395,4 +397,5 @@ subdriver_t openups_subdriver = {
 	openups_format_model,
 	openups_format_mfr,
 	openups_format_serial,
+	fix_report_desc,
 };

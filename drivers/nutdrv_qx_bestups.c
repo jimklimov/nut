@@ -30,7 +30,7 @@
 #include "nutdrv_qx_blazer-common.h"
 #include "nutdrv_qx_bestups.h"
 
-#define BESTUPS_VERSION "BestUPS 0.06"
+#define BESTUPS_VERSION "BestUPS 0.07"
 
 /* Support functions */
 static int	bestups_claim(void);
@@ -103,7 +103,7 @@ static item_t	bestups_qx2nut[] = {
 	{ "output.voltage",		0,	NULL,	"Q1\r",	"",	47,	'(',	"",	13,	17,	"%.1f",	0,	NULL,	NULL,	NULL },
 	{ "ups.load",			0,	NULL,	"Q1\r",	"",	47,	'(',	"",	19,	21,	"%.0f",	0,	NULL,	NULL,	NULL },
 	{ "input.frequency",		0,	NULL,	"Q1\r",	"",	47,	'(',	"",	23,	26,	"%.1f",	0,	NULL,	NULL,	NULL },
-	{ "battery.voltage",		0,	NULL,	"Q1\r",	"",	47,	'(',	"",	28,	31,	"%.2f",	0,	NULL,	NULL,	NULL },
+	{ "battery.voltage",		0,	NULL,	"Q1\r",	"",	47,	'(',	"",	28,	31,	"%.2f",	0,	NULL,	NULL,	qx_multiply_battvolt },
 	{ "ups.temperature",		0,	NULL,	"Q1\r",	"",	47,	'(',	"",	33,	36,	"%.1f",	0,	NULL,	NULL,	NULL },
 	/* Status bits */
 	{ "ups.status",			0,	NULL,	"Q1\r",	"",	47,	'(',	"",	38,	38,	NULL,	QX_FLAG_QUICK_POLL,	NULL,	NULL,	blazer_process_status_bits },		/* Utility Fail (Immediate) */
@@ -357,12 +357,14 @@ static int	bestups_preprocess_id_answer(item_t *item, const int len)
 /* *SETVAR(/NONUT)* Preprocess setvars */
 static int	bestups_process_setvar(item_t *item, char *value, const size_t valuelen)
 {
+	double	val;
+
 	if (!strlen(value)) {
 		upsdebugx(2, "%s: value not given for %s", __func__, item->info_type);
 		return -1;
 	}
 
-	double	val = strtod(value, NULL);
+	val = strtod(value, NULL);
 
 	if (!strcasecmp(item->info_type, "pins_shutdown_mode")) {
 
@@ -394,7 +396,7 @@ static int	bestups_process_setvar(item_t *item, char *value, const size_t valuel
 static int	bestups_process_bbb_status_bit(item_t *item, char *value, const size_t valuelen)
 {
 	/* Bypass/Boost/Buck bit is not reliable when a battery test, shutdown or on battery condition occurs: always ignore it in these cases */
-	if (!((unsigned int)(qx_status()) & STATUS(OL)) || ((unsigned int)(qx_status()) & (STATUS(CAL) | STATUS(FSD)))) {
+	if (!((unsigned int)(qx_status()) & STATUS(OL)) || ((unsigned int)(qx_status()) & (STATUS(CALIB) | STATUS(FSD)))) {
 
 		if (item->value[0] == '1')
 			item->value[0] = '0';
@@ -432,11 +434,11 @@ static int	bestups_manufacturer(item_t *item, char *value, const size_t valuelen
 
 	/* Best Power devices */
 	if (
-		!strncmp(item->value, "AX1", 3) ||
-		!strncmp(item->value, "FOR", 3) ||
-		!strncmp(item->value, "FTC", 3) ||
-		!strncmp(item->value, "PR2", 3) ||
-		!strncmp(item->value, "PRO", 3)
+		!strcmp(item->value, "AX1") ||
+		!strcmp(item->value, "FOR") ||
+		!strcmp(item->value, "FTC") ||
+		!strcmp(item->value, "PR2") ||
+		!strcmp(item->value, "PRO")
 	) {
 		snprintf(value, valuelen, item->dfl, "Best Power");
 		return 0;
@@ -444,9 +446,9 @@ static int	bestups_manufacturer(item_t *item, char *value, const size_t valuelen
 
 	/* Sola Australia devices */
 	if (
-		!strncmp(item->value, "325", 3) ||
-		!strncmp(item->value, "520", 3) ||
-		!strncmp(item->value, "620", 3)
+		!strcmp(item->value, "325") ||
+		!strcmp(item->value, "520") ||
+		!strcmp(item->value, "620")
 	) {
 		snprintf(value, valuelen, item->dfl, "Sola Australia");
 		return 0;
@@ -479,35 +481,35 @@ static int	bestups_model(item_t *item, char *value, const size_t valuelen)
 
 	/* Best Power devices */
 
-	if (!strncmp(item->value, "AX1", 3)) {
+	if (!strcmp(item->value, "AX1")) {
 
 		snprintf(value, valuelen, item->dfl, "Axxium Rackmount");
 
-	} else if (!strncmp(item->value, "FOR", 3)) {
+	} else if (!strcmp(item->value, "FOR")) {
 
 		snprintf(value, valuelen, item->dfl, "Fortress");
 
-	} else if (!strncmp(item->value, "FTC", 3)) {
+	} else if (!strcmp(item->value, "FTC")) {
 
 		snprintf(value, valuelen, item->dfl, "Fortress Telecom");
 
-	} else if (!strncmp(item->value, "PR2", 3)) {
+	} else if (!strcmp(item->value, "PR2")) {
 
 		snprintf(value, valuelen, item->dfl, "Patriot Pro II");
 		inverted_bbb_bit = 1;
 
-	} else if (!strncmp(item->value, "PRO", 3)) {
+	} else if (!strcmp(item->value, "PRO")) {
 
 		snprintf(value, valuelen, item->dfl, "Patriot Pro");
 		inverted_bbb_bit = 1;
 
 	/* Sola Australia devices */
 	} else if (
-		!strncmp(item->value, "320", 3) ||
-		!strncmp(item->value, "325", 3) ||
-		!strncmp(item->value, "520", 3) ||
-		!strncmp(item->value, "525", 3) ||
-		!strncmp(item->value, "620", 3)
+		!strcmp(item->value, "320") ||
+		!strcmp(item->value, "325") ||
+		!strcmp(item->value, "520") ||
+		!strcmp(item->value, "525") ||
+		!strcmp(item->value, "620")
 	) {
 
 		snprintf(value, valuelen, "Sola %s", item->value);
@@ -523,7 +525,7 @@ static int	bestups_model(item_t *item, char *value, const size_t valuelen)
 	/* Unskip qx2nut table's items according to the UPS model */
 
 	/* battery.runtime var is not available on the Patriot Pro/Sola 320 model series: leave it skipped in these cases, otherwise unskip it */
-	if (strncmp(item->value, "PRO", 3) && strncmp(item->value, "320", 3)) {
+	if (strcmp(item->value, "PRO") && strcmp(item->value, "320")) {
 
 		unskip = find_nut_info("battery.runtime", 0, 0);
 
@@ -536,7 +538,7 @@ static int	bestups_model(item_t *item, char *value, const size_t valuelen)
 	}
 
 	/* battery.packs var is available only on the Axxium/Sola 620 model series: unskip it in these cases */
-	if (!strncmp(item->value, "AX1", 3) || !strncmp(item->value, "620", 3)) {
+	if (!strcmp(item->value, "AX1") || !strcmp(item->value, "620")) {
 
 		unskip = find_nut_info("battery.packs", 0, QX_FLAG_SETVAR);
 
