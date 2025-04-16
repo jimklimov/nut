@@ -174,7 +174,7 @@ esac
 
 # Just in case we get blanks from CI - consider them as not-set:
 if [ -z "`echo "${MAKE-}" | tr -d ' '`" ] ; then
-    if [ "$1" = spellcheck -o "$1" = spellcheck-interactive ] \
+    if [ "$1" = spellcheck -o "$1" = spellcheck-interactive -o "$1" = spellcheck-quick -o "$1" = spellcheck-interactive-quick ] \
     && (command -v gmake) >/dev/null 2>/dev/null \
     ; then
         # GNU make processes quiet mode better, which helps with spellcheck use-case
@@ -398,7 +398,7 @@ optional_prepare_compiler_family() {
 
     if [ -n "$CPP" ] ; then
         # Note: can be a multi-token name like "clang -E" or just not a full pathname
-        ( [ -x "$CPP" ] || $CPP --help >/dev/null 2>/dev/null ) && export CPP
+        ( [ -x "$CPP" ] || $CPP --help >/dev/null 2>/dev/null || { RES=$?; echo "FAILED to look up CPP='$CPP'" >&2 ; exit $RES; } ) && export CPP
     else
         # Avoid "cpp" directly as it may be too "traditional"
         case "$COMPILER_FAMILY" in
@@ -992,6 +992,32 @@ detect_platform_PKG_CONFIG_PATH_and_FLAGS() {
                 echo "in your terminal or shell profile, it can help with auto-detection of some features!"
             fi
             ;;
+        *netbsd*)
+            # At least as of NetBSD-9.2 installed in 2022 and updated in 2025,
+            # there are issues with some pkgsrc-delivered dependencies not
+            # linking well. For more details see
+            # https://github.com/networkupstools/nut/pull/2870#issuecomment-2768590518
+            if [ -d "/usr/pkg/lib" -a -d "/usr/pkg/include" ] ; then
+                LDFLAGS="${LDFLAGS-} -R/usr/pkg/lib"
+                CFLAGS="${CFLAGS-} -I/usr/pkg/include"
+                CXXFLAGS="${CXXFLAGS-} -I/usr/pkg/include"
+            fi
+
+            if [ -d "/usr/pkg/lib/pkgconfig" ] ; then
+                SYS_PKG_CONFIG_PATH="${SYS_PKG_CONFIG_PATH}:/usr/pkg/lib/pkgconfig"
+            fi
+
+            # A bit hackish to check this outside `configure`, but...
+            if [ -s "/usr/pkg/include/ltdl.h" ] \
+            && [ ! -s "/usr/pkg/lib/pkgconfig/ltdl.pc" ] \
+            && [ ! -s "/usr/pkg/lib/pkgconfig/libltdl.pc" ] \
+            ; then
+                echo "NetBSD: export flags for LibLTDL"
+                # The m4 script clear default CFLAGS/LIBS so benefit from new ones
+                CONFIG_OPTS+=("--with-libltdl-includes=-isystem /usr/pkg/include -I/usr/pkg/include")
+                CONFIG_OPTS+=("--with-libltdl-libs=-L/usr/pkg/lib -lltdl")
+            fi
+            ;;
     esac
 
     if [ -n "${OVERRIDE_PKG_CONFIG_PATH-}" ] ; then
@@ -1141,6 +1167,15 @@ build_to_only_catch_errors_check() {
     if [ "${CI_SKIP_CHECK}" = true ] ; then
         echo "`date`: SKIP: not starting a '$MAKE check' for quick sanity test of the products built with the current compiler and standards, because caller requested CI_SKIP_CHECK=true; plain build has just succeeded however"
         return 0
+    fi
+
+    # Lots of tedious touch-files to make, better run it in parallel separately.
+    # May report absence of "aspell" but would not fail in that case (just noise).
+    if grep "WITH_SPELLCHECK_TRUE=''" config.log >/dev/null 2>/dev/null ; then
+        echo "`date`: Starting a '$MAKE spellcheck-quick' first"
+        $CI_TIME $MAKE $MAKE_FLAGS_QUIET spellcheck-quick \
+        && echo "`date`: SUCCESS" \
+        || return $?
     fi
 
     echo "`date`: Starting a '$MAKE check' for quick sanity test of the products built with the current compiler and standards"
@@ -1355,13 +1390,20 @@ if [ -z "$BUILD_TYPE" ] ; then
             shift
             ;;
 
+        --with-docs|--with-docs=*|--with-doc|--with-doc=*)
+            # Note: causes a developer-style build (not CI)
+            # Arg will be passed to configure script as `--with-$1`
+            BUILD_TYPE="`echo "$1" | sed 's,^--with-,,'`"
+            shift
+            ;;
+
         win64|cross-windows-mingw64) BUILD_TYPE="cross-windows-mingw64" ; shift ;;
 
         win32|cross-windows-mingw32) BUILD_TYPE="cross-windows-mingw32" ; shift ;;
 
         win|windows|cross-windows-mingw) BUILD_TYPE="cross-windows-mingw" ; shift ;;
 
-        spellcheck|spellcheck-interactive)
+        spellcheck|spellcheck-interactive|spellcheck-quick|spellcheck-interactive-quick)
             # Note: this is a little hack to reduce typing
             # and scrolling in (docs) developer iterations.
             case "$CI_OS_NAME" in
@@ -1391,7 +1433,7 @@ if [ -z "$BUILD_TYPE" ] ; then
                 if [ "$1" = spellcheck-interactive ] ; then
                     echo "Only CI-building 'spellcheck', please do the interactive part manually if needed" >&2
                 fi
-                BUILD_TYPE="default-spellcheck"
+                BUILD_TYPE="default-spellcheck-quick"
                 shift
             fi
             ;;
@@ -1413,7 +1455,7 @@ echo "LONG_BIT:`getconf LONG_BIT` WORD_BIT:`getconf WORD_BIT`" || true
 if command -v xxd >/dev/null ; then xxd -c 1 -l 6 | tail -1; else if command -v od >/dev/null; then od -N 1 -j 5 -b | head -1 ; else hexdump -s 5 -n 1 -C | head -1; fi; fi < /bin/ls 2>/dev/null | awk '($2 == 1){print "Endianness: LE"}; ($2 == 2){print "Endianness: BE"}' || true
 
 case "$BUILD_TYPE" in
-default|default-alldrv|default-alldrv:no-distcheck|default-all-errors|default-spellcheck|default-shellcheck|default-nodoc|default-withdoc|default-withdoc:man|"default-tgt:"*)
+default|default-alldrv|default-alldrv:no-distcheck|default-all-errors|default-spellcheck|default-spellcheck-quick|default-shellcheck|default-nodoc|default-withdoc|default-withdoc:man|"default-tgt:"*)
     LANG=C
     LC_ALL=C
     export LANG LC_ALL
@@ -1438,7 +1480,7 @@ default|default-alldrv|default-alldrv:no-distcheck|default-all-errors|default-sp
 
     optional_prepare_compiler_family
 
-    CONFIG_OPTS=()
+    CONFIG_OPTS=(--enable-configure-debug)
     COMMON_CFLAGS=""
     EXTRA_CFLAGS=""
     EXTRA_CPPFLAGS=""
@@ -1540,7 +1582,7 @@ default|default-alldrv|default-alldrv:no-distcheck|default-all-errors|default-sp
                     CONFIG_OPTS+=("--with-nutconf=yes")
                     ;;
                 *)
-                    echo "WARNING: Build agent says it can build nutconf, and does not specify a test with prticular C++ revision - so not requiring the experimental feature (auto-try)" >&2
+                    echo "WARNING: Build agent says it can build nutconf, and does not specify a test with particular C++ revision - so not requiring the experimental feature (auto-try)" >&2
                     CONFIG_OPTS+=("--with-nutconf=auto")
                     ;;
             esac
@@ -1578,7 +1620,7 @@ default|default-alldrv|default-alldrv:no-distcheck|default-all-errors|default-sp
             CONFIG_OPTS+=("--disable-spellcheck")
             DO_DISTCHECK=no
             ;;
-        "default-spellcheck"|"default-shellcheck")
+        "default-spellcheck"|"default-spellcheck-quick"|"default-shellcheck")
             CONFIG_OPTS+=("--with-all=no")
             CONFIG_OPTS+=("--with-libltdl=no")
             CONFIG_OPTS+=("--with-doc=man=skip")
@@ -1827,14 +1869,14 @@ default|default-alldrv|default-alldrv:no-distcheck|default-all-errors|default-sp
             echo "=== Exiting after the custom-build target '$MAKE $BUILD_TGT' succeeded OK"
             exit 0
             ;;
-        "default-spellcheck")
+        "default-spellcheck"|"default-spellcheck-quick")
             [ -z "$CI_TIME" ] || echo "`date`: Trying to spellcheck documentation of the currently tested project..."
             # Note: use the root Makefile's spellcheck recipe which goes into
             # sub-Makefiles known to check corresponding directory's doc files.
             # Note: no PARMAKE_FLAGS here - better have this output readably
             # ordered in case of issues (in sequential replay below).
             ( echo "`date`: Starting the quiet build attempt for target $BUILD_TYPE..." >&2
-              $CI_TIME $MAKE $MAKE_FLAGS_QUIET SPELLCHECK_ERROR_FATAL=yes -k $PARMAKE_FLAGS spellcheck >/dev/null 2>&1 \
+              $CI_TIME $MAKE $MAKE_FLAGS_QUIET SPELLCHECK_ERROR_FATAL=yes -k $PARMAKE_FLAGS "`echo "$BUILD_TYPE" | sed 's,^default-,,'`" >/dev/null 2>&1 \
               && echo "`date`: SUCCEEDED the spellcheck" >&2
             ) || \
             ( echo "`date`: FAILED something in spellcheck above; re-starting a verbose build attempt to give more context first:" >&2
@@ -2385,6 +2427,7 @@ bindings)
     # enable whatever is auto-detectable (except docs), and highlight
     # any warnings if we can.
     CONFIG_OPTS=(--enable-Wcolor \
+        --enable-configure-debug \
         --enable-warnings --enable-Werror \
         --enable-keep_nut_report_feature \
         --with-all=auto --with-cgi=auto --with-serial=auto \
@@ -2489,7 +2532,8 @@ bindings)
 
     #$MAKE all || \
     $MAKE $PARMAKE_FLAGS all || exit
-    if [ "${CI_SKIP_CHECK}" != true ] ; then $MAKE check || exit ; fi
+    build_to_only_catch_errors_check
+    ### if [ "${CI_SKIP_CHECK}" != true ] ; then $MAKE check || exit ; fi
 
     case "$CI_OS_NAME" in
         windows*)

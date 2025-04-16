@@ -7,7 +7,7 @@ Installation instructions
 //GH_MARKUP_1095//ifndef::top_srcdir[]
 //GH_MARKUP_1095//include::docs/asciidoc-vars.conf[]
 //GH_MARKUP_1095//endif::top_srcdir[]
-//GH_MARKUP_1095_INCLUDE_BEGIN//7e01bd198 (2024-10-20) docs/asciidoc-vars.conf: try defining linksrcdoc macro
+//GH_MARKUP_1095_INCLUDE_BEGIN//a6bd83d48 (2025-03-20) docs/asciidoc-vars.conf: document that linkdoc may have further args
 ifndef::asciidoc-vars-nut-included[]
 :asciidoc-vars-nut-included:	true
 // NOTE: The big block of comments and definitions below comes from
@@ -54,6 +54,10 @@ ifndef::asciidoc-vars-nut-included[]
 //   the command shown. This is also needed to properly display links
 //   to manpages in both GitHub and generated docs without defining an
 //   attribute for each manpage.
+// * `linkmanext` and `linkmanext2` macros repeat the behavior of the default ones.
+//   These macros are intended for system man pages (e.g. HTML links might lead
+//   to a generic internet site, or possibly to a distro-provided library
+//   online or locally).
 //
 // Optional attributes set by callers:
 // * `website-url` (defaulted below) may be used for "historic website"
@@ -113,9 +117,9 @@ ifndef::env-github[]
 //     syntax: {linksrcdoc}<document>
 //     -> linksrcdoc:<document>[]
 :linksrcdoc:	linksrcdoc:
-//   * link to doc -> our macro
-//     syntax: {linkdoc}<document>{ld-s}[<display title>]
-//     -> linkdoc:<document>[<display title>]
+//   * link to doc -> our macro (optional 2/3/4 args)
+//     syntax: {linkdoc}<document>{ld-s}[<display title>{,<anchor>{,<srcdoc>{,<chunkname>}}}]
+//     -> linkdoc:<document>[<display title>{,<anchor>{,<srcdoc>{,<chunkname>}}}]
 :linkdoc:	linkdoc:
 :ld-s:
 //   * link to single doc -> our macro
@@ -130,6 +134,8 @@ ifndef::env-github[]
 :lm-s:		[
 :lm-c:		,
 :lm-e:		]
+:linkmanext:	https://www.die.net/search/?q=
+:linkmanext2:	https://www.die.net/search/?q=
 endif::env-github[]
 //
 // - on GitHub:
@@ -148,8 +154,8 @@ ifdef::env-github[]
 //     syntax: {linksrcdoc}<document>
 //     -> link:<document>[]
 :linksrcdoc:	link:{top_srcdir}/
-//   * link to doc -> link
-//     syntax: {linkdoc}<document>{ld-s}[<display title>]
+//   * link to doc -> link (FIXME: ignore or use 2/3/4 args; currently they are all pasted as <display title> contents!)
+//     syntax: {linkdoc}<document>{ld-s}[<display title>{,<anchor>{,<srcdoc>{,<chunkname>}}}]
 //     -> {website-url}docs/<document>.chunked/index.html[<display title>]
 :linkdoc:	{website-url}docs/
 :ld-s:		.chunked/index.html
@@ -166,6 +172,8 @@ ifdef::env-github[]
 :lm-s:		.html[
 :lm-c:		(
 :lm-e:		)]
+:linkmanext:	https://www.die.net/search/?q=
+:linkmanext2:	https://www.die.net/search/?q=
 endif::env-github[]
 endif::asciidoc-vars-nut-included[]
 //
@@ -198,14 +206,14 @@ To build NUT from a Git checkout you may need some additional tools
 (referenced just a bit below) and run `./autogen.sh` to generate the
 needed files. For common developer iterations, porting to new platforms,
 or in-place testing, running the `./ci_build.sh` script can be helpful.
-The "<<Installing_inplace,Building NUT for in‐place upgrades or non‐disruptive
+The "<<Installing_inplace,Building NUT for in-place upgrades or non-disruptive
 tests>>" section details some more hints about such workflow, including some
 `systemd` integration.
 
 The NUT linkdoc:packager-guide[Packager Guide], which presents the best
 practices for installing and integrating NUT, is also a good reading.
 
-The <<Config_Prereqs,Prerequisites for building NUT on different OSes>>
+The {linkdoc}qa-guide{ld-s}[NUT Quality Assurance Guide,NUT_Config_Prereqs,docs/config-prereqs.txt]
 document suggests prerequisite packages with tools and dependencies
 available and needed to build and test as much as possible of NUT on
 numerous platforms, written from perspective of CI testing (if you
@@ -263,8 +271,8 @@ do this, you will have problems later on when you try to start upsd.
 Build and install
 ~~~~~~~~~~~~~~~~~
 
-NOTE: See also <<Installing_inplace,Building NUT for in‐place upgrades
-or non‐disruptive tests>>.
+NOTE: See also <<Installing_inplace,Building NUT for in-place upgrades
+or non-disruptive tests>>.
 
 [[Configuration]]
 Configuration
@@ -421,7 +429,7 @@ You are now ready to configure NUT, and start testing and using it.
 You can jump directly to the <<Configuration_notes,NUT configuration>>.
 
 [[Installing_inplace]]
-Building NUT for in‐place upgrades or non‐disruptive tests
+Building NUT for in-place upgrades or non-disruptive tests
 ----------------------------------------------------------
 
 NOTE: The NUT GitHub Wiki article at
@@ -463,7 +471,7 @@ ports involved, and to read the production configuration files).
 Pre-requisites
 ^^^^^^^^^^^^^^
 
-The <<Config_Prereqs,Prerequisites for building NUT on different OSes>>
+The {linkdoc}qa-guide{ld-s}[NUT Quality Assurance Guide,NUT_Config_Prereqs,docs/config-prereqs.txt]
 document details tools and dependencies that were added on NUT CI build
 environments, which now cover many operating systems. This should
 provide a decent starting point for the build on yours (PRs to update
@@ -560,6 +568,19 @@ binaries that the package would put into an obscure location like
 `/lib/nut`. It would however install init-scripts or systemd units that
 would refer to new locations specified by the current build, so such old
 binaries would just consume disk space but not run.
+
+It is recommended to first try installing into a prototyping area, so you
+can review which files get delivered and perhaps which locations you may
+have to tune for a more tightly tailored replacement of an older (packaged)
+installation, in case whole swathes of files that you expect to be present
+in the current system (libraries, drivers, docs) are not getting installed
+by the new build into same path names:
+
+----
+:; rm -rf /tmp/nut ; make DESTDIR=/tmp/nut install -j 8
+:; (cd /tmp/nut && find . | sort) | while read N ; \
+   do [ -e "/$N" ] || echo "=== MISSING: /$N" >&2 ; done
+----
 
 Replacing any NUT deployment
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -857,7 +878,7 @@ and help would be welcome!
 It should currently be possible to build the codebase in native Windows
 with MSYS2/MinGW and cross-building from Linux with mingw (preferably
 in a Debian/Ubuntu container). Refer to
-link:config-prereqs.txt[Prerequisites for building NUT on different OSes]
+link:docs/config-prereqs.txt[Prerequisites for building NUT on different OSes]
 and link:scripts/Windows/README.adoc[scripts/Windows/README.adoc file]
 for respective build environment preparation instructions.
 
@@ -906,6 +927,18 @@ For suggestions about setting up the NUT build environment variants
 for Windows, please see link:docs/config-prereqs.txt and/or
 link:scripts/Windows/README.adoc files. Note this is rather experimental
 at this point.
+
+If using USB drivers, such as `usbhid-ups`, `nutdrv_qx` or `blazer_usb`,
+you may benefit from the link:http://zadig.akeo.ie/[Zadig] tool to pin
+the low-level drivers needed for LibUSB and further NUT to interact with
+the hardware.  Otherwise, OS-provided (e.g. "HID Battery") or third-party
+drivers may attach and "steal" bytes from the data stream needed by LibUSB
+rendering it invalid.
+
+NOTE: For more details, see
+link:https://github.com/networkupstools/nut/issues/1690[NUT issue #1690] and
+the link:https://github.com/networkupstools/nut/wiki/NUT-for-Windows[NUT for
+Windows] article on NUT GitHub Wiki.
 
 
 Runtime configuration

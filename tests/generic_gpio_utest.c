@@ -154,6 +154,10 @@ int main(int argc, char **argv) {
 
 	testData = fopen (testDescFileName, "r");
 	if(!testData) {
+		/* FIXME NUT_WIN32_INCOMPLETE : Actually modern Windows
+		 *  supports both slashes, but revise this code so we do
+		 *  not mix them (maybe enforce a specific one - e.g. some
+		 *  other code does replace / with \ in common.c) */
 		if (!strchr(testDescFileName, '/')) {
 			/* "srcdir" may be set by automake test harness, see
 			 * https://www.gnu.org/software/automake/manual/1.12.2/html_node/Scripts_002dbased-Testsuites.html
@@ -327,9 +331,9 @@ int main(int argc, char **argv) {
 				 * because scanf() does not support asterisk for
 				 * width specifier; have to create it on the fly.
 				 */
-				snprintf(fmt, sizeof(fmt), "%%%us", NUT_GPIO_CHIPNAMEBUF-1);
+				snprintf(fmt, sizeof(fmt), "%%%us", (unsigned int)NUT_GPIO_CHIPNAMEBUF-1);
 				fEof=fscanf(testData, fmt, chipNameLocal);
-				snprintf(fmt, sizeof(fmt), "%%%us", NUT_GPIO_SUBTYPEBUF-1);
+				snprintf(fmt, sizeof(fmt), "%%%us", (unsigned int)NUT_GPIO_SUBTYPEBUF-1);
 				fEof=fscanf(testData, fmt, subType);
 #ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_FORMAT_NONLITERAL
 #pragma GCC diagnostic pop

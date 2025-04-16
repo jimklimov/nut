@@ -40,7 +40,7 @@ ACLOCAL_AMFLAGS = -I m4
 # (alas sequential) target recipes. The order matters, as several subdirectories
 # depend on stuff in "common" or tools being built first!
 SUBDIRS = include common clients conf data drivers tools \
-  lib scripts server tests docs
+  lib scripts server tests docs/man docs
 
 # Note: not generated from SUBDIRS, because not all are recursive:
 SUBDIRS_ALL_RECURSIVE = \
@@ -84,17 +84,29 @@ SUBDIRS_ALL_LIBS_LOCAL = \
 #all all-recursive all-am-local all-local: all-fanout-maybe
 all-recursive: all-fanout-maybe
 
+# Verbosity for fanout rule tracing; 0/1 (or "default" that may auto-set
+# to 0 or 1 in some rules below)
+SUBDIR_MAKE_VERBOSE = default
+
 # Run the standard build if going sequential (or with unknown MAKEFLAGS),
 # or fanout if parallel (presuming GNU/BSD/Sun make at least):
 all-fanout-maybe:
 	+@if [ x"$(NUT_MAKE_SKIP_FANOUT)" = xtrue ] ; then \
-		echo "  SUBDIR-MAKE       $@: skip optimization for parallel make - NUT_MAKE_SKIP_FANOUT is set" ; exit 0 ; \
+		if [ x"$(SUBDIR_MAKE_VERBOSE)" != x0 ] ; then \
+			echo "  SUBDIR-MAKE       $@: skip optimization for parallel make - NUT_MAKE_SKIP_FANOUT is set" ; \
+		fi ; \
+		exit 0 ; \
 	  fi ; \
 	  case "-$(MAKEFLAGS) $(AM_MAKEFLAGS)" in \
 		*-j|*-j" "*|*-{j,l}{0,1,2,3,4,5,6,7,8,9}*|*-[jl][0123456789]*|*{-l,--jobs,--load-average,--max-load}" "{-,0,1,2,3,4,5,6,7,8,9}*|*--jobserver*|*--jobs" "[0123456789]*|*--load-average" "[0123456789]*|*--max-load" "[0123456789]*) \
-			echo "  SUBDIR-MAKE       $@: implement optimization for parallel make as 'make all-fanout-subdirs'" ; \
+			if [ x"$(SUBDIR_MAKE_VERBOSE)" != x0 ] ; then \
+				echo "  SUBDIR-MAKE       $@: implement optimization for parallel make as 'make all-fanout-subdirs'" ; \
+			fi ; \
 			$(MAKE) $(AM_MAKEFLAGS) all-fanout-subdirs ;; \
-		*)	echo "  SUBDIR-MAKE       $@: skip optimization for parallel make - we seem to run sequentially now, seen MAKEFLAGS='$(MAKEFLAGS)' AM_MAKEFLAGS='$(AM_MAKEFLAGS)'" ;; \
+		*) \
+			if [ x"$(SUBDIR_MAKE_VERBOSE)" != x0 ] ; then \
+				echo "  SUBDIR-MAKE       $@: skip optimization for parallel make - we seem to run sequentially now, seen MAKEFLAGS='$(MAKEFLAGS)' AM_MAKEFLAGS='$(AM_MAKEFLAGS)'" ; \
+			fi ;; \
 	  esac
 
 # We start with a pass to `make all` in `common` dir because our wild recipes
@@ -143,7 +155,7 @@ EXTRA_DIST = LICENSE-GPL2 LICENSE-GPL3 LICENSE-DCO MAINTAINERS
 # Since the renaming of documentation to `*.adoc` extension to help IDE
 # and GitHub UIs to render the source files in a pretty fashion, we need
 # to list them:
-EXTRA_DIST += INSTALL.nut.adoc UPGRADING.adoc TODO.adoc NEWS.adoc README.adoc
+EXTRA_DIST += INSTALL.nut.adoc UPGRADING.adoc TODO.adoc NEWS.adoc README.adoc ci_build.adoc
 
 # Tarballs created by `make dist` include the `configure.ac` and `m4/*` sources
 # but lack NUT magic logic to recreate the `configure` script if someone would
@@ -160,12 +172,16 @@ endif KEEP_NUT_REPORT
 # target in specified dir is the goal, all as separate targets for this
 # level's Makefile:
 SUBDIR_TGT_RULE = ( \
-	TGT="`echo '$@' | awk -F/ '{print $$1}'`" ; \
-	DIR="`echo '$@' | sed 's,^[^/]*/,,'`" ; \
-	echo "  SUBDIR-MAKE       STARTING: 'make $$TGT' in $$DIR ..." ; \
+	[ x"$${TGT-}" != x ] || TGT="`echo '$@' | awk -F/ '{print $$1}'`" ; \
+	[ x"$${DIR-}" != x ] || DIR="`echo '$@' | sed 's,^[^/]*/,,'`" ; \
+	if [ x"$(SUBDIR_MAKE_VERBOSE)" != x0 ] ; then \
+		echo "  SUBDIR-MAKE       STARTING: 'make $$TGT' in $$DIR ..." ; \
+	fi ; \
 	cd "$(abs_builddir)/$${DIR}" && \
 	$(MAKE) $(AM_MAKEFLAGS) $${SUBDIR_TGT_MAKEFLAGS-} "$${TGT}" || { RES=$$?; echo "  SUBDIR-MAKE       FAILURE: 'make $$TGT' in $$DIR" >&2 ; exit $$RES ; } ; \
-	echo "  SUBDIR-MAKE       SUCCESS: 'make $$TGT' in $$DIR" ; \
+	if [ x"$(SUBDIR_MAKE_VERBOSE)" != x0 ] ; then \
+		echo "  SUBDIR-MAKE       SUCCESS: 'make $$TGT' in $$DIR" ; \
+	fi ; \
 	)
 
 # A way to quickly handle SUBDIRS_ALL_LIBS_LOCAL as dependency for all others
@@ -216,8 +232,12 @@ all-libs-local/tests: all-libs-local/common
 ### Delivers: libnutscan.la
 ### LIB-Requires-ext: drivers/libserial-nutscan.la
 ### LIB-Requires-ext: common/libnutwincompat.la common/libcommonstr.la
+### HDR-Requires-ext: clients/libupsclient-version.h
 ### Requires-int: libnutscan.la
-all-libs-local/tools/nut-scanner: all-libs-local/drivers all-libs-local/clients
+### Note: indirectly (ltdl) may use installed libupsclient.so
+###       however does directly use libupsclient-version.h
+###       for hints to find it at run-time
+all-libs-local/tools/nut-scanner: all-libs-local/drivers all-libs-local/common all-libs-local/clients
 	+@$(SUBDIR_TGT_RULE)
 
 # Handle all SUBDIRS_ALL_RECURSIVE in a way that dependencies can be specified,
@@ -425,36 +445,74 @@ DISTCHECK_CONFIGURE_FLAGS = ${DISTCHECK_FLAGS}		\
 # (even if faked where lack and can not build them), so that
 # the majority of distcheck logic can pass.
 # See also docs/man/Makefile.am
+if KNOWN_UNABLE_MANS
+if DOC_INSTALL_DISTED_MANS
+distcheck-ci: distcheck
+dist-ci: dist
+else !DOC_INSTALL_DISTED_MANS
+distcheck-ci: distcheck-fake-man
+dist-ci: dist-fake-man
+endif !DOC_INSTALL_DISTED_MANS
+else !KNOWN_UNABLE_MANS
 if WITH_MANS
 distcheck-ci: distcheck
+dist-ci: dist
 else !WITH_MANS
 if HAVE_ASCIIDOC
 distcheck-ci: distcheck
+dist-ci: dist
 else !HAVE_ASCIIDOC
 if DOC_INSTALL_DISTED_MANS
 distcheck-ci: distcheck
+dist-ci: dist
 else !DOC_INSTALL_DISTED_MANS
 distcheck-ci: distcheck-fake-man
+dist-ci: dist-fake-man
 endif !DOC_INSTALL_DISTED_MANS
 endif !HAVE_ASCIIDOC
 endif !WITH_MANS
+endif !KNOWN_UNABLE_MANS
+
+# Helper for a number of recipes below that explicitly agree to not require
+# always real man pages (but require them to dist => distcheck-something)
+# for CI or developer iterations on environments with incomplete tool kits:
+distcheck-light-DIST_ALL_PAGES:
+	@echo "Starting $@" >&2
+	+@cd "$(abs_builddir)/docs/man" && $(MAKE) $(AM_MAKEFLAGS) all
+	+@cd "$(abs_builddir)/docs/man" && $(MAKE) $(AM_MAKEFLAGS) distcheck-light-DIST_ALL_PAGES
+	@echo "Completed $@: preparation of pre-built man pages for dist tarball, possibly faked" >&2
+
+# In some recipes we `configure --with-docs=skip`, so "make dist" should not
+# hiccup on lack of the page files (nor try to make them); not using simple
+# distcheck-light-DIST_ALL_PAGES step due to custom logic!
+distcheck-light-DIST_ALL_PAGES-docs-skipped:
+	@echo "Starting $@" >&2
+	+@cd $(abs_builddir)/docs/man && $(MAKE) $(AM_MAKEFLAGS) prep-src-docs
+	+@cd $(abs_builddir)/docs/man && $(MAKE) $(AM_MAKEFLAGS) FAKE_PAGES_BUMP_SRC=false distcheck-light-DIST_ALL_PAGES
+	@echo "Completed $@: preparation of pre-built man pages for dist tarball, possibly faked" >&2
 
 # Here we generate man pages (if absent) or fake them
-# Require other dependencies as usual distcheck does
-distcheck-fake-man:
+# Require other dependencies as usual distcheck does;
+# be sure to pass through caller's DISTCHECK_FLAGS (if any)
+distcheck-fake-man: distcheck-light-DIST_ALL_PAGES
 	@echo "Starting $@" >&2
-	+@cd docs/man && $(MAKE) $(AM_MAKEFLAGS) all
-	+@cd docs/man && $(MAKE) $(AM_MAKEFLAGS) distcheck-light-DIST_ALL_PAGES
-	+prefix='$${prefix}'; $(MAKE) $(AM_MAKEFLAGS) distcheck
+	+prefix='$${prefix}'; if test x"$(DISTCHECK_FLAGS)" = x ; then \
+		$(MAKE) $(AM_MAKEFLAGS) distcheck ; \
+	 else \
+		$(MAKE) $(AM_MAKEFLAGS) DISTCHECK_FLAGS="$(DISTCHECK_FLAGS)" distcheck ; \
+	 fi
 	@echo "Completed $@: strict distcheck, but with possibly faked pre-built man pages" >&2
+
+dist-fake-man: distcheck-light-DIST_ALL_PAGES
+	@echo "Starting $@" >&2
+	+prefix='$${prefix}'; $(MAKE) $(AM_MAKEFLAGS) dist
+	@echo "Completed $@: strict dist, but with possibly faked pre-built man pages" >&2
 
 # Here we allow to skip docs if tools are absent, so "make dist"
 # should not hiccup on lack of the page files (but MAY make them
 # if it can); be relaxed toward other dependencies.
-distcheck-light:
+distcheck-light: distcheck-light-DIST_ALL_PAGES
 	@echo "Starting $@" >&2
-	+@cd docs/man && $(MAKE) $(AM_MAKEFLAGS) all
-	+@cd docs/man && $(MAKE) $(AM_MAKEFLAGS) distcheck-light-DIST_ALL_PAGES
 	+prefix='$${prefix}'; $(MAKE) $(AM_MAKEFLAGS) DISTCHECK_FLAGS="$(DISTCHECK_LIGHT_FLAGS)" distcheck
 	@echo "Completed $@: relaxed distcheck, with possibly faked pre-built man pages" >&2
 
@@ -474,11 +532,11 @@ memcheck:
 
 # Make a distcheck (and check in particular) with enabled valgrind and debug info
 # Here we skip docs so "make dist" should not hiccup on lack of the page files
-# (nor try to make them)
-distcheck-valgrind:
+# (nor try to make them); not using simple distcheck-light-DIST_ALL_PAGES step
+# due to custom logic!
+distcheck-valgrind: distcheck-light-DIST_ALL_PAGES-docs-skipped
 	@echo "Starting $@" >&2
 	@echo "See also scripts/valgrind in NUT sources for a helper tool"
-	+@cd docs/man && $(MAKE) $(AM_MAKEFLAGS) FAKE_PAGES_BUMP_SRC=false distcheck-light-DIST_ALL_PAGES
 	+prefix='$${prefix}'; $(MAKE) $(AM_MAKEFLAGS) DISTCHECK_FLAGS="$(DISTCHECK_VALGRIND_FLAGS)" distcheck
 	@echo "Completed $@: relaxed distcheck, without man pages ('pre-built' placeholders in dist archive), running tests under valgrind" >&2
 else !HAVE_VALGRIND
@@ -545,29 +603,95 @@ distclean-local:
 
 # Hook the documentation building and validating recipes
 # Note: these are optionally available (as determined during configure runs)
+# Only require SPELLCHECK_REPORT_MAYBE_UPDATED_DICT=yes for the last entry
+# (reduce noise for spellcheck-interactive)
 # Maint: grep -l 'SPELLCHECK_' `git grep -lw spellcheck '*.am'`
+SPELLCHECK_DIRS_MOST = \
+	spellcheck/docs \
+	spellcheck/docs/man \
+	spellcheck/conf \
+	spellcheck/data \
+	spellcheck/data/html \
+	spellcheck/scripts \
+	spellcheck/scripts/Solaris \
+	spellcheck/scripts/Windows \
+	spellcheck/scripts/devd \
+	spellcheck/scripts/external_apis \
+	spellcheck/scripts/hotplug \
+	spellcheck/scripts/installer \
+	spellcheck/scripts/python \
+	spellcheck/scripts/systemd \
+	spellcheck/scripts/udev \
+	spellcheck/scripts/upsdrvsvcctl
+
+# Same but with an info notice, so runs alone last
+SPELLCHECK_DIRS_LAST = spellcheck/tests/NIT
+
+SPELLCHECK_DIRS = $(SPELLCHECK_DIRS_MOST) $(SPELLCHECK_DIRS_LAST)
+
+$(SPELLCHECK_DIRS_MOST): prep-src-docs/docs/man prep-src-docs/docs
+	+@TGT="$(SPELLCHECK_TGT)"; export TGT; $(SUBDIR_TGT_RULE)
+
+$(SPELLCHECK_DIRS_LAST): prep-src-docs/docs/man prep-src-docs/docs $(SPELLCHECK_DIRS_MOST)
+	+@SUBDIR_TGT_MAKEFLAGS="SPELLCHECK_REPORT_MAYBE_UPDATED_DICT=yes"; \
+	  export SUBDIR_TGT_MAKEFLAGS; \
+	  TGT="$(SPELLCHECK_TGT)"; export TGT; \
+	  $(SUBDIR_TGT_RULE)
+
+# We want to check all files even if some have errors, so sub-make with "-k":
+# Tricky TGT to pass sort-of-same rules (and dir list) as spellcheck,
+# but using the correct make target for this goal:
+# FIXME: fanned-out recipes tend to fail early despite "make -ks", so for
+#  now we retry with a not-fanned-out attempt to cover most touch-files
 spellcheck spellcheck-interactive:
-	+@RES=0; \
-	(cd $(builddir)/docs && $(MAKE) $(AM_MAKEFLAGS) -s $(abs_top_builddir)/docs/.prep-src-docs) || RES=$$? ; \
-	(cd $(builddir)/docs/man && $(MAKE) $(AM_MAKEFLAGS) -s $(abs_top_builddir)/docs/man/.prep-src-docs) || RES=$$? ; \
-	(cd $(builddir)/docs && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/docs/man && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/conf && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/data && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/data/html && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/scripts && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/scripts/Solaris && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/scripts/Windows && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/scripts/devd && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/scripts/external_apis && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/scripts/hotplug && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/scripts/installer && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/scripts/python && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/scripts/systemd && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/scripts/udev && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/scripts/upsdrvsvcctl && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	(cd $(builddir)/tests/NIT && $(MAKE) $(AM_MAKEFLAGS) -s $@) || RES=$$? ; \
-	exit $$RES
+	+@SUBDIR_TGT_MAKEFLAGS="$${SUBDIR_TGT_MAKEFLAGS-} -k -s " ; export SUBDIR_TGT_MAKEFLAGS ; \
+	  if [ x"$(NUT_MAKE_SKIP_FANOUT)" = xtrue ] ; then \
+		RES=0 ; \
+		if [ x"$(SUBDIR_MAKE_VERBOSE)" != x0 ] ; then \
+			echo "  SUBDIR-MAKE       $@: skip optimization for parallel make - NUT_MAKE_SKIP_FANOUT is set" ; \
+		fi ; \
+		(cd $(builddir)/docs && $(MAKE) $(AM_MAKEFLAGS) -k -s $(abs_top_builddir)/docs/.prep-src-docs) || RES=$$? ; \
+		(cd $(builddir)/docs/man && $(MAKE) $(AM_MAKEFLAGS) -k -s $(abs_top_builddir)/docs/man/.prep-src-docs) || RES=$$? ; \
+		for D in $(SPELLCHECK_DIRS_MOST) ; do \
+			D="`echo "$$D" | sed 's,^spellcheck/,,'`" ; \
+			(cd "$(builddir)/$$D" && $(MAKE) $(AM_MAKEFLAGS) -k -s $@) || RES=$$? ; \
+		done ; \
+		for D in $(SPELLCHECK_DIRS_LAST) ; do \
+			D="`echo "$$D" | sed 's,^spellcheck/,,'`" ; \
+			(cd "$(builddir)/$$D" && $(MAKE) $(AM_MAKEFLAGS) SPELLCHECK_REPORT_MAYBE_UPDATED_DICT=yes -k -s $@) || RES=$$? ; \
+		done ; \
+		exit $$RES ; \
+	  fi ; \
+	  SUBDIR_MAKE_VERBOSE="$(SUBDIR_MAKE_VERBOSE)" ; \
+	  if [ x"$(SUBDIR_MAKE_VERBOSE)" = xdefault ] ; then \
+		SUBDIR_MAKE_VERBOSE=0 ; \
+	  fi ; \
+	  export SUBDIR_MAKE_VERBOSE ; \
+	  $(MAKE) $(AM_MAKEFLAGS) SPELLCHECK_TGT='$@' SUBDIR_MAKE_VERBOSE="$${SUBDIR_MAKE_VERBOSE}" -k -s $(SPELLCHECK_DIRS) && exit ; \
+	  echo "WARNING: FAILED fanned-out attempt in $@, retrying with NUT_MAKE_SKIP_FANOUT" >&2 ; \
+	  $(MAKE) $(AM_MAKEFLAGS) NUT_MAKE_SKIP_FANOUT=true SPELLCHECK_TGT='$@' -k -s $(SPELLCHECK_DIRS)
+
+# Auto-parallel recipe (if current 'make' implementation supports the "-j N"
+# syntax; the optional MAXPARMAKES may be set in NUT CI farm style builds):
+spellcheck-quick:
+	+@case " $(MAKEFLAGS) $(AM_MAKEFLAGS)" in \
+		*"j"*) $(MAKE) $(AM_MAKEFLAGS) -k -s spellcheck && exit ;; \
+		*) \
+			if ! [ "$${MAXPARMAKES-}" -gt 1 ] 2>/dev/null ; then \
+				MAXPARMAKES=8 ; \
+			fi ; \
+			$(MAKE) $(AM_MAKEFLAGS) -k -s -j $${MAXPARMAKES} spellcheck \
+			&& exit ;; \
+	  esac
+
+# Run auto-parallel recipe, and if something fails - re-run interactively:
+spellcheck-interactive-quick:
+	+@$(MAKE) $(AM_MAKEFLAGS) -k -s spellcheck-quick && exit ; \
+	  echo "WARNING: in $@: make spellcheck-quick failed, retrying with spellcheck-interactive" >&2 ; \
+	  if [ x"$(SUBDIR_MAKE_VERBOSE)" = xdefault ] ; then \
+		SUBDIR_MAKE_VERBOSE=1 ; export SUBDIR_MAKE_VERBOSE ; \
+	  fi ; \
+	  $(MAKE) $(AM_MAKEFLAGS) -k -s spellcheck-interactive
 
 # Note: the "all-docs" and "check-docs" targets may require tools not
 # found by `configure` script (and so avoided by conventional recipes)
@@ -596,12 +720,9 @@ INSTALL.nut UPGRADING NEWS README:
 # definitions), to apply them into the committed document sources.
 # Not bothering about with "make dist" constraints etc. - changes
 # the contents of srcdir directly and intentionally.
-# NOTE: There is a problem with `printf '%s' "${LINE}"` (double-quoted)
-# that causes backslashes to be treated as escape characters, and
-# shell replacements with `${VAR/pat/sub}` are not really portable.
-# To address this, we use the pure POSIX shell `replace_all()`
-# method suggested at https://stackoverflow.com/a/75037170/4715872
-# WARNING: It may succumb to lines ending with asterisk however!
+# NOTE: Using `read -r` per POSIX standard to avoid backslashes
+# being treated as escape characters:
+# https://pubs.opengroup.org/onlinepubs/9699919799/utilities/read.html
 MAINTAINER_ASCIIDOCS_RECIPE_DEBUG_STREAM = /dev/null
 #MAINTAINER_ASCIIDOCS_RECIPE_DEBUG_STREAM = &2
 
@@ -610,22 +731,6 @@ maintainer-asciidocs:
 	 USEDREV_NOSUBJ="`git log -1 --oneline --pretty=format:'%h (%cs)' docs/asciidoc-vars.conf`" || exit ; \
 	 echo "$@: Updating asciidoc text sources with docs/asciidoc-vars.conf as of commit: $${USEDREV}"; \
 	 echo "//GH_MARKUP_1095_INCLUDE_BEGIN//$${USEDREV}" > docs/asciidoc-vars.conf.lastrev.tmp || exit ; \
-	 replace_all() { \
-	   case "$$1" in *"$$2"*) ;; *) echo "$$1" ; return ;; esac ; \
-	   RIGHT="$$1" ; R=''; \
-	   while [ -n "$$RIGHT" ]; do \
-	    echo "LEFT='$$LEFT' RIGHT='$$RIGHT' => R='$$R'" >$(MAINTAINER_ASCIIDOCS_RECIPE_DEBUG_STREAM) ; \
-	    LEFT="$${RIGHT%%$$2*}" ; \
-	    echo "=> LEFT='$$LEFT'" >$(MAINTAINER_ASCIIDOCS_RECIPE_DEBUG_STREAM) ; \
-	    if [ x"$$LEFT" = x"$$RIGHT" ]; then \
-	        R="$$R$$RIGHT" ; \
-	        return ; \
-	    fi ; \
-	    R="$$R$$LEFT$$3" ; \
-	    RIGHT="$${RIGHT#*$$2}" ; \
-	  done ; \
-	  echo "$$R" ; \
-	 } ; \
 	 find . -name '*.adoc' -or -name '*.txt' | ( \
 	  FILES=""; \
 	  while read F ; do \
@@ -633,12 +738,12 @@ maintainer-asciidocs:
 	    || { echo "$@: SKIP: no GH_MARKUP_1095_INCLUDE_* tags: $$F"; continue ; } ; \
 	    rm -f "$${F}"*.tmp || exit ; \
 	    EXT="1.tmp"; \
-	    while IFS='' read LINE ; do \
+	    while IFS='' read -r LINE ; do \
 	        case "$${LINE}" in \
 	            "//GH_MARKUP_1095_INCLUDE_BEGIN"*) EXT="2.tmp" ; continue ;; \
 	            "//GH_MARKUP_1095_INCLUDE_END"*|"////GH_MARKUP_1095_INCLUDE_END"*) EXT="3.tmp" ; continue ;; \
 	        esac ; \
-	        printf '%s\n' "`replace_all "$${LINE}" '\\' '''\\'`" >> "$${F}.$${EXT}" || exit ; \
+	        printf '%s\n' "$${LINE}" >> "$${F}.$${EXT}" || exit ; \
 	    done < "$$F" || { echo "$@: FAILED injection for $${F}" >&2; exit 1; } ; \
 	    if test -s "$${F}.2.tmp" && test -z "`diff "$${F}.2.tmp" docs/asciidoc-vars.conf | tr -d '\n'`" ; then \
 	        rm -f "$${F}"*.tmp ; \
@@ -658,6 +763,7 @@ maintainer-asciidocs:
 	    echo "$@: OVERALL-SKIP: No text files found with GH_MARKUP_1095_INCLUDE_ tags, or obsoleted docs/asciidoc-vars.conf contents";\
 	  else \
 	    echo "$@: OVERALL-UPDATED: You may now want to:"; \
+	    echo "    make spellcheck-interactive-quick"; \
 	    echo "    git add -p $${FILES} && git commit -sm 'Update NUT documentation sources with current docs/asciidoc-vars.conf: $${USEDREV_NOSUBJ}'"; \
 	  fi; \
 	 )
@@ -857,6 +963,9 @@ tools/gitlog2changelog.py: tools/gitlog2changelog.py.in
 
 # ----------------------------------------------------------------------
 # Maintainers targets: distribution signature and hashes
+# Assume tools are available (and maintainer GPG keys)
+dist-files: dist dist-sig dist-hash
+
 nut-@PACKAGE_VERSION@.tar.gz: dist
 nut-@PACKAGE_VERSION@.tar.gz.sig: dist-sig
 nut-@PACKAGE_VERSION@.tar.gz.md5 nut-@PACKAGE_VERSION@.tar.gz.sha256: dist-hash
@@ -1002,6 +1111,7 @@ install-as-root:
 			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut-monitor.service nut-server.service || true ; \
 			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut-driver.service || true ; \
 			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut-driver.target || true ; \
+			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut-udev-settle.service || true ; \
 			@SYSTEMD_SYSTEMCTL_PROGRAM@ stop nut.target || true ; \
 		fi ; \
 		if $(WITH_SOLARIS_SMF) || $(WITH_SOLARIS_INIT) ; then \
@@ -1113,8 +1223,8 @@ install-as-root:
 				@SYSTEMD_SYSTEMCTL_PROGRAM@ preset-all || exit ; \
 			else \
 				echo "$@: Apply systemd enabled/disabled service defaults" >&2 ; \
-				@SYSTEMD_SYSTEMCTL_PROGRAM@ disable nut.target nut-driver.target nut-monitor nut-server nut-driver-enumerator.path nut-driver-enumerator.service || exit ; \
-				@SYSTEMD_SYSTEMCTL_PROGRAM@ enable  nut.target nut-driver.target nut-monitor nut-server nut-driver-enumerator.path nut-driver-enumerator.service || exit ; \
+				@SYSTEMD_SYSTEMCTL_PROGRAM@ disable nut.target nut-driver.target nut-udev-settle.service nut-monitor nut-server nut-driver-enumerator.path nut-driver-enumerator.service || exit ; \
+				@SYSTEMD_SYSTEMCTL_PROGRAM@ enable  nut.target nut-driver.target nut-udev-settle.service nut-monitor nut-server nut-driver-enumerator.path nut-driver-enumerator.service || exit ; \
 			fi ; \
 			echo "$@: Reconfigure nut-driver-enumerator (service instance wrapping)" >&2 ; \
 			@SYSTEMD_SYSTEMCTL_PROGRAM@ restart udev && applied_udev=true || true ; \

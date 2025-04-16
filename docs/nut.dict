@@ -1,4 +1,4 @@
-personal_ws-1.1 en 3330 utf-8
+personal_ws-1.1 en 3457 utf-8
 AAC
 AAS
 ABI
@@ -59,6 +59,7 @@ Andreas
 Andreassen
 Andrzej
 Angelone
+Ansible
 Antonino
 Apodaca
 AppData
@@ -151,6 +152,7 @@ CBI
 CCC
 CCCC
 CDC
+CDN
 CDS
 CELLPADDING
 CELLSPACING
@@ -205,8 +207,10 @@ Checksum
 Christoph
 Chu
 Cichowski
+CipherString
 CircleCI
 Claesson
+CodeQL
 CodingStyle
 Collver
 Colombier
@@ -245,6 +249,7 @@ DES
 DESTDIR
 DEVICEALARM
 DEVNAME
+DEVREL
 DEXP
 DF
 DHEA
@@ -289,6 +294,7 @@ Dharm
 Diehl
 Dietze
 DigitalOcean
+DigitalOcean's
 Digitus
 Digys
 Dimitris
@@ -308,6 +314,7 @@ Dynex
 EAGAIN
 EE
 EEPROM
+EFI
 EG
 EL
 ELCD
@@ -331,7 +338,9 @@ ESV
 ESXi
 ETIME
 EUROCASE
+EVeRr
 EXtreme
+EcoFlow
 Economou
 EditorConfig
 Edlman
@@ -407,6 +416,7 @@ GES
 GETADDRINFO
 GETPID
 GID
+GITREV
 GND
 GNUmakefile
 GObject
@@ -427,6 +437,7 @@ Gammons
 Gandi
 Gaspar
 Gathman
+Geerling
 Gembe
 Gert
 GetRWVars
@@ -470,6 +481,7 @@ HPE
 HPUX
 HREF
 HUPCL
+HUZKVEIkHnC
 HV
 HVT
 HW
@@ -522,6 +534,7 @@ IPs
 IPv
 IRC
 IRIX
+ISOs
 ITEMP
 ITy
 IVT
@@ -563,6 +576,7 @@ KRTS
 KSTAR
 KTTS
 Kain
+Kajetan
 Kaminski
 Kanji
 Kazancev
@@ -577,6 +591,7 @@ Kjell
 Klimov
 Kolodziej
 Korensky's
+Korn
 Korte
 Kralewski
 Kroll
@@ -626,8 +641,10 @@ LYONN
 Lacerda
 Lallement
 LanSafe
+Langille
 Lansafecable
 Laventhol
+Lce
 Legrand
 Lepple
 Levente
@@ -653,6 +670,7 @@ MAXCONN
 MAXLINEV
 MAXPARMAKES
 MBATTCHG
+MBR
 MCU
 MDigest
 MEC
@@ -668,7 +686,9 @@ MKDIRPROG
 MLH
 MMM
 MNU
+MODENAME
 MONITORed
+MOUNTPOINT
 MOXA
 MPSU
 MQ
@@ -757,6 +777,7 @@ NONUT
 NOP
 NOPARENT
 NOTALARM
+NOTBOOST
 NOTBYPASS
 NOTCAL
 NOTECO
@@ -766,9 +787,12 @@ NOTIFYFLAGS
 NOTIFYMSG
 NOTOFF
 NOTOTHER
+NOTOVER
+NOTTRIM
 NQA
 NTP
 NUT's
+NUTCI
 NUTCONF
 NUTClient
 NVA
@@ -814,6 +838,7 @@ OMNIVS
 OMNIVSINT
 ONF
 ONV
+OO
 OOM
 OSABI
 OSs
@@ -834,12 +859,14 @@ OnLine
 OnTime
 OneAC
 OpenBSD
+OpenIPMI
 OpenIndiana
 OpenPGP
 OpenSSL
 OpenSolaris
 OpenSource
 OpenUPS
+OpenWRT
 Opengear
 Opensource
 Opti
@@ -869,6 +896,7 @@ PIPEFN
 PLD
 PLL
 PLVn
+POG
 POLLFAIL
 POLLFREQALERT
 POSIX
@@ -902,6 +930,7 @@ PULS
 PV
 PWR
 PXG
+PYTHONIOENCODING
 PYTHONPATH
 PaaS
 Pac
@@ -922,6 +951,7 @@ PhoenixTec
 Phoenixtec
 Pi
 PiJuice
+PiNUT
 Plesser
 PnP
 Pohle
@@ -1064,6 +1094,7 @@ RunAs
 RunUPSCommand
 RxD
 Ryabov
+Rzepecki
 SAI
 SASU
 SCM
@@ -1076,6 +1107,7 @@ SDR
 SDT
 SECCTRL
 SELFTEST
+SELFTESTS
 SELinux
 SENTR
 SER
@@ -1242,6 +1274,7 @@ TCSANOW
 TEMPC
 TEMPF
 TESTPASS
+TEoQ
 TGS
 TIMELEFT
 TIOCM
@@ -1292,6 +1325,7 @@ UBD
 UBR
 UCRT
 UDP
+UFS
 UHV
 UI
 UID
@@ -1348,18 +1382,22 @@ V'ger
 VALIGN
 VARDESC
 VARTYPE
+VENDORNAME
 VER
 VERFW
 VFI
 VIB
 VLAN
 VM
+VM's
 VMIN
 VMM
 VMs
 VMware
 VNC
 VPATH
+VPC
+VPS
 VSCode
 VSN
 VTIME
@@ -1447,11 +1485,13 @@ Yunto
 ZFS
 ZP
 ZProject
+Zadig
 Zaika
 Zampieri
 Zawadzki
 ZeroMQ
 Zhile
+ZnapZend
 abandonware
 abcd
 ablerex
@@ -1466,6 +1506,7 @@ addcmd
 addenum
 addinfo
 additionalSOLibSearchPath
+addons
 addr
 addrange
 addvars
@@ -1480,9 +1521,11 @@ advorder
 ae
 aec
 af
+afeb
 aggregator
 ai
 aix
+akeo
 al
 ala
 alertset
@@ -1530,6 +1573,7 @@ asciidoc
 asciidocs
 asciidoctor
 asem
+ashift
 aspell
 ast
 async
@@ -1551,11 +1595,13 @@ autoconf
 autodetect
 autodetected
 autodetection
+autoexpand
 autogen
 automagically
 automake
 autopoint
 autoreconf
+autoreplace
 autorestart
 autoscan
 autostart
@@ -1619,11 +1665,15 @@ bitmapped
 bitmask
 bitness
 bitnesses
+bmake
 bn
 bool
 boolean
 bootable
+bootenv
+bootfs
 bp
+bpool
 br
 brazil
 brcm
@@ -1638,17 +1688,22 @@ buf
 buflen
 bugfix
 bugfixes
+buildable
 buildbots
 builddir
 buildtype
 bullseye
+bursty
 busport
 busybox
+buzzmode
 bv
+byobu
 bypassOff
 bypassOn
 cStandard
 cablepower
+cachefile
 calc
 calloc
 cb
@@ -1694,12 +1749,14 @@ chrooting
 chroots
 chunked
 chunking
+chunkname
 chv
 ci
 cidr
 cis
 clav
 clepple
+cli
 clicky
 cls
 clueful
@@ -1711,6 +1768,7 @@ cmdname
 cmdparam
 cmds
 cmdvartab
+cnf
 codebase
 codepath
 coldstarts
@@ -1773,6 +1831,7 @@ customizations
 cvt
 cwd
 cx
+cxx
 cyberpower
 d'un
 da
@@ -1785,7 +1844,11 @@ databits
 datacenter
 datadir
 datagrams
+datalink
 dataok
+datarootdir
+dataset
+datasets
 datasheet
 datastale
 dblatex
@@ -1804,7 +1867,10 @@ decrement
 decrypt
 dedb
 dedup
+dedupditto
 deduplication
+dedupratio
+defaultrouter
 defs
 defun
 dep
@@ -1837,6 +1903,7 @@ distclean
 distro
 distros
 dl
+dladm
 dll
 dlopen
 dmake
@@ -1846,6 +1913,7 @@ dnl
 dnsmasq
 docbook
 docdir
+docinfo
 docs
 dod
 domxml
@@ -1878,6 +1946,7 @@ dtparam
 dtr
 dts
 du
+dumbed
 dumbterm
 dummycons
 dummypass
@@ -1925,6 +1994,7 @@ esupssmart
 et
 etapro
 eth
+etherstubs
 ev
 eval
 everups
@@ -1936,12 +2006,15 @@ execfuse
 executables
 executeCommand
 execve
+expandsize
 extapi
 extern
 externalConsole
 extradata
+faa
 fabula
 facto
+failmode
 fallthrough
 fasttrack
 fatalx
@@ -2019,12 +2092,14 @@ getopt
 gettext
 gettextize
 getvar
+gh
 gif
 gitcache
 github
 gitignore
 gitk
 gitlab
+gitlog
 gmail
 gmake
 gmtime
@@ -2049,6 +2124,7 @@ guesstimation
 guez
 gufw
 gui
+guid
 gxe
 gz
 gzip
@@ -2164,6 +2240,7 @@ interruptonly
 interruptsize
 intltool
 inverter
+invmode
 io
 ioLogik
 ioLogikE
@@ -2209,6 +2286,7 @@ kVA
 kadets
 kaminski
 kde
+kex
 kext
 keychain
 keygen
@@ -2231,8 +2309,10 @@ lasaine
 lbrb
 ld
 ldd
+ldflags
 le
 len
+leveloffset
 lf
 libarchive
 libaugeas
@@ -2310,6 +2390,7 @@ linux
 linuxdoc
 lipo
 listDeviceClients
+listsnapshots
 littleguy
 livedata
 lk
@@ -2339,6 +2420,7 @@ lowbattery
 lr
 lregex
 lsd
+lst
 lsusb
 lt
 ltdl
@@ -2379,8 +2461,10 @@ maxstartdelay
 maxva
 maxvalue
 maxvo
+mbuffer
 mc
 mcedit
+mcview
 md
 mdadm
 mdutil
@@ -2437,12 +2521,14 @@ msvcrt
 msys
 multi
 multicommands
+multihost
 multilib
 multilink
 multimeter
 multimon
 mustek
 mv
+myHostingIP
 myauthenticationpassphrase
 mybox
 mydev
@@ -2450,6 +2536,7 @@ mydevice
 mydomain
 mydriver
 myhostname
+myname
 mypass
 mypassword
 myprivatepassphrase
@@ -2472,6 +2559,7 @@ nbproject
 nbr
 nc
 nd
+nde
 nds
 netcat
 netclient
@@ -2520,6 +2608,7 @@ nooutstats
 norating
 noro
 noscanlangid
+nosnap
 nosuid
 notAfter
 notifyflags
@@ -2583,8 +2672,10 @@ openipmi
 openjdk
 openlog
 openmp
+openpimi
 openssh
 openssl
+openwin
 oper
 optimizations
 optiups
@@ -2593,6 +2684,7 @@ os
 ostream
 other's
 otheruser
+ouGDQn
 outliers
 ovmf
 pF
@@ -2643,6 +2735,7 @@ pkg
 pkgconf
 pkgconfig
 pkgin
+pkgsrc
 plaintext
 plugin
 pluma
@@ -2708,6 +2801,7 @@ psu
 pthread
 pthreads
 pts
+ptv
 pty
 pulizzi
 pw
@@ -2721,7 +2815,9 @@ py
 pycparser
 pydoc
 pygments
+pygtk
 pynut
+pyqt
 qDEB
 qa
 qemu
@@ -2734,6 +2830,7 @@ qxflags
 rD
 raritan
 rb
+rc
 rcctl
 readline
 readonly
@@ -2745,11 +2842,14 @@ rebasing
 rebootdelay
 rebranded
 reconnection
+recurses
+recursing
 recv
 redistributors
 reentrancy
 refactored
 refactoring
+refreservation
 regex
 regtype
 relatime
@@ -2758,6 +2858,7 @@ relicensing
 remoteip
 renderer
 renderers
+renice
 repindex
 repo
 reportId
@@ -2788,12 +2889,16 @@ rn
 ro
 roadmap
 rootca
+rootcerts
 rootfs
 rootfs'es
+rpath
 rpc
+rpool
 rq
 rqt
 rsa
+rsd
 rsync
 rts
 rtu
@@ -2867,6 +2972,7 @@ sfr
 sgml
 sgs
 sha
+shellcheck
 shellenv
 shm
 shutdownArguments
@@ -2916,18 +3022,21 @@ solis
 somename
 somepass
 something's
+sortdict
 sp
 spanish
 sparc
 sparcv
 spectype
 spellcheck
+spellchecked
 splitaddr
 splitname
 squasher
 sr
 src
 srcdir
+srcdoc
 srv
 srw
 ss
@@ -2969,6 +3078,7 @@ struct
 structs
 sts
 stst
+stty
 stylesheet
 stylesheets
 su
@@ -3044,6 +3154,8 @@ testtime
 testuser
 textproc
 tgcware
+tgt
+tgtsize
 tgz
 th
 timeframe
@@ -3058,6 +3170,7 @@ tmp
 tmpfiles
 tmpfs
 tmpring
+tmux
 toolchain
 toolkits
 toolset
@@ -3067,6 +3180,8 @@ tport
 tripplite
 tripplitesu
 troff
+tryconnect
+tsa
 tsd
 tty
 ttyACM
@@ -3214,6 +3329,8 @@ utils
 uu
 uucp
 vCPU
+vFnd
+vHDD
 va
 valgrind
 validationSequence
@@ -3230,6 +3347,7 @@ varvalue
 vbat
 vbatt
 vc
+vda
 vendorid
 ver
 verifySourceSig
@@ -3240,6 +3358,7 @@ victron
 victronups
 vid
 vin
+vio
 virsh
 virt
 virtinst
@@ -3247,8 +3366,10 @@ virtualization
 virtualized
 vivo
 vo
+volsize
 voltronic
 vscode
+vt
 wDescriptorLength
 waitbeforereconnect
 wakeup
@@ -3289,6 +3410,7 @@ xcalloc
 xcode
 xd
 xe
+xenodm
 xff
 xfff
 xffff
@@ -3314,6 +3436,7 @@ xxxx
 xxxxAP
 xz
 xzf
+yP
 yaml
 yml
 youruid
@@ -3323,6 +3446,10 @@ zakx
 zfs
 zinto
 zlib
+znapzend
+znapzendzetup
+zpool
+zroot
 zsh
 zw
 zwfa
