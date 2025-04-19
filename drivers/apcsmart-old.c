@@ -24,8 +24,8 @@
 #include "apcsmart-old.h"
 #include "nut_stdint.h"
 
-#define DRIVER_NAME	"APC Smart protocol driver"
-#define DRIVER_VERSION	"2.31"
+#define DRIVER_NAME	"APC Smart protocol driver (old)"
+#define DRIVER_VERSION	"2.34"
 
 static upsdrv_info_t table_info = {
 	"APC command table",
@@ -118,6 +118,9 @@ static const char *convert_data(apc_vartab_t *cmd_entry, const char *upsval)
 				case 'S': return "simulated power failure or UPS test";
 				default: return upsval;
 			}
+
+		default:
+			break;
 	}
 
 	upslogx(LOG_NOTICE, "Unable to handle conversion of %s", cmd_entry->name);
@@ -395,15 +398,20 @@ static void do_capabilities(void)
 				__func__, (ptr[2] - 48), (ptr[3] - 48),
 				cmd, loc);
 
-			/* just ignore it as we did for ages (the
-			 * rest of loop cycle would be no-op anyway)
+			/* just ignore it as we did for ages see e.g. v2.7.4
+			 * (note the next loop cycle was and still would be
+			 * no-op anyway, if "nument <= 0").
 			 */
-			ptr = entptr;
-			continue;
-		}
+			nument = 0;
+			entlen = 0;
 
-		nument = (size_t)ptr[2] - 48;
-		entlen = (size_t)ptr[3] - 48;
+			/* NOT a full skip: Gotta handle "vt" to act like before */
+			/*ptr = entptr;*/
+			/*continue;*/
+		} else {
+			nument = (size_t)ptr[2] - 48;
+			entlen = (size_t)ptr[3] - 48;
+		}
 
 		vt = vartab_lookup_char(cmd);
 		valid = vt && ((loc == upsloc) || (loc == '4'));
@@ -1055,6 +1063,9 @@ static void upsdrv_shutdown_advanced(long status)
 /* power down the attached load immediately */
 void upsdrv_shutdown(void)
 {
+	/* Only implement "shutdown.default"; do not invoke
+	 * general handling of other `sdcommands` here */
+
 	char	temp[32];
 	ssize_t	ret;
 	long	status;
@@ -1317,7 +1328,7 @@ static int setvar(const char *varname, const char *val)
 
 	if ((vt->flags & APC_RW) == 0) {
 		upslogx(LOG_WARNING, "setvar: [%s] is not writable", varname);
-		return STAT_SET_UNKNOWN;
+		return STAT_SET_INVALID;
 	}
 
 	if (vt->flags & APC_ENUM)

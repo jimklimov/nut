@@ -34,10 +34,10 @@
 #include "blazer.h"
 #ifdef WIN32
 #include "wincompat.h"
-#endif
+#endif	/* WIN32 */
 
 #define DRIVER_NAME	"Megatec/Q1 protocol USB driver"
-#define DRIVER_VERSION	"0.17"
+#define DRIVER_VERSION	"0.21"
 
 /* driver description structure */
 upsdrv_info_t upsdrv_info = {
@@ -137,6 +137,9 @@ static int phoenix_command(const char *cmd, char *buf, size_t buflen)
 			break;
 
 		case LIBUSB_ERROR_TIMEOUT: /** Operation or Connection timed out */
+			break;
+
+		default:
 			break;
 		}
 
@@ -300,6 +303,7 @@ static int krauler_command(const char *cmd, char *buf, size_t buflen)
 			upsdebugx(1, "received %d (%d)", ret, buf[0]);
 
 			if (langid_fix != -1) {
+				size_t	di, si, size;
 				/* Limit this check, at least for now */
 				/* Invalid receive size - message corrupted */
 				if (ret != buf[0])
@@ -311,7 +315,7 @@ static int krauler_command(const char *cmd, char *buf, size_t buflen)
 				/* Simple unicode -> ASCII inplace conversion
 				 * FIXME: this code is at least shared with mge-shut/libshut
 				 * Create a common function? */
-				size_t di, si, size = (size_t)buf[0];
+				size = (size_t)buf[0];
 				for (di = 0, si = 2; si < size; si += 2) {
 					if (di >= (buflen - 1))
 						break;
@@ -513,7 +517,7 @@ ssize_t blazer_command(const char *cmd, char *buf, size_t buflen)
 # if EPROTO && WITH_LIBUSB_0_1
 	case -EPROTO:		/* Protocol error */
 # endif
-#endif
+#endif	/* !WIN32 */
 	default:
 		break;
 	}
@@ -540,7 +544,7 @@ ssize_t blazer_command(const char *cmd, char *buf, size_t buflen)
 			continue;
 		}
 
-		/* TODO: Range-check int vs ssize_t values */
+		/* TODO: Range-check int vs. ssize_t values */
 		return (ssize_t)snprintf(buf, buflen, "%s", testing[i].answer);
 	}
 
@@ -564,8 +568,9 @@ static const struct subdriver_t {
 void upsdrv_help(void)
 {
 #ifndef TESTING
-	printf("\nAcceptable values for 'subdriver' via -x or ups.conf in this driver: ");
 	size_t i;
+
+	printf("\nAcceptable values for 'subdriver' via -x or ups.conf in this driver: ");
 
 	for (i = 0; subdriver[i].name != NULL; i++) {
 		if (i>0)
@@ -574,8 +579,6 @@ void upsdrv_help(void)
 	}
 	printf("\n\n");
 #endif	/* TESTING */
-
-	printf("Read The Fine Manual ('man 8 blazer_usb')\n");
 }
 
 
@@ -626,7 +629,8 @@ void upsdrv_initups(void)
 		}
 		else {
 			langid_fix = (int)u_langid_fix;
-			upsdebugx(2, "language ID workaround enabled (using '0x%x')", langid_fix);
+			upsdebugx(2, "language ID workaround enabled (using '0x%x')",
+				(unsigned int)langid_fix);
 		}
 	}
 
@@ -707,7 +711,9 @@ void upsdrv_initups(void)
 		ret = usb_get_string(udev, 0, 0, (usb_ctrl_charbuf)tbuf, sizeof(tbuf));
 		if (ret >= 4) {
 			langid = (unsigned char)tbuf[2] | ((unsigned char)tbuf[3] << 8);
-			upsdebugx(1, "First supported language ID: 0x%x (please report to the NUT maintainer!)", langid);
+			upsdebugx(1, "First supported language ID: 0x%x "
+				"(please report to the NUT maintainer!)",
+				(unsigned int)langid);
 		}
 	}
 #endif	/* TESTING */
