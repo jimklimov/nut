@@ -43,43 +43,29 @@
 #include "upslog.h"
 #include "str.h"
 
+/* network timeout for initial connection, in seconds */
+#define UPSCLI_DEFAULT_CONNECT_TIMEOUT	"10"
+
 #ifdef WIN32
 #include "wincompat.h"
-#endif
+#endif	/* WIN32 */
 
 	static	int	reopen_flag = 0, exit_flag = 0;
 	static	size_t	max_loops = 0;
-	static	char	*upsname = NULL;
-	static	UPSCONN_t	*ups = NULL;
-
-	static	char *logfn = NULL, *monhost = NULL;
 #ifndef WIN32
 	static	sigset_t	nut_upslog_sigmask;
-#endif
+#endif	/* !WIN32 */
+	/* NOTE: The logbuffer is reused for each loop cycle (each device)
+	 * and the logformat is one for all "systems" in this program run */
 	static	char	logbuffer[LARGEBUF], *logformat = NULL;
 
 	static	flist_t	*fhead = NULL;
-	struct 	logtarget_t {
-		char	*logfn;
-		FILE	*logfile;
-		struct 	logtarget_t	*next;
-	};
+
 	/* FIXME: To be valgrind-clean, free these at exit */
 	static	struct	logtarget_t *logfile_anchor = NULL;
-
-	struct 	monhost_ups {
-		char	*monhost;
-		char	*upsname;
-		char	*hostname;
-		uint16_t	port;
-		UPSCONN_t	*ups;
-		struct 	logtarget_t	*logtarget;
-		struct	monhost_ups	*next;
-	};
-	/* FIXME: To be valgrind-clean, free these at exit */
-	static	struct	monhost_ups *monhost_ups_anchor = NULL;
-	static	struct	monhost_ups *monhost_ups_current = NULL;
-	static	struct	monhost_ups *monhost_ups_prev = NULL;
+	static	struct	monhost_ups_t *monhost_ups_anchor = NULL;
+	static	struct	monhost_ups_t *monhost_ups_current = NULL;
+	static	struct	monhost_ups_t *monhost_ups_prev = NULL;
 
 
 #define DEFAULT_LOGFORMAT "%TIME @Y@m@d @H@M@S% %VAR battery.charge% " \
@@ -113,7 +99,7 @@ static struct logtarget_t *add_logfile(const char *logfn_arg)
 	if (!logfn_arg || !(*logfn_arg))
 		return p;
 
-	p = xcalloc(1, sizeof(struct monhost_ups));
+	p = xcalloc(1, sizeof(struct monhost_ups_t));
 	p->logfn = xstrdup(logfn_arg);
 	p->logfile = NULL;
 
@@ -168,7 +154,7 @@ static void set_print_now_flag(int sig)
 
 	/* no need to do anything, the signal will cause sleep to be interrupted */
 }
-#endif
+#endif	/* !WIN32 */
 
 /* handlers: reload on HUP, exit on INT/QUIT/TERM */
 static void setup_signals(void)
@@ -195,7 +181,9 @@ static void setup_signals(void)
 	sa.sa_handler = set_print_now_flag;
 	if (sigaction(SIGUSR1, &sa, NULL) < 0)
 		fatal_with_errno(EXIT_FAILURE, "Can't install SIGUSR1 handler");
-#endif
+#else	/* WIN32 */
+	NUT_WIN32_INCOMPLETE_MAYBE_NOT_APPLICABLE();
+#endif	/* WIN32 */
 }
 
 static void help(const char *prog)
@@ -211,6 +199,8 @@ static void help(const char *prog)
 
 	printf("  -f <format>	- Log format.  See below for details.\n");
 	printf("		- Use -f \"<format>\" so your shell doesn't break it up.\n");
+	printf("  -N            - Prefix \"%%UPSHOST%%%%t\" before the format (default/custom)");
+	printf("		- Useful when logging many systems into same target.\n");
 	printf("  -i <interval>	- Time between updates, in seconds\n");
 	printf("  -d <count>	- Exit after specified amount of updates\n");
 	printf("  -l <logfile>	- Log file name, or - for stdout (foreground by default)\n");
@@ -227,9 +217,11 @@ static void help(const char *prog)
 	printf("		  and it would not imply foregrounding\n");
 	printf("		- Unlike one '-s ups -l file' spec, you can specify many tuples\n");
 	printf("  -u <user>	- Switch to <user> if started as root\n");
-	printf("  -V		- Display the version of this software\n");
-	printf("  -h		- Display this help text\n");
-
+	printf("\nCommon arguments:\n");
+	printf("  -V         - display the version of this software\n");
+	printf("  -W <secs>  - network timeout for initial connections (default: %s)\n",
+	       UPSCLI_DEFAULT_CONNECT_TIMEOUT);
+	printf("  -h         - display this help text\n");
 	printf("\n");
 	printf("Some valid format string escapes:\n");
 	printf("\t%%%% insert a single %%\n");
@@ -249,11 +241,12 @@ static void help(const char *prog)
 }
 
 /* print current host name */
-static void do_host(const char *arg)
+static void do_host(const char *arg, const struct monhost_ups_t *monhost_ups_print)
 {
 	int	ret;
 	char	hn[LARGEBUF];
 	NUT_UNUSED_VARIABLE(arg);
+	NUT_UNUSED_VARIABLE(monhost_ups_print);
 
 	ret = gethostname(hn, sizeof(hn));
 
@@ -265,26 +258,28 @@ static void do_host(const char *arg)
 	snprintfcat(logbuffer, sizeof(logbuffer), "%s", hn);
 }
 
-static void do_upshost(const char *arg)
+static void do_upshost(const char *arg, const struct monhost_ups_t *monhost_ups_print)
 {
 	NUT_UNUSED_VARIABLE(arg);
 
-	snprintfcat(logbuffer, sizeof(logbuffer), "%s", monhost);
+	snprintfcat(logbuffer, sizeof(logbuffer), "%s", monhost_ups_print->monhost);
 }
 
-static void do_pid(const char *arg)
+static void do_pid(const char *arg, const struct monhost_ups_t *monhost_ups_print)
 {
 	NUT_UNUSED_VARIABLE(arg);
+	NUT_UNUSED_VARIABLE(monhost_ups_print);
 
 	snprintfcat(logbuffer, sizeof(logbuffer), "%ld", (long)getpid());
 }
 
-static void do_time(const char *arg)
+static void do_time(const char *arg, const struct monhost_ups_t *monhost_ups_print)
 {
 	unsigned int	i;
 	char	timebuf[SMALLBUF], *format;
 	time_t	tod;
 	struct tm tmbuf;
+	NUT_UNUSED_VARIABLE(monhost_ups_print);
 
 	format = xstrdup(arg);
 
@@ -301,7 +296,7 @@ static void do_time(const char *arg)
 	free(format);
 }
 
-static void getvar(const char *var)
+static void getvar(const char *var, const struct monhost_ups_t *monhost_ups_print)
 {
 	int	ret;
 	size_t	numq, numa;
@@ -309,11 +304,11 @@ static void getvar(const char *var)
 	char	**answer;
 
 	query[0] = "VAR";
-	query[1] = upsname;
+	query[1] = monhost_ups_print->upsname;
 	query[2] = var;
 	numq = 3;
 
-	ret = upscli_get(ups, numq, query, &numa, &answer);
+	ret = upscli_get(monhost_ups_print->ups, numq, query, &numa, &answer);
 
 	if ((ret < 0) || (numa < numq)) {
 		snprintfcat(logbuffer, sizeof(logbuffer), "NA");
@@ -323,7 +318,7 @@ static void getvar(const char *var)
 	snprintfcat(logbuffer, sizeof(logbuffer), "%s", answer[3]);
 }
 
-static void do_var(const char *arg)
+static void do_var(const char *arg, const struct monhost_ups_t *monhost_ups_print)
 {
 	if ((!arg) || (strlen(arg) < 1)) {
 		snprintfcat(logbuffer, sizeof(logbuffer), "INVALID");
@@ -337,30 +332,33 @@ static void do_var(const char *arg)
 	}
 
 	/* a UPS name is now required */
-	if (!upsname) {
+	if (!monhost_ups_print->upsname) {
 		snprintfcat(logbuffer, sizeof(logbuffer), "INVALID");
 		return;
 	}
 
-	getvar(arg);
+	getvar(arg, monhost_ups_print);
 }
 
-static void do_etime(const char *arg)
+static void do_etime(const char *arg, const struct monhost_ups_t *monhost_ups_print)
 {
 	time_t	tod;
 	NUT_UNUSED_VARIABLE(arg);
+	NUT_UNUSED_VARIABLE(monhost_ups_print);
 
 	time(&tod);
 	snprintfcat(logbuffer, sizeof(logbuffer), "%lu", (unsigned long) tod);
 }
 
-static void print_literal(const char *arg)
+static void print_literal(const char *arg, const struct monhost_ups_t *monhost_ups_print)
 {
+	NUT_UNUSED_VARIABLE(monhost_ups_print);
+
 	snprintfcat(logbuffer, sizeof(logbuffer), "%s", arg);
 }
 
 /* register another parsing function to be called later */
-static void add_call(void (*fptr)(const char *arg), const char *arg)
+static void add_call(void (*fptr)(const char *arg, const struct monhost_ups_t *monhost_ups_print), const char *arg)
 {
 	flist_t	*tmp, *last;
 
@@ -476,7 +474,7 @@ static void compile_format(void)
 }
 
 /* go through the list of functions and call them in order */
-static void run_flist(struct monhost_ups *monhost_ups_print)
+static void run_flist(const struct monhost_ups_t *monhost_ups_print)
 {
 	flist_t	*tmp;
 
@@ -485,7 +483,7 @@ static void run_flist(struct monhost_ups *monhost_ups_print)
 	memset(logbuffer, 0, sizeof(logbuffer));
 
 	while (tmp) {
-		tmp->fptr(tmp->arg);
+		tmp->fptr(tmp->arg, monhost_ups_print);
 
 		tmp = tmp->next;
 	}
@@ -496,6 +494,7 @@ static void run_flist(struct monhost_ups *monhost_ups_print)
 
 	/* -s <monhost>
 	 * -l <log file>
+	 * -m <monhost,logfile>
 	 * -i <interval>
 	 * -f <format>
 	 * -u <username>
@@ -503,20 +502,23 @@ static void run_flist(struct monhost_ups *monhost_ups_print)
 
 int main(int argc, char **argv)
 {
-	int	interval = 30, i, foreground = -1;
+	int	interval = 30, i, foreground = -1, prefix_UPSHOST = 0, logformat_allocated = 0;
 	size_t	monhost_len = 0, loop_count = 0;
 	const char	*prog = xbasename(argv[0]);
+	const char	*net_connect_timeout = NULL;
 	time_t	now, nextpoll = 0;
 	const char	*user = NULL;
 	struct passwd	*new_uid = NULL;
 	const char	*pidfilebase = prog;
+	/* For legacy single-ups -s/-l args: */
+	static	char *logfn = NULL, *monhost = NULL;
 
 	logformat = DEFAULT_LOGFORMAT;
 	user = RUN_AS_USER;
 
 	print_banner_once(prog, 0);
 
-	while ((i = getopt(argc, argv, "+hDs:l:i:d:f:u:Vp:FBm:")) != -1) {
+	while ((i = getopt(argc, argv, "+hDs:l:i:d:Nf:u:Vp:FBm:W:")) != -1) {
 		switch(i) {
 			case 'h':
 				help(prog);
@@ -532,7 +534,7 @@ int main(int argc, char **argv)
 					char *m_arg, *s;
 
 					monhost_ups_prev = monhost_ups_current;
-					monhost_ups_current = xmalloc(sizeof(struct monhost_ups));
+					monhost_ups_current = xmalloc(sizeof(struct monhost_ups_t));
 					if (monhost_ups_anchor == NULL)
 						monhost_ups_anchor = monhost_ups_current;
 					else
@@ -552,9 +554,9 @@ int main(int argc, char **argv)
 						fatalx(EXIT_FAILURE, "Argument '-m upsspec,logfile' requires exactly 2 components in the tuple");
 #ifndef WIN32
 					monhost_ups_current->logtarget = add_logfile(strsep(&m_arg, ","));
-#else
+#else	/* WIN32 */
 					monhost_ups_current->logtarget = add_logfile(filter_path(strsep(&m_arg, ",")));
-#endif
+#endif	/* WIN32 */
 					monhost_ups_current->ups = NULL;
 					if (m_arg) /* Had a third comma - also unexpected! */
 						fatalx(EXIT_FAILURE, "Argument '-m upsspec,logfile' requires exactly 2 components in the tuple");
@@ -568,9 +570,9 @@ int main(int argc, char **argv)
 			case 'l':
 #ifndef WIN32
 				logfn = optarg;
-#else
+#else	/* WIN32 */
 				logfn = filter_path(optarg);
-#endif
+#endif	/* WIN32 */
 				break;
 
 			case 'i':
@@ -606,6 +608,10 @@ int main(int argc, char **argv)
 				logformat = optarg;
 				break;
 
+			case 'N':
+				prefix_UPSHOST = 1;
+				break;
+
 			case 'u':
 				user = optarg;
 				break;
@@ -616,6 +622,10 @@ int main(int argc, char **argv)
 				print_banner_once(prog, 1);
 				nut_report_config_flags();
 				exit(EXIT_SUCCESS);
+
+			case 'W':
+				net_connect_timeout = optarg;
+				break;
 
 			case 'p':
 				pidfilebase = optarg;
@@ -637,6 +647,11 @@ int main(int argc, char **argv)
 		}
 	}
 
+	if (upscli_init_default_connect_timeout(net_connect_timeout, NULL, UPSCLI_DEFAULT_CONNECT_TIMEOUT) < 0) {
+		fatalx(EXIT_FAILURE, "Error: invalid network timeout: %s",
+			net_connect_timeout);
+	}
+
 	argc -= optind;
 	argv += optind;
 
@@ -652,9 +667,9 @@ int main(int argc, char **argv)
 		monhost = argv[0];
 #ifndef WIN32
 		logfn = argv[1];
-#else
+#else	/* WIN32 */
 		logfn = filter_path(argv[1]);
-#endif
+#endif	/* WIN32 */
 		interval = atoi(argv[2]);
 	}
 
@@ -663,6 +678,7 @@ int main(int argc, char **argv)
 
 		logformat = xmalloc(LARGEBUF);
 		memset(logformat, '\0', LARGEBUF);
+		logformat_allocated = 1;
 
 		for (i = 3; i < argc; i++)
 			snprintfcat(logformat, LARGEBUF, "%s ", argv[i]);
@@ -678,7 +694,7 @@ int main(int argc, char **argv)
 
 		/* May be or not be NULL here: */
 		monhost_ups_prev = monhost_ups_current;
-		monhost_ups_current = xmalloc(sizeof(struct monhost_ups));
+		monhost_ups_current = xmalloc(sizeof(struct monhost_ups_t));
 		if (monhost_ups_anchor == NULL) {
 			/* Become the single-entry list */
 			monhost_ups_anchor = monhost_ups_current;
@@ -701,6 +717,23 @@ int main(int argc, char **argv)
 	/* shouldn't happen */
 	if (!logformat)
 		fatalx(EXIT_FAILURE, "No format defined - but this should be impossible");
+
+	if (prefix_UPSHOST) {
+		char	*s = xstrdup(logformat);
+		if (s) {
+			if (!logformat_allocated) {
+				logformat = xmalloc(LARGEBUF);
+				if (!logformat)
+					fatalx(EXIT_FAILURE, "Failed re-allocation to prepend UPSHOST to formatting string");
+				memset(logformat, '\0', LARGEBUF);
+			}
+			snprintf(logformat, LARGEBUF, "%%UPSHOST%%%%t%s", s);
+			free(s);
+		} else {
+			upslogx(LOG_WARNING, "Failed to prepend UPSHOST to formatting string");
+		}
+	}
+	upsdebugx(1, "logformat: %s", logformat);
 
 	/* shouldn't happen */
 	if (!monhost_len)
@@ -741,6 +774,7 @@ int main(int argc, char **argv)
 			);
 
 			conn = xmalloc(sizeof(*conn));
+
 			if (upscli_connect(conn, monhost_ups_current->hostname, monhost_ups_current->port, UPSCLI_CONN_TRYSSL) < 0) {
 				fatalx(EXIT_FAILURE, "Error: %s", upscli_strerror(conn));
 			}
@@ -756,7 +790,7 @@ int main(int argc, char **argv)
 			}
 
 			while (upscli_list_next(conn, numq, query, &numa, &answer) == 1) {
-				struct	monhost_ups *mu = NULL;
+				struct	monhost_ups_t *mu = NULL;
 				char	buf[LARGEBUF];
 
 				/* UPS <upsname> <description> */
@@ -767,7 +801,7 @@ int main(int argc, char **argv)
 				found++;
 				upsdebugx(1, "FOUND: %s: %s", answer[1], answer[2]);
 
-				mu = xmalloc(sizeof(struct monhost_ups));
+				mu = xmalloc(sizeof(struct monhost_ups_t));
 				snprintf(buf, sizeof(buf), "%s@%s:%" PRIu16,
 					answer[1],
 					monhost_ups_current->hostname,
@@ -853,6 +887,7 @@ int main(int argc, char **argv)
 		}
 
 		monhost_ups_current->ups = xmalloc(sizeof(UPSCONN_t));
+
 		if (upscli_connect(monhost_ups_current->ups, monhost_ups_current->hostname, monhost_ups_current->port, UPSCLI_CONN_TRYSSL) < 0)
 			fprintf(stderr, "Warning: initial connect failed: %s\n",
 				upscli_strerror(monhost_ups_current->ups));
@@ -863,7 +898,7 @@ int main(int argc, char **argv)
 				if (monhost_ups_current->logtarget->logfile != stdout)
 					upslogx(LOG_INFO, "NOTE: File %s is already receiving other logs",
 						monhost_ups_current->logtarget->logfn);
-				upslogx(LOG_INFO, "NOTE: Consider adding %%UPSHOST%% to the log formatting string");
+				upslogx(LOG_INFO, "NOTE: Consider adding %%UPSHOST%% to the log formatting string, e.g. pass -N on CLI");
 			}
 		} else {
 			if (strcmp(monhost_ups_current->logtarget->logfn, "-") == 0)
@@ -930,19 +965,21 @@ int main(int argc, char **argv)
 		     monhost_ups_current != NULL;
 		     monhost_ups_current = monhost_ups_current->next
 		) {
-			ups = monhost_ups_current->ups;	/* XXX Not ideal */
-			upsname = monhost_ups_current->upsname;	/* XXX Not ideal */
-			monhost = monhost_ups_current->monhost;	/* XXX Not ideal */
 			/* reconnect if necessary */
-			if (upscli_fd(ups) < 0) {
-				upscli_connect(ups, monhost_ups_current->hostname, monhost_ups_current->port, 0);
+			if (upscli_fd(monhost_ups_current->ups) < 0) {
+
+				upscli_connect(
+					monhost_ups_current->ups,
+					monhost_ups_current->hostname,
+					monhost_ups_current->port,
+					UPSCLI_CONN_TRYSSL);
 			}
 
 			run_flist(monhost_ups_current);
 
 			/* don't keep connection open if we don't intend to use it shortly */
 			if (interval > 30) {
-				upscli_disconnect(ups);
+				upscli_disconnect(monhost_ups_current->ups);
 			}
 		}
 
@@ -972,6 +1009,11 @@ int main(int argc, char **argv)
 		}
 
 		upscli_disconnect(monhost_ups_current->ups);
+	}
+
+	if (logformat_allocated) {
+		free(logformat);
+		logformat = NULL;
 	}
 
 	exit(EXIT_SUCCESS);
