@@ -1,38 +1,39 @@
 # .clang-format file with custom C code style including tab between code and comment
 BasedOnStyle: Google
 
-IndentWidth: 4               # Indentation width (4 spaces per tab)
-TabWidth: 4                  # Width of a tab character
-UseTab: Always               # Use tabs for indentation
+IndentWidth: 8                 # Indentation width (8 spaces per tab)
+TabWidth: 8                    # Width of a tab character
+UseTab: Always                 # Use tabs for indentation
 
 # Braces settings
-BreakBeforeBraces: Allman    # Opening braces on next line after method signature
+BreakBeforeBraces: Allman      # Opening braces on next line after method signature
 BraceWrapping:
-  AfterControlStatement: true # Braces on same line for control statements (if, else, etc.)
-  AfterFunction: true         # Opening brace on next line after method signature
+  AfterControlStatement: true  # Braces on same line for control statements (if, else, etc.)
+  AfterFunction: true          # Opening brace on next line after method signature
 
 # Comment settings
-CommentStyle: Block          # Use block-style comments, even for single-line comments
-MaxEmptyLinesToKeep: 1       # Only one empty line between comments and code
-SpaceBeforeComment: true     # Space before comment
+CommentStyle: Block            # Use block-style comments, even for single-line comments
+MaxEmptyLinesToKeep: 1         # Only one empty line between comments and code
+SpaceBeforeComment: true       # Space before comment
 
 # Operators settings
-BinaryOperatorSpacing: Both  # Spaces around math operators
-SpaceAfterComma: true        # Space after commas
-SpaceBeforeComma: false      # No space before commas
+BinaryOperatorSpacing: Both    # Spaces around math operators
+SpaceAfterComma: true          # Space after commas
+SpaceBeforeComma: false        # No space before commas
 
 # Function declaration formatting
-ColumnLimit: 80              # Max line length (80 chars)
-AllowShortFunctionsOnASingleLine: false # Prevent short functions on a single line
+ColumnLimit: 80                # Max line length (80 chars)
+AllowShortFunctionsOnASingleLine: false  # Prevent short functions on a single line
 
 # Pointer formatting
-PointerAlignment: Left       # Place pointer asterisk to the left of variable name
+PointerAlignment: Left         # Place pointer asterisk to the left of variable name
 
 # Block comment rules
-CommentPragmas: None         # Don't format pragmas
+CommentPragmas: None           # Don't format pragmas
 
 # Align comments with code
-AlignTrailingComments: true  # Align comments to the right (this creates the tab between code and comment)
+AlignTrailingComments: true    # Align comments to the right (this creates the tab between code and comment)
 
 # Adjust alignment for comments on the same line as code
-TrailingCommentIndent: 1     # Indentation for trailing comments (use 1 for a tab alignment)
+TrailingCommentIndent: 1       # Indentation for trailing comments (use 1 for a tab alignment)
+

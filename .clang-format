@@ -1,56 +1,57 @@
 # .clang-format file with custom C code style
 BasedOnStyle: Google
 
-IndentWidth: 8              # 8 spaces per indentation level
-TabWidth: 8                 # Tabs are equivalent to 8 spaces
-UseTab: Always              # Use tabs for indentation
+IndentWidth: 8                 # 8 spaces per indentation level
+TabWidth: 8                    # Tabs are equivalent to 8 spaces
+UseTab: Always                 # Use tabs for indentation
 
 # Braces settings
-BreakBeforeBraces: Allman   # Opening braces on a new line after method signature
+BreakBeforeBraces: Allman      # Opening braces on a new line after method signature
 BraceWrapping:
-  AfterControlStatement: true # Braces on same line for control statements (if, else, etc.)
-  AfterFunction: true         # Opening brace on next line after method signature
+  AfterControlStatement: true  # Braces on same line for control statements (if, else, etc.)
+  AfterFunction: true          # Opening brace on next line after method signature
 
 # Parentheses spacing
-SpaceBeforeParens: true     # Space before the parentheses in conditional statements
-SpaceAfterCStyleCast: true # Space after a cast (e.g., (int) cast)
-SpaceBeforeParens: true     # Space before opening parentheses for conditionals
-SpaceAfterControlStatement: true # Space after control statements (if, while, etc.)
+SpaceBeforeParens: true        # Space before the parentheses in conditional statements
+SpaceAfterCStyleCast: true     # Space after a cast (e.g., (int) cast)
+SpaceBeforeParens: true        # Space before opening parentheses for conditionals
+SpaceAfterControlStatement: true   # Space after control statements (if, while, etc.)
 
 # Method signature formatting
-SpaceBeforeParens: true     # Space between keyword and opening parenthesis in conditionals
-SpaceAfterParens: false     # No space between method name and parentheses in declarations
-AllowShortFunctionsOnASingleLine: false # Don't allow functions to be written on a single line
+SpaceBeforeParens: true        # Space between keyword and opening parenthesis in conditionals
+SpaceAfterParens: false        # No space between method name and parentheses in declarations
+AllowShortFunctionsOnASingleLine: false  # Don't allow functions to be written on a single line
 
 # Operators
-BinaryOperatorSpacing: Both # Add spaces around math operators (+, -, *, /, etc.)
-SpaceAfterComma: true       # Space after commas
-SpaceBeforeComma: false     # No space before commas
+BinaryOperatorSpacing: Both    # Add spaces around math operators (+, -, *, /, etc.)
+SpaceAfterComma: true          # Space after commas
+SpaceBeforeComma: false        # No space before commas
 
 # Function declaration formatting
-ColumnLimit: 80             # Max line length
-BreakBeforeBinaryOperators: true # Break after binary operators (e.g., `&&`, `||`) in long conditionals
-ContinuationIndentWidth: 4  # Indentation for continuation lines (one tab equivalent)
+ColumnLimit: 80                # Max line length
+BreakBeforeBinaryOperators: true   # Break after binary operators (e.g., `&&`, `||`) in long conditionals
+ContinuationIndentWidth: 4     # Indentation for continuation lines (one tab equivalent)
 
 # Pointer formatting
-PointerAlignment: Left      # Place pointer asterisk to the left of variable name
+PointerAlignment: Left         # Place pointer asterisk to the left of variable name
 
 # Struct and other container formatting
 AlignConsecutiveDeclarations: true # Align variables in consecutive declarations
-AlignAfterOpenBracket: Align # Align elements after an opening brace in structures
+AlignAfterOpenBracket: Align   # Align elements after an opening brace in structures
 
 # Multi-line conditional expressions
-AllowShortIfStatementsOnASingleLine: false # Don't allow short `if` statements on a single line
+AllowShortIfStatementsOnASingleLine: false   # Don't allow short `if` statements on a single line
 
 # Indentation for long declarations
-BreakConstructorInitializers: BeforeComma # Start new lines for long declarations at the comma
-IndentFunctionDeclaration: true # Indent each argument on a new line for long functions
+BreakConstructorInitializers: BeforeComma    # Start new lines for long declarations at the comma
+IndentFunctionDeclaration: true    # Indent each argument on a new line for long functions
 
 # For long conditional clauses (multi-line formatting)
 IfStatements:
-  BreakBeforeElse: true         # Break before else
-  ContinuationIndentWidth: 4    # For long conditionals, continue indentation after logical operators
+  BreakBeforeElse: true        # Break before else
+  ContinuationIndentWidth: 4   # For long conditionals, continue indentation after logical operators
 
 # Type and variable declaration (spaces and tabs)
 AlignConsecutiveDeclarations: true
-TabBetweenTypeAndVariable: true # Add tab between type and variable in declarations
+TabBetweenTypeAndVariable: true    # Add tab between type and variable in declarations
+
