@@ -1,0 +1,36 @@
+# .clang-format file with custom C code style including block comments
+BasedOnStyle: Google
+
+IndentWidth: 4               # Indentation width (4 spaces per tab)
+TabWidth: 4                  # Width of a tab character
+UseTab: Always               # Use tabs for indentation
+
+# Braces settings
+BreakBeforeBraces: Allman    # Opening braces on next line after method signature
+BraceWrapping:
+  AfterControlStatement: true # Braces on same line for control statements (if, else, etc.)
+  AfterFunction: true         # Opening brace on next line after method signature
+
+# Comment settings
+CommentStyle: Block          # Use block-style comments, even for single-line comments
+MaxEmptyLinesToKeep: 1       # Only one empty line between comments and code
+SpaceBeforeComment: true     # Space before comment
+
+# Parentheses settings
+SpaceBeforeParens: true      # Space before parentheses in conditionals
+SpaceAfterParens: false      # No space between method name and parentheses
+
+# Operators settings
+BinaryOperatorSpacing: Both  # Spaces around math operators
+SpaceAfterComma: true        # Space after commas
+SpaceBeforeComma: false      # No space before commas
+
+# Function declaration formatting
+ColumnLimit: 80              # Max line length (80 chars)
+AllowShortFunctionsOnASingleLine: false # Prevent short functions on a single line
+
+# Pointer formatting
+PointerAlignment: Left       # Place pointer asterisk to the left of variable name
+
+# Block comment rules
+CommentPragmas: None         # Don't format pragmas

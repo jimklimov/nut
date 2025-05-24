@@ -1,0 +1,48 @@
+# .clang-format file with custom C code style for pragmas and tab separation for comments
+BasedOnStyle: Google
+
+IndentWidth: 8               # Indentation width (8 spaces per tab)
+TabWidth: 8                  # Width of a tab character (8 spaces per tab)
+UseTab: Always               # Use tabs for indentation
+
+# Pragmas
+PreprocessorIndentWidth: 1   # Indent pragmas by 1 space after the hash
+AlignEscapedNewlines: Left   # Align escaped newlines to the left
+SpaceAfterCStyleCast: true   # Add a space after casts
+
+# Braces settings
+BreakBeforeBraces: Allman    # Opening braces on next line after method signature
+BraceWrapping:
+  AfterControlStatement: true # Braces on same line for control statements (if, else, etc.)
+  AfterFunction: true         # Opening brace on next line after method signature
+
+# Comment settings
+CommentStyle: Block          # Use block-style comments, even for single-line comments
+MaxEmptyLinesToKeep: 1       # Only one empty line between comments and code
+SpaceBeforeComment: true     # Space before comment
+
+# Operators settings
+BinaryOperatorSpacing: Both  # Spaces around math operators
+SpaceAfterComma: true        # Space after commas
+SpaceBeforeComma: false      # No space before commas
+
+# Function declaration formatting
+ColumnLimit: 80              # Max line length (80 chars)
+AllowShortFunctionsOnASingleLine: false # Prevent short functions on a single line
+
+# Pointer formatting
+PointerAlignment: Left       # Place pointer asterisk to the left of variable name
+
+# Block comment rules
+CommentPragmas: None         # Don't format pragmas
+
+# Pragmas: ensure proper formatting and indentation for nested pragmas
+AlignTrailingComments: true  # Align comments to the right (this creates the tab between code and comment)
+TrailingCommentIndent: 1     # Indentation for trailing comments (use 1 for a tab alignment)
+
+# Pragmas should have indentation after the hash symbol for nested pragmas
+PreprocessorIndentation:    # Force pragmas to be aligned correctly with 1 space after hash.
+  BeforeHash: false          # Keep the hash in the leftmost column
+  AfterHash: true            # Indent pragmas by 1 space after hash character
+
+# Example for pragmas: #include, #define, #if, etc.
