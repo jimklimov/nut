@@ -4,11 +4,11 @@ BasedOnStyle: Google
 IndentWidth: 8                 # 8 spaces per indentation level
 TabWidth: 8                    # Tabs are equivalent to 8 spaces
 UseTab: Always                 # Use tabs for indentation
+ColumnLimit: 80                # Max line length
 
 # Pragmas
 PreprocessorIndentWidth: 1     # Indent pragmas by 1 space after the hash
 AlignEscapedNewlines: Left     # Align escaped newlines to the left
-SpaceAfterCStyleCast: true     # Add a space after casts
 
 # Braces settings
 BreakBeforeBraces: Allman      # Opening braces on a new line after method signature
@@ -21,15 +21,11 @@ CommentStyle: Block            # Use block-style comments, even for single-line 
 MaxEmptyLinesToKeep: 1         # Only one empty line between comments and code
 SpaceBeforeComment: true       # Space before comment
 
-# Parentheses spacing
+# Method signature formatting and Parentheses spacing
 SpaceAfterParens: false        # No space between method name and parentheses
 SpaceAfterCStyleCast: true     # Space after a cast (e.g., (int) cast)
-SpaceBeforeParens: true        # Space before opening parentheses for conditionals
+SpaceBeforeParens: true        # Space before opening parentheses for conditionals, or between keyword and opening parenthesis in conditionals
 SpaceAfterControlStatement: true   # Space after control statements (if, while, etc.)
-
-# Method signature formatting
-SpaceBeforeParens: true        # Space between keyword and opening parenthesis in conditionals
-SpaceAfterParens: false        # No space between method name and parentheses in declarations
 AllowShortFunctionsOnASingleLine: false  # Don't allow functions to be written on a single line
 
 # Operators
@@ -37,31 +33,21 @@ BinaryOperatorSpacing: Both    # Add spaces around math operators (+, -, *, /, e
 SpaceAfterComma: true          # Space after commas
 SpaceBeforeComma: false        # No space before commas
 
-# Function declaration formatting
-ColumnLimit: 80                # Max line length
-AllowShortFunctionsOnASingleLine: false  # Prevent short functions on a single line
-BreakBeforeBinaryOperators: true   # Break after binary operators (e.g., `&&`, `||`) in long conditionals
-ContinuationIndentWidth: 4     # Indentation for continuation lines (one tab equivalent)
-
 # Type and variable declaration (spaces and tabs)
-AlignConsecutiveDeclarations: true
+# Struct and other container formatting
+AlignConsecutiveDeclarations: true # Align variables in consecutive declarations
+AlignAfterOpenBracket: Align       # Align elements after an opening brace in structures
 TabBetweenTypeAndVariable: true    # Enforce tab between type and variable in declarations
 
 # Pointer formatting
 PointerAlignment: Left         # Place pointer asterisk to the left of variable name
-
-# Struct and other container formatting
-AlignConsecutiveDeclarations: true # Align variables in consecutive declarations
-AlignAfterOpenBracket: Align   # Align elements after an opening brace in structures
-
-# Multi-line conditional expressions
-AllowShortIfStatementsOnASingleLine: false   # Don't allow short `if` statements on a single line
 
 # Formatting for long declarations and method signatures
 BreakConstructorInitializers: BeforeComma  # Break long constructor initializers before the comma
 IndentFunctionDeclaration: true    # Indent method arguments on new lines for long methods
 
 # Settings for multi-line conditionals
+AllowShortIfStatementsOnASingleLine: false   # Don't allow short `if` statements on a single line
 IfStatements:
   BreakBeforeElse: true        # Break before else
   ContinuationIndentWidth: 4   # For long conditionals, continue indentation after logical operators
