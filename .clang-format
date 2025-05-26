@@ -7,7 +7,7 @@ UseTab: Always                 # Use tabs for indentation
 ColumnLimit: 80                # Max line length
 
 # Pragmas
-PreprocessorIndentWidth: 1     # Indent pragmas by 1 space after the hash
+###PreprocessorIndentWidth: 1     # Indent pragmas by 1 space after the hash
 AlignEscapedNewlines: Left     # Align escaped newlines to the left
 
 # Braces settings
@@ -17,40 +17,40 @@ BraceWrapping:
   AfterFunction: true          # Opening brace on next line after method signature
 
 # Comment settings
-CommentStyle: Block            # Use block-style comments, even for single-line comments
+###CommentStyle: Block            # Use block-style comments, even for single-line comments
 MaxEmptyLinesToKeep: 1         # Only one empty line between comments and code
-SpaceBeforeComment: true       # Space before comment
+###SpaceBeforeComment: true       # Space before comment
 
 # Method signature formatting and Parentheses spacing
-SpaceAfterParens: false        # No space between method name and parentheses
+###SpaceAfterParens: false        # No space between method name and parentheses
 SpaceAfterCStyleCast: true     # Space after a cast (e.g., (int) cast)
 SpaceBeforeParens: true        # Space before opening parentheses for conditionals, or between keyword and opening parenthesis in conditionals
-SpaceAfterControlStatement: true   # Space after control statements (if, while, etc.)
+###SpaceAfterControlStatement: true   # Space after control statements (if, while, etc.)
 AllowShortFunctionsOnASingleLine: false  # Don't allow functions to be written on a single line
 
 # Operators
-BinaryOperatorSpacing: Both    # Add spaces around math operators (+, -, *, /, etc.)
-SpaceAfterComma: true          # Space after commas
-SpaceBeforeComma: false        # No space before commas
+###BinaryOperatorSpacing: Both    # Add spaces around math operators (+, -, *, /, etc.)
+###SpaceAfterComma: true          # Space after commas
+###SpaceBeforeComma: false        # No space before commas
 
 # Type and variable declaration (spaces and tabs)
 # Struct and other container formatting
 AlignConsecutiveDeclarations: true # Align variables in consecutive declarations
 AlignAfterOpenBracket: Align       # Align elements after an opening brace in structures
-TabBetweenTypeAndVariable: true    # Enforce tab between type and variable in declarations
+###TabBetweenTypeAndVariable: true    # Enforce tab between type and variable in declarations
 
 # Pointer formatting
 PointerAlignment: Left         # Place pointer asterisk to the left of variable name
 
 # Formatting for long declarations and method signatures
 BreakConstructorInitializers: BeforeComma  # Break long constructor initializers before the comma
-IndentFunctionDeclaration: true    # Indent method arguments on new lines for long methods
+###IndentFunctionDeclaration: true    # Indent method arguments on new lines for long methods
 
 # Settings for multi-line conditionals
 AllowShortIfStatementsOnASingleLine: false   # Don't allow short `if` statements on a single line
-IfStatements:
-  BreakBeforeElse: true        # Break before else
-  ContinuationIndentWidth: 4   # For long conditionals, continue indentation after logical operators
+###IfStatements:
+###  BreakBeforeElse: true        # Break before else
+###  ContinuationIndentWidth: 4   # For long conditionals, continue indentation after logical operators
 BreakBeforeBinaryOperators: true   # Break after binary operators (e.g., `&&`, `||`) in long conditionals
 
 # Multi-line method declarations (break them into multiple lines if they exceed 80 chars)
@@ -63,10 +63,10 @@ CommentPragmas: None           # Don't format pragmas
 AlignTrailingComments: true    # Align comments to the right (this creates the tab between code and comment)
 
 # Adjust alignment for comments on the same line as code
-TrailingCommentIndent: 1       # Indentation for trailing comments (use 1 for a tab alignment)
+###TrailingCommentIndent: 1       # Indentation for trailing comments (use 1 for a tab alignment)
 
 # Pragmas should have indentation after the hash symbol for nested pragmas
-PreprocessorIndentation:       # Force pragmas to be aligned correctly with 1 space after hash.
-  BeforeHash: false            # Keep the hash in the leftmost column
-  AfterHash: true              # Indent pragmas by 1 space after hash character
+###PreprocessorIndentation:       # Force pragmas to be aligned correctly with 1 space after hash.
+###  BeforeHash: false            # Keep the hash in the leftmost column
+###  AfterHash: true              # Indent pragmas by 1 space after hash character
 
