@@ -1,0 +1,96 @@
+BasedOnStyle: LLVM
+IndentWidth: 8
+TabWidth: 8
+UseTab: ForIndentation
+
+# Braces placement
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true        # Opening brace on new line after function signature
+  AfterControlStatement: false
+  AfterEnum: false
+  AfterStruct: false
+  AfterClass: false
+  AfterNamespace: false
+  BeforeCatch: false
+  BeforeElse: false
+  IndentBraces: false
+
+# Control statement spacing
+SpaceBeforeParens: ControlStatements    # Space after 'if', 'for', 'while' etc.
+SpaceBeforeParensOptions:
+  ControlStatements: true
+  Functions: false                      # No space between method name and parentheses
+  Requires: true
+  Lambdas: false
+
+# Spaces around operators
+SpacesInParentheses: false
+SpaceInEmptyParentheses: false
+SpacesInSquareBrackets: false
+SpaceAfterCStyleCast: true
+SpacesInContainerLiterals: false
+SpaceBeforeAssignmentOperators: true
+SpaceAroundPointerQualifiers: Default
+SpaceBeforeCpp11BracedList: false
+SpaceAfterComma: true
+SpaceBeforeParens: ControlStatements
+SpaceInParens: false
+SpaceBeforeSquareBrackets: false
+SpaceAfterTemplateKeyword: true
+SpaceAfterLogicalNot: false
+
+# Function declaration breaking
+AllowAllParametersOfDeclarationOnNextLine: false
+BinPackParameters: false
+AlignAfterOpenBracket: DontAlign
+AlignTrailingComments: true
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
+PenaltyBreakBeforeFirstCallParameter: 1
+PenaltyBreakString: 1000
+PenaltyBreakBeforeFirstFunctionParameter: 1
+PenaltyReturnTypeOnItsOwnLine: 1000
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: false
+
+# For breaking long conditionals and aligning boolean operators
+BreakBeforeLogicalOperators: false
+BreakBeforeInlineASMColon: false
+AlignOperands: true
+
+# Aligning declaration names after type with tabs
+AlignConsecutiveDeclarations: false
+AlignConsecutiveAssignments: false
+AlignConsecutiveMacros: false
+
+# Pointer placement
+DerivePointerAlignment: false
+PointerAlignment: Right    # e.g., int* ptr
+
+# Special comment rules
+CommentPragmas: '^[ ]*#[ ]*pragma'   # Recognize pragmas for formatting purposes
+
+# Unfortunately, clang-format does **not** support requiring block comments only
+# or enforcing the presence of tabs before inline comments directly.
+# You must enforce block comment style via code review or external tooling.
+# However, we can align trailing comments and configure their indentation:
+AlignTrailingComments: true
+SpacesBeforeTrailingComments: 1      # At least one space between code and trailing comment
+
+# Indentation for pragmas
+# Clang-format doesn't support pragma-specific indentation levels directly,
+# but you can use `CommentPragmas` and possibly custom scripts to post-process this.
+
+# Misc
+ColumnLimit: 80
+IndentCaseLabels: true
+IndentPPDirectives: None   # Keep preprocessor directives in the leftmost column
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: InlineOnly
+
+# Optional: control line breaks inside function definitions and conditional expressions
+AllowShortIfStatementsOnASingleLine: false
+BreakBeforeBraces: Custom
