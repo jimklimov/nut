@@ -6782,6 +6782,7 @@ AC_CONFIG_FILES([
  lib/libnutclientstub.pc
  lib/libnutscan.pc
  lib/Makefile
+ obs/Makefile
  scripts/Aix/nut-aix.spec
  scripts/RedHat/ups
  scripts/augeas/Makefile
