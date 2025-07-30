@@ -1,5 +1,5 @@
-NUT versioning
-==============
+NUT Semantic Versioning
+=======================
 
 Historic note
 -------------
