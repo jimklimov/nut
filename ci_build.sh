@@ -1011,10 +1011,26 @@ detect_platform_PKG_CONFIG_PATH_and_FLAGS() {
             # there are issues with some pkgsrc-delivered dependencies not
             # linking well. For more details see
             # https://github.com/networkupstools/nut/pull/2870#issuecomment-2768590518
+            #
+            # Then per https://github.com/networkupstools/nut/issues/3043#issuecomment-3149751671
+            # there is a different mix-up between libraries delivered by the
+            # OS (which some pkgsrc deps link against) and those delivered by
+            # pkgsrc itself (e.g. different versions of openssl libs that we
+            # can pull directly and via libnetsnmp), so /usr/* vs. /usr/pkg/*.
+            if [ -d "/usr/lib" -a -d "/usr/include" ] ; then
+                LDFLAGS="${LDFLAGS-} -R/usr/lib"
+                CFLAGS="${CFLAGS-} -I/usr/include"
+                CXXFLAGS="${CXXFLAGS-} -I/usr/include"
+            fi
+
             if [ -d "/usr/pkg/lib" -a -d "/usr/pkg/include" ] ; then
                 LDFLAGS="${LDFLAGS-} -R/usr/pkg/lib"
                 CFLAGS="${CFLAGS-} -I/usr/pkg/include"
                 CXXFLAGS="${CXXFLAGS-} -I/usr/pkg/include"
+            fi
+
+            if [ -d "/usr/lib/pkgconfig" ] ; then
+                SYS_PKG_CONFIG_PATH="${SYS_PKG_CONFIG_PATH}:/usr/lib/pkgconfig"
             fi
 
             if [ -d "/usr/pkg/lib/pkgconfig" ] ; then
@@ -1028,8 +1044,8 @@ detect_platform_PKG_CONFIG_PATH_and_FLAGS() {
             ; then
                 echo "NetBSD: export flags for LibLTDL"
                 # The m4 script clear default CFLAGS/LIBS so benefit from new ones
-                CONFIG_OPTS+=("--with-libltdl-includes=-isystem /usr/pkg/include -I/usr/pkg/include")
-                CONFIG_OPTS+=("--with-libltdl-libs=-L/usr/pkg/lib -lltdl")
+                CONFIG_OPTS+=("--with-libltdl-includes=-isystem /usr/include -I/usr/include -isystem /usr/pkg/include -I/usr/pkg/include")
+                CONFIG_OPTS+=("--with-libltdl-libs=-L/usr/lib -L/usr/pkg/lib -lltdl")
             fi
             ;;
     esac
