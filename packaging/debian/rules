@@ -22,7 +22,9 @@ DEB_HOST_ARCH_OS := $(shell dpkg-architecture -qDEB_HOST_ARCH_OS 2>/dev/null)
 systemdsystemunitdir := $(shell pkg-config --variable=systemdsystemunitdir systemd || echo /lib/systemd/system)
 systemdsystemdutildir := $(shell pkg-config --variable=systemdutildir systemd || echo /lib/systemd)
 systemdshutdowndir := $(shell pkg-config --variable=systemdshutdowndir systemd || echo /lib/systemd/system-shutdown)
-systemdtmpfilesdir := $(shell pkg-config --variable=systemdtmpfilesdir systemd || echo /usr/lib/tmpfiles.d)
+## Debian13 hotfix: pkg-config returns 0 but the returned directory is empty
+##systemdtmpfilesdir := $(shell pkg-config --variable=systemdtmpfilesdir systemd || echo /usr/lib/tmpfiles.d)
+systemdtmpfilesdir := /usr/lib/tmpfiles.d
 
 # Newer systems have just /run (and yet newer systemd noisily suggests it)
 runbasedir := $(shell test -d /run && echo /run || echo /var/run)
