@@ -28,7 +28,7 @@
 
 /* driver version */
 #define DRIVER_NAME	"'ATCL FOR UPS' USB driver"
-#define DRIVER_VERSION	"1.16"
+#define DRIVER_VERSION	"1.22"
 
 /* driver description structure */
 upsdrv_info_t upsdrv_info = {
@@ -53,9 +53,12 @@ upsdrv_info_t upsdrv_info = {
 
 #define USB_VENDOR_STRING "ATCL FOR UPS"
 
+/* Unregistered vendor 0x0001 (commonly identified as Fry's Electronics) */
+#define NONAME0001_VENDORID	0x0001
+
 static usb_device_id_t atcl_usb_id[] = {
 	/* ATCL FOR UPS */
-	{ USB_DEVICE(0x0001, 0x0000),  NULL },
+	{ USB_DEVICE(NONAME0001_VENDORID, 0x0000),  NULL },
 
 	/* Terminating entry */
 	{ 0, 0, NULL }
@@ -64,6 +67,9 @@ static usb_device_id_t atcl_usb_id[] = {
 static usb_dev_handle	*udev = NULL;
 static USBDevice_t	usbdevice;
 static unsigned int	comm_failures = 0;
+
+/* Forward decls */
+static int instcmd(const char *cmdname, const char *extra);
 
 static int device_match_func(USBDevice_t *device, void *privdata)
 {
@@ -82,7 +88,8 @@ static int device_match_func(USBDevice_t *device, void *privdata)
 					return 1;
 				}
 			}
-			upsdebugx(1, "To keep trying (in case your device does not have a vendor string), use vendor=NULL");
+			upsdebugx(0, "To keep trying (in case your device does not have a vendor string), use vendor=NULL. "
+				"Have you tried the nutdrv_qx driver?");
 			return 0;
 		}
 
@@ -97,15 +104,16 @@ static int device_match_func(USBDevice_t *device, void *privdata)
 				upsdebugx(3, "Matched device with vendor='%s'.", requested_vendor);
 				return 1;
 			} else {
-				upsdebugx(2, "idVendor=%04x and idProduct=%04x, "
-					"but provided vendor '%s' does not match device: '%s'.",
+				upsdebugx(0, "idVendor=%04x and idProduct=%04x, "
+					"but provided vendor '%s' does not match device: '%s'. "
+					"Have you tried the nutdrv_qx driver?",
 					device->VendorID, device->ProductID, requested_vendor, device->Vendor);
 				return 0;
 			}
 		}
 
 		/* TODO: automatic way of suggesting other drivers? */
-		upsdebugx(2, "idVendor=%04x and idProduct=%04x, "
+		upsdebugx(0, "idVendor=%04x and idProduct=%04x, "
 			"but device vendor string '%s' does not match expected string '%s'. "
 			"Have you tried the nutdrv_qx driver?",
 			device->VendorID, device->ProductID, device->Vendor, USB_VENDOR_STRING);
@@ -178,6 +186,10 @@ static void usb_comm_fail(const char *fmt, ...)
 #ifdef HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_FORMAT_SECURITY
 #pragma GCC diagnostic ignored "-Wformat-security"
 #endif
+	/* Note: Not converting to hardened NUT methods with dynamic
+	 * format string checking, this one is used locally with
+	 * fixed strings (and args) */
+	/* FIXME: Actually, only fixed strings, no formatting here. */
 	ret = vsnprintf(why, sizeof(why), fmt, ap);
 #ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_FORMAT_NONLITERAL
 #pragma GCC diagnostic pop
@@ -256,6 +268,17 @@ static int usb_device_open(usb_dev_handle **handlep, USBDevice_t *device, USBDev
 {
 	int ret = 0;
 	uint8_t iManufacturer = 0, iProduct = 0, iSerialNumber = 0;
+#if WITH_LIBUSB_1_0
+	libusb_device **devlist;
+	ssize_t devcount = 0;
+	libusb_device_handle *handle;
+	struct libusb_device_descriptor dev_desc;
+	uint8_t bus_num;
+	/* TODO: consider device_addr */
+	int i;
+#else  /* => WITH_LIBUSB_0_1 */
+	struct usb_bus	*bus;
+#endif
 
 	/* libusb base init */
 #if WITH_LIBUSB_1_0
@@ -277,13 +300,6 @@ static int usb_device_open(usb_dev_handle **handlep, USBDevice_t *device, USBDev
 #endif
 
 #if WITH_LIBUSB_1_0
-	libusb_device **devlist;
-	ssize_t devcount = 0;
-	libusb_device_handle *handle;
-	struct libusb_device_descriptor dev_desc;
-	uint8_t bus;
-	int i;
-
 	devcount = libusb_get_device_list(NULL, &devlist);
 	if (devcount <= 0)
 		fatal_with_errno(EXIT_FAILURE, "No USB device found");
@@ -296,7 +312,6 @@ static int usb_device_open(usb_dev_handle **handlep, USBDevice_t *device, USBDev
 		ret = libusb_open(dev, &handle);
 		*handlep = handle;
 #else  /* => WITH_LIBUSB_0_1 */
-	struct usb_bus	*bus;
 	for (bus = usb_busses; bus; bus = bus->next) {
 
 		struct usb_device	*dev;
@@ -339,13 +354,13 @@ static int usb_device_open(usb_dev_handle **handlep, USBDevice_t *device, USBDev
 #if WITH_LIBUSB_1_0
 			device->VendorID = dev_desc.idVendor;
 			device->ProductID = dev_desc.idProduct;
-			bus = libusb_get_bus_number(dev);
+			bus_num = libusb_get_bus_number(dev);
 			device->Bus = (char *)malloc(4);
 			if (device->Bus == NULL) {
 				libusb_free_device_list(devlist, 1);
 				fatal_with_errno(EXIT_FAILURE, "Out of memory");
 			}
-			sprintf(device->Bus, "%03d", bus);
+			sprintf(device->Bus, "%03d", bus_num);
 			iManufacturer = dev_desc.iManufacturer;
 			iProduct = dev_desc.iProduct;
 			iSerialNumber = dev_desc.iSerialNumber;
@@ -435,6 +450,9 @@ static int usb_device_open(usb_dev_handle **handlep, USBDevice_t *device, USBDev
 				case -2:
 					upsdebugx(4, "matcher: unspecified error");
 					goto next_device;
+
+				default:
+					break;
 				}
 			}
 #ifdef HAVE_LIBUSB_SET_AUTO_DETACH_KERNEL_DRIVER
@@ -530,25 +548,28 @@ void upsdrv_initups(void)
 		if (i < 3) {
 #ifdef WIN32
 			sleep(5);
-#else
+#else	/* !WIN32 */
 			if (sleep(5) == 0) {
-#endif
+#endif	/* !WIN32 */
 				usb_comm_fail("Can't open USB device, retrying ...");
 				continue;
 #ifndef WIN32
 			}
-#endif
+#endif	/* !WIN32 */
 		}
 
 		fatalx(EXIT_FAILURE,
 			"Unable to find ATCL FOR UPS\n\n"
 
 			"Things to try:\n"
-			" - Connect UPS device to USB bus\n"
+			" - Connect UPS device to USB bus.\n"
 			" - Run this driver as another user (upsdrvctl -u or 'user=...' in ups.conf).\n"
-			"   See upsdrvctl(8) and ups.conf(5).\n\n"
+			"   See upsdrvctl(%s) and ups.conf(%s).\n"
+			" - Check with nutdrv_qx(%s) or blazer_usb(%s) driver instead.\n"
 
-			"Fatal error: unusable configuration");
+			"\nFatal error: unusable configuration",
+			MAN_SECTION_CMD_SYS, MAN_SECTION_CFG,
+			MAN_SECTION_CMD_SYS, MAN_SECTION_CMD_SYS);
 	}
 
 }
@@ -574,6 +595,15 @@ void upsdrv_initinfo(void)
 
 	dstate_setinfo("ups.vendorid", "%04x", usbdevice.VendorID);
 	dstate_setinfo("ups.productid", "%04x", usbdevice.ProductID);
+
+	/* commands ----------------------------------------------- */
+	/* FIXME: Check with the device what our instcmd
+	 * (nee upsdrv_shutdown() contents) actually does!
+	 */
+	dstate_addcmd("shutdown.stayoff");
+
+	/* install handlers */
+	upsh.instcmd = instcmd;
 }
 
 void upsdrv_updateinfo(void)
@@ -633,51 +663,94 @@ void upsdrv_updateinfo(void)
 	status_commit();
 }
 
-/* If the UPS is on battery, it should shut down about 30 seconds after
- * receiving this packet.
- */
+/* handler for commands to be sent to UPS */
+static
+int instcmd(const char *cmdname, const char *extra)
+{
+	/* May be used in logging below, but not as a command argument */
+	NUT_UNUSED_VARIABLE(extra);
+	upsdebug_INSTCMD_STARTING(cmdname, extra);
+
+	/* FIXME: Which one is this - "load.off",
+	 * "shutdown.stayoff" or "shutdown.return"? */
+
+	/* Shutdown UPS */
+	if (!strcasecmp(cmdname, "shutdown.stayoff")) {
+		/* If the UPS is on battery, it should shut down
+		 * about 30 seconds after receiving this packet.
+		 */
+
+		/* Not "const" because this mismatches arg type
+		 * of usb_interrupt_write() */
+		char	shutdown_packet[SHUTDOWN_PACKETSIZE] = { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+		int ret;
+
+		upslogx(LOG_DEBUG,
+			"%s: attempting to call usb_interrupt_write(01 00 00 00 00 00 00 00)",
+			__func__);
+
+		upslog_INSTCMD_POWERSTATE_CHANGE(cmdname, extra);
+		ret = usb_interrupt_write(udev,
+			SHUTDOWN_ENDPOINT, (usb_ctrl_charbuf)shutdown_packet,
+			SHUTDOWN_PACKETSIZE, ATCL_USB_TIMEOUT);
+
+		if (ret <= 0) {
+			upslogx(LOG_NOTICE,
+				"%s: first usb_interrupt_write() failed: %s",
+				__func__,
+				ret ? nut_usb_strerror(ret) : "timeout");
+		}
+
+		/* Totally guessing from the .pcap file here.
+		 * TODO: configurable delay?
+		 */
+		usleep(170*1000);
+
+		ret = usb_interrupt_write(udev,
+			SHUTDOWN_ENDPOINT, (usb_ctrl_charbuf)shutdown_packet,
+			SHUTDOWN_PACKETSIZE, ATCL_USB_TIMEOUT);
+
+		if (ret <= 0) {
+			upslogx(LOG_ERR,
+				"%s: second usb_interrupt_write() failed: %s",
+				__func__,
+				ret ? nut_usb_strerror(ret) : "timeout");
+		}
+
+		return STAT_INSTCMD_HANDLED;
+	}
+
+	upslog_INSTCMD_UNKNOWN(cmdname, extra);
+	return STAT_INSTCMD_UNKNOWN;
+}
+
 void upsdrv_shutdown(void)
 {
-	/* Not "const" because this mismatches arg type of usb_interrupt_write() */
-	char	shutdown_packet[SHUTDOWN_PACKETSIZE] = { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-	int ret;
+	/* Only implement "shutdown.default"; do not invoke
+	 * general handling of other `sdcommands` here */
 
-	upslogx(LOG_DEBUG,
-		"%s: attempting to call usb_interrupt_write(01 00 00 00 00 00 00 00)",
-		__func__);
-
-	ret = usb_interrupt_write(udev,
-		SHUTDOWN_ENDPOINT, (usb_ctrl_charbuf)shutdown_packet,
-		SHUTDOWN_PACKETSIZE, ATCL_USB_TIMEOUT);
-
-	if (ret <= 0) {
-		upslogx(LOG_NOTICE,
-			"%s: first usb_interrupt_write() failed: %s",
-			__func__,
-			ret ? nut_usb_strerror(ret) : "timeout");
-	}
-
-	/* Totally guessing from the .pcap file here. TODO: configurable delay? */
-	usleep(170*1000);
-
-	ret = usb_interrupt_write(udev,
-		SHUTDOWN_ENDPOINT, (usb_ctrl_charbuf)shutdown_packet,
-		SHUTDOWN_PACKETSIZE, ATCL_USB_TIMEOUT);
-
-	if (ret <= 0) {
-		upslogx(LOG_ERR,
-			"%s: second usb_interrupt_write() failed: %s",
-			__func__,
-			ret ? nut_usb_strerror(ret) : "timeout");
-	}
-
+	/* FIXME: Check with the device what our instcmd
+	 * (nee upsdrv_shutdown() contents) actually does!
+	 */
+	int	ret = do_loop_shutdown_commands("shutdown.stayoff", NULL);
+	if (handling_upsdrv_shutdown > 0)
+		set_exit_flag(ret == STAT_INSTCMD_HANDLED ? EF_EXIT_SUCCESS : EF_EXIT_FAILURE);
 }
 
 void upsdrv_help(void)
 {
 }
 
+/* optionally tweak prognames[] entries */
+void upsdrv_tweak_prognames(void)
+{
+}
+
 void upsdrv_makevartable(void)
 {
-        addvar(VAR_VALUE, "vendor", "USB vendor string (or NULL if none)");
+	/* NOTE: This driver uses a very custom device matching method,
+	 * so does not involve nut_usb_addvars() method like others do.
+	 * When fixing, see also tools/nut-scanner/scan_usb.c "exceptions".
+	 */
+	addvar(VAR_VALUE, "vendor", "USB vendor string (or NULL if none)");
 }

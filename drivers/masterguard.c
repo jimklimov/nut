@@ -9,6 +9,8 @@
    generally covers all Megatec/Qx protocol family and aggregates
    device support from such legacy drivers over time.
 
+   FIXME: `if(DEBUG) print(...)` ==> `upsdebugx()`
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2 of the License, or
@@ -29,7 +31,7 @@
 #include "nut_stdint.h"
 
 #define DRIVER_NAME	"MASTERGUARD UPS driver"
-#define DRIVER_VERSION	"0.25"
+#define DRIVER_VERSION	"0.31"
 
 /* driver description structure */
 upsdrv_info_t upsdrv_info = {
@@ -52,6 +54,9 @@ upsdrv_info_t upsdrv_info = {
 static int     type;
 static char    name[31];
 static char    firmware[6];
+
+/* Forward decls */
+static int instcmd(const char *cmdname, const char *extra);
 
 /********************************************************************
  *
@@ -164,7 +169,7 @@ static void parseFlags( char *flags )
  ********************************************************************/
 static void query1( char *buf )
 {
-	#define WORDMAXLEN 255
+#	define WORDMAXLEN 255
 	char    value[WORDMAXLEN];
 	char    word[WORDMAXLEN];
 	char    *newPOS;
@@ -238,7 +243,7 @@ static void query1( char *buf )
  ********************************************************************/
 static void query3( char *buf )
 {
-	#define WORDMAXLEN 255
+#	define WORDMAXLEN 255
 	char    value[WORDMAXLEN];
 	char    word[WORDMAXLEN];
 	char    *newPOS;
@@ -447,11 +452,58 @@ void upsdrv_help( void )
 
 /********************************************************************
  *
+ *
+ * optionally tweak prognames[] entries
+ *
+ ********************************************************************/
+void upsdrv_tweak_prognames(void)
+{
+
+}
+
+/********************************************************************
+ *
  * Function to initialize the fields of the ups driver.
  *
  ********************************************************************/
 void upsdrv_initinfo(void)
 {
+	int     count = 0;
+	int     fail  = 0;
+	int     good  = 0;
+
+	name[0] = '\0';
+	firmware[0] = '\0';
+
+	/* probe ups type */
+	do
+	{
+		count++;
+
+		if( ups_ident( ) != 1 )
+			fail++;
+		/* at least two good identifications */
+		if( (count - fail) == 2 )
+		{
+			good = 1;
+			break;
+		}
+	} while( (count<MAXTRIES) | (good) );
+
+	if( ! good )
+	{
+		fatalx(EXIT_FAILURE,  "No MASTERGUARD UPS found" );
+	}
+
+	upslogx(LOG_INFO, "MASTERGUARD UPS found\n" );
+
+	/* Cancel Shutdown */
+	if( testvar("CS") )
+	{
+		ser_send_pace(upsfd, UPS_PACE, "%s", "C\x0D" );
+		fatalx(EXIT_FAILURE, "Shutdown cancelled");
+	}
+
 	dstate_setinfo("ups.mfr", "MASTERGUARD");
 	dstate_setinfo("ups.model", "unknown");
 
@@ -459,6 +511,11 @@ void upsdrv_initinfo(void)
 	dstate_addcmd("test.battery.stop");
 	dstate_addcmd("test.battery.start");
 	*/
+
+	dstate_addcmd("shutdown.return");
+
+	/* install handlers */
+	upsh.instcmd = instcmd;
 
 	if( strlen( name ) > 0 )
 		dstate_setinfo("ups.model", "%s", name);
@@ -529,6 +586,29 @@ void upsdrv_updateinfo(void)
 	}
 }
 
+/* handler for commands to be sent to UPS */
+static
+int instcmd(const char *cmdname, const char *extra)
+{
+	/* May be used in logging below, but not as a command argument */
+	NUT_UNUSED_VARIABLE(extra);
+	upsdebug_INSTCMD_STARTING(cmdname, extra);
+
+	/* Shutdown UPS */
+	if (!strcasecmp(cmdname, "shutdown.return"))
+	{
+		upslog_INSTCMD_POWERSTATE_CHANGE(cmdname, extra);
+
+		/* ups will come up within a minute if utility is restored */
+		ser_send_pace(upsfd, UPS_PACE, "%s", "S.2R0001\x0D" );
+
+		return STAT_INSTCMD_HANDLED;
+	}
+
+	upslog_INSTCMD_UNKNOWN(cmdname, extra);
+	return STAT_INSTCMD_UNKNOWN;
+}
+
 /********************************************************************
  *
  * Called if the driver wants to shutdown the UPS.
@@ -540,8 +620,12 @@ void upsdrv_updateinfo(void)
  ********************************************************************/
 void upsdrv_shutdown(void)
 {
-	/* ups will come up within a minute if utility is restored */
-	ser_send_pace(upsfd, UPS_PACE, "%s", "S.2R0001\x0D" );
+	/* Only implement "shutdown.default"; do not invoke
+	 * general handling of other `sdcommands` here */
+
+	int	ret = do_loop_shutdown_commands("shutdown.return", NULL);
+	if (handling_upsdrv_shutdown > 0)
+		set_exit_flag(ret == STAT_INSTCMD_HANDLED ? EF_EXIT_SUCCESS : EF_EXIT_FAILURE);
 }
 
 /********************************************************************
@@ -564,10 +648,6 @@ void upsdrv_makevartable(void)
  ********************************************************************/
 void upsdrv_initups(void)
 {
-	int     count = 0;
-	int     fail  = 0;
-	int     good  = 0;
-
 	upsdebugx(0,
 		"Please note that this driver is deprecated and will not receive\n"
 		"new development. If it works for managing your devices - fine,\n"
@@ -580,38 +660,6 @@ void upsdrv_initups(void)
 	/* setup serial port */
 	upsfd = ser_open(device_path);
 	ser_set_speed(upsfd, device_path, B2400);
-
-	name[0] = '\0';
-	firmware[0] = '\0';
-
-	/* probe ups type */
-	do
-	{
-		count++;
-
-		if( ups_ident( ) != 1 )
-			fail++;
-		/* at least two good identifications */
-		if( (count - fail) == 2 )
-		{
-			good = 1;
-			break;
-		}
-	} while( (count<MAXTRIES) | (good) );
-
-	if( ! good )
-	{
-		fatalx(EXIT_FAILURE,  "No MASTERGUARD UPS found" );
-	}
-
-	upslogx(LOG_INFO, "MASTERGUARD UPS found\n" );
-
-	/* Cancel Shutdown */
-	if( testvar("CS") )
-	{
-		ser_send_pace(upsfd, UPS_PACE, "%s", "C\x0D" );
-		fatalx(EXIT_FAILURE, "Shutdown cancelled");
-	}
 }
 
 void upsdrv_cleanup(void)

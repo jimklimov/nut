@@ -30,6 +30,10 @@ LC_ALL=C
 TZ=UTC
 export LANG LC_ALL TZ
 
+# tools
+[ -n "${GREP}" ] || { GREP="`command -v grep`" && [ x"${GREP}" != x ] || { echo "$0: FAILED to locate GREP tool" >&2 ; exit 1 ; } ; export GREP ; }
+[ -n "${EGREP}" ] || { if ( [ x"`echo a | $GREP -E '(a|b)'`" = xa ] ) 2>/dev/null ; then EGREP="$GREP -E" ; else EGREP="`command -v egrep`" ; fi && [ x"${EGREP}" != x ] || { echo "$0: FAILED to locate EGREP tool" >&2 ; exit 1 ; } ; export EGREP ; }
+
 ### Note: These are relative to where the selftest script lives,
 ### not the NUT top_srcdir etc. They can be exported by a Makefile.
 [ -n "${BUILDDIR-}" ] || BUILDDIR="`dirname $0`"
@@ -104,7 +108,13 @@ run_testcase() {
         ( rm -f "/tmp/.nde.text.expected.$$" "/tmp/.nde.text.actual.$$" \
             && echo "$EXPECT_TEXT" > "/tmp/.nde.text.expected.$$" \
             && echo "$OUT" > "/tmp/.nde.text.actual.$$" \
-            && diff -u "/tmp/.nde.text.expected.$$" "/tmp/.nde.text.actual.$$" ) 2>/dev/null || true
+            && { OUTD="`diff -u "/tmp/.nde.text.expected.$$" "/tmp/.nde.text.actual.$$" 2>/dev/null`"
+                if echo "$OUTD" | head -1 | ${EGREP} '^[-+]' >/dev/null ; then
+                    echo "$OUTD"
+                else
+                    diff "/tmp/.nde.text.expected.$$" "/tmp/.nde.text.actual.$$"
+                fi
+            } ; ) 2>/dev/null || true
         rm -f "/tmp/.nde.text.expected.$$" "/tmp/.nde.text.actual.$$"
         FAIL_COUNT="`expr $FAIL_COUNT + 1`"
         RES="`expr $RES + 2`"
@@ -211,7 +221,7 @@ testcase_upslist_debug() {
     run_testcase "List decided MEDIA and config checksums for all devices" 0 \
 "INST: 68b329da9893e34099c7d8ad5cb9c940~[]: DRV='' PORT='' MEDIA='' SECTIONMD5='9a1f372a850f1ee3ab1fc08b185783e0'
 INST: 010cf0aed6dd49865bb49b70267946f5~[dummy-proxy]: DRV='dummy-ups  ' PORT='remoteUPS@RemoteHost.local' MEDIA='network' SECTIONMD5='aff543fc07d7fbf83e81001b181c8b97'
-INST: 1ea79c6eea3681ba73cc695f3253e605~[dummy-proxy-localhost]: DRV='dummy-ups  ' PORT='localUPS@127.0.0.1' MEDIA='network-localhost' SECTIONMD5='73e6b7e3e3b73558dc15253d8cca51b2'
+INST: 1ea79c6eea3681ba73cc695f3253e605~[dummy-proxy-localhost]: DRV='dummy-ups  ' PORT='localUPS@127.0.0.1' MEDIA='network-localhost,drivers=localUPS' SECTIONMD5='73e6b7e3e3b73558dc15253d8cca51b2'
 INST: 76b645e28b0b53122b4428f4ab9eb4b9~[dummy1]: DRV='dummy-ups' PORT='file1.dev' MEDIA='' SECTIONMD5='9e0a326b67e00d455494f8b4258a01f1'
 INST: a293d65e62e89d6cc3ac6cb88bc312b8~[epdu-2]: DRV='netxml-ups' PORT='http://172.16.1.2' MEDIA='network' SECTIONMD5='0d9a0147dcf87c7c720e341170f69ed4'
 INST: 9a5561464ff8c78dd7cb544740ce2adc~[epdu-2-snmp]: DRV='snmp-ups' PORT='172.16.1.2' MEDIA='network' SECTIONMD5='2631b6c21140cea0dd30bb88b942ce3f'

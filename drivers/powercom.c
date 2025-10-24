@@ -83,10 +83,10 @@
 #include "main.h"
 #include "serial.h"
 #include "powercom.h"
-#include "math.h"
+#include "nut_float.h"
 
-#define DRIVER_NAME		"PowerCom protocol UPS driver"
-#define DRIVER_VERSION	"0.19"
+#define DRIVER_NAME	"PowerCom protocol UPS driver"
+#define DRIVER_VERSION	"0.27"
 
 /* driver description structure */
 upsdrv_info_t	upsdrv_info = {
@@ -290,20 +290,16 @@ static unsigned int OPTImodels[]	= {0,0,0,575,0,0,0,0,0,0,0,0,0,0,0,0};
  */
 
 static void shutdown_halt(void)
-	__attribute__((noreturn));
-
-static void shutdown_halt(void)
 {
 	ser_send_char (upsfd, (unsigned char)SHUTDOWN);
 	if (types[type].shutdown_arguments.minutesShouldBeUsed != 'n')
 		ser_send_char (upsfd, types[type].shutdown_arguments.delay[0]);
 	ser_send_char (upsfd, types[type].shutdown_arguments.delay[1]);
 	upslogx(LOG_INFO, "Shutdown (stayoff) initiated.");
-	exit (0);
-}
 
-static void shutdown_ret(void)
-	__attribute__((noreturn));
+	if (handling_upsdrv_shutdown > 0)
+		set_exit_flag(EF_EXIT_SUCCESS);
+}
 
 static void shutdown_ret(void)
 {
@@ -314,33 +310,37 @@ static void shutdown_ret(void)
 	ser_send_char (upsfd, types[type].shutdown_arguments.delay[1]);
 	upslogx(LOG_INFO, "Shutdown (return) initiated.");
 
-	exit (0);
+	if (handling_upsdrv_shutdown > 0)
+		set_exit_flag(EF_EXIT_SUCCESS);
 }
 
 /* registered instant commands */
 static int instcmd (const char *cmdname, const char *extra)
 {
+	/* May be used in logging below, but not as a command argument */
+	NUT_UNUSED_VARIABLE(extra);
+	upsdebug_INSTCMD_STARTING(cmdname, extra);
+
 	if (!strcasecmp(cmdname, "test.battery.start")) {
-	    ser_send_char (upsfd, BATTERY_TEST);
-	    return STAT_INSTCMD_HANDLED;
+		upslog_INSTCMD_POWERSTATE_MAYBE(cmdname, extra);
+		ser_send_char (upsfd, BATTERY_TEST);
+		return STAT_INSTCMD_HANDLED;
 	}
 	if (!strcasecmp(cmdname, "shutdown.return")) {
 		/* NOTE: In this context, "return" is UPS behavior after the
 		 * wall-power gets restored. The routine exits the driver anyway.
 		 */
+		upslog_INSTCMD_POWERSTATE_CHANGE(cmdname, extra);
 		shutdown_ret();
-#ifndef HAVE___ATTRIBUTE__NORETURN
 		return STAT_INSTCMD_HANDLED;
-#endif
 	}
 	if (!strcasecmp(cmdname, "shutdown.stayoff")) {
+		upslog_INSTCMD_POWERSTATE_CHANGE(cmdname, extra);
 		shutdown_halt();
-#ifndef HAVE___ATTRIBUTE__NORETURN
 		return STAT_INSTCMD_HANDLED;
-#endif
 	}
 
-	upslogx(LOG_NOTICE, "instcmd: unknown command [%s] [%s]", cmdname, extra);
+	upslog_INSTCMD_UNKNOWN(cmdname, extra);
 	return STAT_INSTCMD_UNKNOWN;
 }
 
@@ -674,6 +674,7 @@ static float load_level(void)
 				case 1000:
 				case 1500:
 				case 2000: return raw_data[UPS_LOAD]*110.0/load1000i[voltage];
+				default: break;
 			}
 		}
 	} else if (!strcmp(types[type].name, "KIN")) {
@@ -770,8 +771,12 @@ void upsdrv_updateinfo(void)
 {
 	char	val[32];
 
-	if (!ups_getinfo()){
-		return;
+	if (!ups_getinfo()) {
+		/* https://github.com/networkupstools/nut/issues/356 */
+		upsdebugx(1, "%s: failed to ups_getinfo() once, retrying for slower devices", __func__);
+		if (!ups_getinfo()) {
+			return;
+		}
 	}
 
 	/* input.frequency */
@@ -841,22 +846,27 @@ void upsdrv_updateinfo(void)
 
 /* shutdown UPS */
 void upsdrv_shutdown(void)
-	__attribute__((noreturn));
-
-void upsdrv_shutdown(void)
 {
-	/* power down the attached load immediately */
-	printf("Forced UPS shutdown (and wait for power)...\n");
-	shutdown_ret();
+	/* Only implement "shutdown.default"; do not invoke
+	 * general handling of other `sdcommands` here */
+
+	int	ret = -1;
+
+	if (!device_sdcommands) {
+		/* default: power down the attached load immediately */
+		printf("Forced UPS shutdown (and wait for power)...\n");
+	}
+
+	ret = do_loop_shutdown_commands("shutdown.return", NULL);
+	if (handling_upsdrv_shutdown > 0)
+		set_exit_flag(ret == STAT_INSTCMD_HANDLED ? EF_EXIT_SUCCESS : EF_EXIT_FAILURE);
 }
 
 /* initialize UPS */
 void upsdrv_initups(void)
 {
 	int tmp;
-	unsigned int model = 0;
 	unsigned int i;
-	static char buf[20];
 
 	/* check manufacturer name from arguments */
 	if (testvar("manufacturer"))
@@ -995,95 +1005,6 @@ void upsdrv_initups(void)
 
 	/* setup flow control */
 	types[type].flowControl.setup_flow_control();
-
-	/* Setup Model and LineVoltage */
-	if (!strncmp(types[type].name, "BNT",3) || !strcmp(types[type].name, "KIN") || !strcmp(types[type].name, "IMP") || !strcmp(types[type].name, "OPTI")) {
-		if (!ups_getinfo()) return;
-		/* Give "BNT-other" a chance! */
-		if (raw_data[MODELNAME]==0x42 || raw_data[MODELNAME]==0x4B || raw_data[MODELNAME]==0x4F){
-			/* Give "IMP" a chance also! */
-			if (raw_data[UPSVERSION]==0xFF){
-				types[type].name="IMP";
-				model=IMPmodels[raw_data[MODELNUMBER]/16];
-			}
-			else {
-				model=BNTmodels[raw_data[MODELNUMBER]/16];
-				if (!strcmp(types[type].name, "BNT-other"))
-					types[type].name="BNT-other";
-				else if (raw_data[MODELNAME]==0x42)
-					types[type].name="BNT";
-				else if (raw_data[MODELNAME]==0x4B){
-					types[type].name="KIN";
-					model=KINmodels[raw_data[MODELNUMBER]/16];
-				} else if (raw_data[MODELNAME]==0x4F){
-					types[type].name="OPTI";
-					model=OPTImodels[raw_data[MODELNUMBER]/16];
-				}
-			}
-		}
-		else if (raw_data[UPSVERSION]==0xFF){
-			types[type].name="IMP";
-			model=IMPmodels[raw_data[MODELNUMBER]/16];
-		}
-		linevoltage=voltages[raw_data[MODELNUMBER]%16];
-		if (!strcmp(types[type].name, "OPTI")) {
-			snprintf(buf,sizeof(buf),"%s-%u",types[type].name, model);
-		} else {
-			snprintf(buf,sizeof(buf),"%s-%uAP",types[type].name, model);
-		}
-		if (!strcmp(modelname, "Unknown"))
-			modelname=buf;
-		upsdebugx(1,"Detected: %s , %dV",buf,linevoltage);
-		if (testvar("nobt") || dstate_getinfo("driver.flag.nobt")) {
-			upslogx(LOG_NOTICE, "nobt flag set, skipping battery test as requested");
-		}
-		else {
-			upslogx(LOG_NOTICE, "nobt flag not set, performing battery test as requested");
-			if (ser_send_char (upsfd, BATTERY_TEST) != 1) {
-				upslogx(LOG_NOTICE, "Write error: failed to send battery test command to UPS!");
-				dstate_datastale();
-				return;
-			}
-		}
-	}
-
-	upsdebugx(1, "Values of arguments:");
-	upsdebugx(1, " manufacturer            : '%s'", manufacturer);
-	upsdebugx(1, " model name              : '%s'", modelname);
-	upsdebugx(1, " serial number           : '%s'", serialnumber);
-	upsdebugx(1, " line voltage            : '%u'", linevoltage);
-	upsdebugx(1, " type                    : '%s'", types[type].name);
-	upsdebugx(1, " number of bytes from UPS: '%u'",
-	            types[type].num_of_bytes_from_ups);
-	upsdebugx(1, " method of flow control  : '%s'",
-	            types[type].flowControl.name);
-	upsdebugx(1, " validation sequence: '{{%u,%#x},{%u,%#x},{%u,%#x}}'",
-	            types[type].validation[0].index_of_byte,
-	            types[type].validation[0].required_value,
-	            types[type].validation[1].index_of_byte,
-	            types[type].validation[1].required_value,
-	            types[type].validation[2].index_of_byte,
-	            types[type].validation[2].required_value);
-	upsdebugx(1, " shutdown arguments: '{{%u,%u},%c}'",
-	            types[type].shutdown_arguments.delay[0],
-	            types[type].shutdown_arguments.delay[1],
-	            types[type].shutdown_arguments.minutesShouldBeUsed);
-	if ( strcmp(types[type].name, "KIN") && strcmp(types[type].name, "BNT") && strcmp(types[type].name, "IMP")) {
-		upsdebugx(1, " frequency calculation coefficients: '{%f,%f}'",
-		        types[type].freq[0], types[type].freq[1]);
-		upsdebugx(1, " load percentage calculation coefficients: "
-		        "'{%f,%f,%f,%f}'",
-		        types[type].loadpct[0], types[type].loadpct[1],
-		        types[type].loadpct[2], types[type].loadpct[3]);
-		upsdebugx(1, " battery percentage calculation coefficients: "
-		        "'{%f,%f,%f,%f,%f}'",
-		        types[type].battpct[0], types[type].battpct[1],
-		        types[type].battpct[2], types[type].battpct[3],
-		        types[type].battpct[4]);
-		upsdebugx(1, " voltage calculation coefficients: '{%f,%f}'",
-		        types[type].voltage[2], types[type].voltage[3]);
-	}
-
 }
 
 /* display help */
@@ -1153,9 +1074,105 @@ void upsdrv_help(void)
 	return;
 }
 
+/* optionally tweak prognames[] entries */
+void upsdrv_tweak_prognames(void)
+{
+}
+
 /* initialize information */
 void upsdrv_initinfo(void)
 {
+	unsigned int	model = 0;
+	static char	buf[20];
+
+	/* Setup Model and LineVoltage */
+	if (!strncmp(types[type].name, "BNT",3) || !strcmp(types[type].name, "KIN") || !strcmp(types[type].name, "IMP") || !strcmp(types[type].name, "OPTI")) {
+		if (!ups_getinfo()) return;
+		/* Give "BNT-other" a chance! */
+		if (raw_data[MODELNAME]==0x42 || raw_data[MODELNAME]==0x4B || raw_data[MODELNAME]==0x4F){
+			/* Give "IMP" a chance also! */
+			if (raw_data[UPSVERSION]==0xFF){
+				types[type].name="IMP";
+				model=IMPmodels[raw_data[MODELNUMBER]/16];
+			}
+			else {
+				model=BNTmodels[raw_data[MODELNUMBER]/16];
+				if (!strcmp(types[type].name, "BNT-other"))
+					types[type].name="BNT-other";
+				else if (raw_data[MODELNAME]==0x42)
+					types[type].name="BNT";
+				else if (raw_data[MODELNAME]==0x4B){
+					types[type].name="KIN";
+					model=KINmodels[raw_data[MODELNUMBER]/16];
+				} else if (raw_data[MODELNAME]==0x4F){
+					types[type].name="OPTI";
+					model=OPTImodels[raw_data[MODELNUMBER]/16];
+				}
+			}
+		}
+		else if (raw_data[UPSVERSION]==0xFF){
+			types[type].name="IMP";
+			model=IMPmodels[raw_data[MODELNUMBER]/16];
+		}
+		linevoltage=voltages[raw_data[MODELNUMBER]%16];
+		if (!strcmp(types[type].name, "OPTI")) {
+			snprintf(buf,sizeof(buf),"%s-%u",types[type].name, model);
+		} else {
+			snprintf(buf,sizeof(buf),"%s-%uAP",types[type].name, model);
+		}
+		if (!strcmp(modelname, "Unknown"))
+			modelname=buf;
+		upsdebugx(1, "Detected: %s , %uV", buf, linevoltage);
+		if (testvar("nobt") || dstate_getinfo("driver.flag.nobt")) {
+			upslogx(LOG_NOTICE, "nobt flag set, skipping battery test as requested");
+		}
+		else {
+			upslogx(LOG_NOTICE, "nobt flag not set, performing battery test as requested");
+			if (ser_send_char (upsfd, BATTERY_TEST) != 1) {
+				upslogx(LOG_NOTICE, "Write error: failed to send battery test command to UPS!");
+				dstate_datastale();
+				return;
+			}
+		}
+	}
+
+	upsdebugx(1, "Values of arguments:");
+	upsdebugx(1, " manufacturer            : '%s'", manufacturer);
+	upsdebugx(1, " model name              : '%s'", modelname);
+	upsdebugx(1, " serial number           : '%s'", serialnumber);
+	upsdebugx(1, " line voltage            : '%u'", linevoltage);
+	upsdebugx(1, " type                    : '%s'", types[type].name);
+	upsdebugx(1, " number of bytes from UPS: '%u'",
+	            types[type].num_of_bytes_from_ups);
+	upsdebugx(1, " method of flow control  : '%s'",
+	            types[type].flowControl.name);
+	upsdebugx(1, " validation sequence: '{{%u,%#x},{%u,%#x},{%u,%#x}}'",
+	            types[type].validation[0].index_of_byte,
+	            types[type].validation[0].required_value,
+	            types[type].validation[1].index_of_byte,
+	            types[type].validation[1].required_value,
+	            types[type].validation[2].index_of_byte,
+	            types[type].validation[2].required_value);
+	upsdebugx(1, " shutdown arguments: '{{%u,%u},%c}'",
+	            types[type].shutdown_arguments.delay[0],
+	            types[type].shutdown_arguments.delay[1],
+	            types[type].shutdown_arguments.minutesShouldBeUsed);
+	if ( strcmp(types[type].name, "KIN") && strcmp(types[type].name, "BNT") && strcmp(types[type].name, "IMP")) {
+		upsdebugx(1, " frequency calculation coefficients: '{%f,%f}'",
+		        types[type].freq[0], types[type].freq[1]);
+		upsdebugx(1, " load percentage calculation coefficients: "
+		        "'{%f,%f,%f,%f}'",
+		        types[type].loadpct[0], types[type].loadpct[1],
+		        types[type].loadpct[2], types[type].loadpct[3]);
+		upsdebugx(1, " battery percentage calculation coefficients: "
+		        "'{%f,%f,%f,%f,%f}'",
+		        types[type].battpct[0], types[type].battpct[1],
+		        types[type].battpct[2], types[type].battpct[3],
+		        types[type].battpct[4]);
+		upsdebugx(1, " voltage calculation coefficients: '{%f,%f}'",
+		        types[type].voltage[2], types[type].voltage[3]);
+	}
+
 	/* write constant data for this model */
 	dstate_setinfo ("ups.mfr", "%s", manufacturer);
 	dstate_setinfo ("ups.model", "%s", modelname);

@@ -1,6 +1,14 @@
 /* upssched.c - upsmon's scheduling helper for offset timers
 
-   Copyright (C) 2000  Russell Kroll <rkroll@exploits.org>
+   Copyright (C)
+	2000       Russell Kroll <rkroll@exploits.org>
+	2005-2012  Arnaud Quette <arnaud.quette@free.fr>
+	2006       Charles Lepple <clepple+nut@gmail.com>
+	2006-2019  Arjen de Korte <adkorte-guest@alioth.debian.org>
+	2006-2007  Peter Selinger <selinger@users.sourceforge.net>
+	2010-2012  Frederic BOHE <fredericbohe@eaton.com>
+	2020-2025  Jim Klimov <jimklimov+nut@gmail.com>
+	2022       Dimitris Economou <dimitris.s.economou@gmail.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,7 +27,9 @@
 
 /* design notes for the curious:
  *
- * 1. we get called with a upsname and notifytype from upsmon
+ * 1. we get called with a ups_name and notify_type from upsmon
+ *    (and notify_msg via first non-option argv[] element if
+ *    present and not trivial)
  * 2. the config file is searched for an AT condition that matches
  * 3. the conditions on any matching lines are parsed
  *
@@ -43,17 +53,18 @@
 
 #include <sys/types.h>
 #ifndef WIN32
-#include <sys/wait.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <fcntl.h>
-#else
-#include "wincompat.h"
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#endif
+# include <sys/wait.h>
+# include <sys/socket.h>
+# include <sys/un.h>
+# include <netinet/in.h>
+# include <unistd.h>
+# include <fcntl.h>
+# include <poll.h>
+#else	/* WIN32 */
+# include "wincompat.h"
+# include <winsock2.h>
+# include <ws2tcpip.h>
+#endif	/* WIN32 */
 
 #include "upssched.h"
 #include "timehead.h"
@@ -62,21 +73,25 @@
 typedef struct ttype_s {
 	char	*name;
 	time_t	etime;
+	char	**upsnames;		/* List of unique UPSNAME values that commanded to start this timer name */
+	char	**notifytypes;	/* List of unique NOTIFYTYPE values that commanded to start this timer name */
+	char	**notifymsgs;	/* List of unique NOTIFYMSG values that commanded to start this timer name */
 	struct ttype_s	*next;
 } ttype_t;
 
 static ttype_t	*thead = NULL;
 static conn_t	*connhead = NULL;
 static char	*cmdscript = NULL, *pipefn = NULL, *lockfn = NULL;
-static int	verbose = 0;		/* use for debugging */
+static int	nut_debug_level_args = 0, nut_debug_level_env = 0, nut_debug_level_conf = 0;
+static int	list_timers = 0;
 
 /* ups name and notify type (string) as received from upsmon */
-static const	char	*upsname, *notify_type;
+static const	char	*ups_name = NULL, *notify_type = NULL, *notify_msg = NULL, *prog = NULL;
 
 #ifdef WIN32
 static OVERLAPPED connect_overlapped;
-#define BUF_LEN 512
-#endif
+# define BUF_LEN 512
+#endif	/* WIN32 */
 
 #define PARENT_STARTED		-2
 #define PARENT_UNNECESSARY	-3
@@ -95,7 +110,9 @@ static void exec_cmd(const char *cmd)
 
 	snprintf(buf, sizeof(buf), "%s %s", cmdscript, cmd);
 
+	upsdebugx(4, "%s: calling: %s", __func__, buf);
 	err = system(buf);
+	upsdebugx(3, "%s(%s): returned %d", __func__, buf, err);
 #ifndef WIN32
 	if (WIFEXITED(err)) {
 		if (WEXITSTATUS(err)) {
@@ -108,16 +125,158 @@ static void exec_cmd(const char *cmd)
 			upslogx(LOG_ERR, "Execute command failure: %s", buf);
 		}
 	}
-#else
+#else	/* WIN32 */
 	if(err != -1) {
 		upslogx(LOG_INFO, "Execute command \"%s\" OK", buf);
 	}
 	else {
 		upslogx(LOG_ERR, "Execute command failure : %s", buf);
 	}
-#endif
+#endif	/* WIN32 */
 
 	return;
+}
+
+/* Collect the list of strings into a "sep" (e.g. comma) separated string.
+ * If the return value is not NULL, caller should free() this.
+ * TODO: Generalize and move to common as some snprintfcatext()?
+ */
+static char* collect_string(char **string_arr, char *logtag, char *sep, size_t *pBufsize, size_t *pCount)
+{
+	size_t	bufsize = SMALLBUF, prevlen = 0, count = 0;
+	char	*buf = NULL, **ptr, *s;
+	int	ret_printf;
+
+	/* Do we have at least one non-trivial string there? */
+	if (!string_arr || !(*string_arr) || !(**string_arr))
+		return NULL;
+
+	buf = xcalloc(bufsize, sizeof(char));
+	if (!buf) {
+		upsdebugx(1, "%s: failed to allocate buffer, will not report any %s values", __func__, logtag);
+		return NULL;
+	}
+
+	for (ptr = string_arr; ptr != NULL; ptr++) {
+		int	retry;
+
+		s = *ptr;
+		upsdebugx(5, "%s: popped '%s'", __func__, NUT_STRARG(s));
+
+		if (s == NULL || *s == '\0')
+			break; /*continue?*/
+
+		upsdebugx(4, "%s: appending '%s' to buffer %" PRIuSIZE "/%" PRIuSIZE " full",
+			__func__, s, prevlen, bufsize);
+		do {
+			retry = 0;
+			ret_printf = snprintf(
+				buf + prevlen,
+				bufsize - prevlen - 1,
+				"%s%s",
+				count ? (sep ? sep : ",") : "",
+				s);
+			upsdebugx(4, "%s: got %d after adding into buffer %" PRIuSIZE "/%" PRIuSIZE " full",
+				__func__, ret_printf, prevlen, bufsize);
+			buf[bufsize - 1] = '\0';
+
+			if (ret_printf < 0) {
+				upsdebugx(1, "%s: error collecting names, might not report all %s values", __func__, logtag);
+				buf[prevlen] = '\0';
+			} else if ((size_t)ret_printf + prevlen >= bufsize) {
+				if (bufsize < SIZE_MAX - LARGEBUF) {
+					bufsize += LARGEBUF;
+					upsdebugx(1, "%s: buffer overflowed, trying to re-allocate as %" PRIuSIZE, __func__, bufsize);
+					buf = realloc(buf, bufsize);
+
+					if (!buf) {
+						upsdebugx(1, "%s: buffer overflowed and failed to re-allocate, will not report any %s values", __func__, logtag);
+						return NULL;
+					} else {
+						upsdebugx(5, "%s: buffer overflowed, but re-allocated successfully - retrying", __func__);
+						/* Retry this loop */
+						retry = 1;
+					}
+				} else {
+					upsdebugx(1, "%s: buffer overflowed, might not report all %s values", __func__, logtag);
+					buf[prevlen] = '\0';
+				}
+			} else {
+				prevlen += (size_t)ret_printf;
+			}
+		} while (retry);
+
+		count++;
+	}
+
+	upsdebugx(3, "%s: collected %" PRIuSIZE " items into %" PRIuSIZE " bytes: %s",
+		__func__, count, bufsize, buf);
+
+	if (pBufsize)
+		*pBufsize = bufsize;
+
+	if (pCount)
+		*pCount = count;
+
+	upsdebugx(5, "%s: returning", __func__);
+	return buf;
+}
+
+static void exec_cmd_timer(ttype_t *item)
+{
+	char	*upsnames = NULL, *notifytypes = NULL, *notifymsgs = NULL;
+	size_t	upsnames_count = 0, notifytypes_count = 0, notifymsgs_count = 0;
+
+	if (!item || !item->name || !(*(item->name))) {
+		upsdebugx(1, "%s: SKIP bad call with null arg or its command name", __func__);
+		return;
+	}
+
+	/* Do we have at least one non-trivial string there? */
+	if (item->upsnames && *(item->upsnames) && **(item->upsnames)) {
+		upsnames = collect_string(item->upsnames, "UPSNAME", ",", NULL, &upsnames_count);
+	}
+
+	if (item->notifytypes && *(item->notifytypes) && **(item->notifytypes)) {
+		notifytypes = collect_string(item->notifytypes, "NOTIFYTYPE", ",", NULL, &notifytypes_count);
+	}
+
+	if (item->notifymsgs && *(item->notifymsgs) && **(item->notifymsgs)) {
+		notifymsgs = collect_string(item->notifymsgs, "NOTIFYMSG", ".\t", NULL, &notifymsgs_count);
+	}
+
+	if (upsnames)
+		setenv("UPSNAME", upsnames, 1);
+
+	if (notifytypes)
+		setenv("NOTIFYTYPE", notifytypes, 1);
+
+	if (notifymsgs)
+		setenv("NOTIFYMSG", notifymsgs, 1);
+
+	if (nut_debug_level)
+		upslogx(LOG_INFO, "Executing command by timer: %s\t[%s]\t[%s]\t[%s]",
+			item->name, NUT_STRARG(notifytypes), NUT_STRARG(upsnames), NUT_STRARG(notifymsgs));
+	exec_cmd(item->name);
+	upsdebugx(3, "%s: returned from exec_cmd()", __func__);
+
+	/* Timer process should not retain random envvars */
+	if (upsnames) {
+		unsetenv("UPSNAME");
+		free(upsnames);
+	}
+
+	if (notifytypes) {
+		unsetenv("NOTIFYTYPE");
+		free(notifytypes);
+	}
+
+	if (notifymsgs) {
+		unsetenv("NOTIFYMSG");
+		free(notifymsgs);
+	}
+
+	upsdebugx(3, "%s: done", __func__);
 }
 
 static void removetimer(ttype_t *tfind)
@@ -129,11 +288,37 @@ static void removetimer(ttype_t *tfind)
 
 	while (tmp) {
 		if (tmp == tfind) {	/* found it */
+			upsdebugx(5, "%s: found %s", __func__, NUT_STRARG(tmp->name));
 			if (last == NULL)	/* deleting first */
 				thead = tmp->next;
 			else
 				last->next = tmp->next;
 
+			if (tmp->upsnames) {
+				char **ps;
+				for (ps = tmp->upsnames; *ps != NULL; ps++) {
+					free(*ps);
+				}
+				free(tmp->upsnames);
+			}
+
+			if (tmp->notifytypes) {
+				char **ps;
+				for (ps = tmp->notifytypes; *ps != NULL; ps++) {
+					free(*ps);
+				}
+				free(tmp->notifytypes);
+			}
+
+			if (tmp->notifymsgs) {
+				char **ps;
+				for (ps = tmp->notifymsgs; *ps != NULL; ps++) {
+					free(*ps);
+				}
+				free(tmp->notifymsgs);
+			}
+
+			upsdebugx(3, "%s: forgetting %s", __func__, tmp->name);
 			free(tmp->name);
 			free(tmp);
 			return;
@@ -154,6 +339,8 @@ static void checktimers(void)
 	time_t	now;
 	static	int	emptyctr = 0;
 
+	upsdebugx(3, "%s: starting", __func__);
+
 	/* if the queue is empty we might be ready to exit */
 	if (!thead) {
 
@@ -163,7 +350,7 @@ static void checktimers(void)
 		if (emptyctr < EMPTY_WAIT)
 			return;
 
-		if (verbose)
+		if (nut_debug_level)
 			upslogx(LOG_INFO, "Timer queue empty, exiting");
 
 #ifdef UPSSCHED_RACE_TEST
@@ -171,6 +358,7 @@ static void checktimers(void)
 		sleep(15);
 #endif
 
+		upsdebugx(1, "Timer queue empty, closing pipe and exiting upssched daemon");
 		unlink(pipefn);
 		exit(EXIT_SUCCESS);
 	}
@@ -185,24 +373,28 @@ static void checktimers(void)
 		tmpnext = tmp->next;
 
 		if (now >= tmp->etime) {
-			if (verbose)
+			if (nut_debug_level)
 				upslogx(LOG_INFO, "Event: %s ", tmp->name);
 
-			exec_cmd(tmp->name);
+			exec_cmd_timer(tmp);
 
 			/* delete from queue */
+			upsdebugx(5, "%s: removing timer for the event just handled", __func__);
 			removetimer(tmp);
+			upsdebugx(5, "%s: removed timer for the event just handled", __func__);
 		}
 
 		tmp = tmpnext;
 	}
+
+	upsdebugx(3, "%s: done", __func__);
 }
 
-static void start_timer(const char *name, const char *ofsstr)
+static void start_timer(const char *name, const char *ofsstr, const char *notifytype, const char *upsname, const char *notifymsg, int shared_timer)
 {
 	time_t	now;
 	long	ofs;
-	ttype_t	*tmp, *last;
+	ttype_t	*tmp, *last = NULL;
 
 	/* get the time */
 	time(&now);
@@ -215,21 +407,139 @@ static void start_timer(const char *name, const char *ofsstr)
 		return;
 	}
 
-	if (verbose)
-		upslogx(LOG_INFO, "New timer: %s (%ld seconds)", name, ofs);
+	if (shared_timer) {
+		/* See if there is an older entry to attach to,
+		 * otherwise fall through to creating a new one */
+		tmp = last = thead;
+		upsdebugx(3, "%s: searching for existing timer named '%s' to share", __func__, name);
+
+		while (tmp) {
+			if (tmp->name && !strcmp(tmp->name, name)) {
+				if (nut_debug_level)
+					upslogx(LOG_INFO, "Append data to shared timer: %s\t[%s]\t[%s]\t[%s]\t(will elapse in %g seconds)",
+						name, NUT_STRARG(notifytype), NUT_STRARG(upsname), NUT_STRARG(notifymsg),
+						difftime(tmp->etime, now));
+
+				/* FIXME? Consider only the first hit as the shared timer?
+				 *  Or check if there is already a copy with same name elsewhere?
+				 */
+				if (notifytype && *notifytype) {
+					if (tmp->notifytypes) {
+						char	**ps = NULL;
+						size_t	count = 0;	/* amount of non-NULL entries, if we get to the end */
+
+						for (ps = tmp->notifytypes; *ps != NULL ; ps++) {
+							count++;
+							if (!strcmp(*ps, notifytype))
+								break;
+						}
+
+						if (*ps == NULL) {
+							tmp->notifytypes = xrealloc(tmp->notifytypes, count + 2);
+							tmp->notifytypes[count] = xstrdup(notifytype);
+							tmp->notifytypes[count + 1] = NULL;
+						}
+					} else {
+						tmp->notifytypes = xcalloc(2, sizeof(char*));
+						tmp->notifytypes[0] = xstrdup(notifytype);
+						tmp->notifytypes[1] = NULL;
+					}
+				}
+
+				if (notifymsg && *notifymsg) {
+					if (tmp->notifymsgs) {
+						char	**ps = NULL;
+						size_t	count = 0;	/* amount of non-NULL entries, if we get to the end */
+
+						for (ps = tmp->notifymsgs; *ps != NULL ; ps++) {
+							count++;
+							if (!strcmp(*ps, notifymsg))
+								break;
+						}
+
+						if (*ps == NULL) {
+							tmp->notifymsgs = xrealloc(tmp->notifymsgs, count + 2);
+							tmp->notifymsgs[count] = xstrdup(notifymsg);
+							tmp->notifymsgs[count + 1] = NULL;
+						}
+					} else {
+						tmp->notifymsgs = xcalloc(2, sizeof(char*));
+						tmp->notifymsgs[0] = xstrdup(notifymsg);
+						tmp->notifymsgs[1] = NULL;
+					}
+				}
+
+				if (upsname && *upsname) {
+					if (tmp->upsnames) {
+						char	**ps = NULL;
+						size_t	count = 0;	/* amount of non-NULL entries, if we get to the end */
+
+						for (ps = tmp->upsnames; *ps != NULL ; ps++) {
+							count++;
+							if (!strcmp(*ps, upsname))
+								break;
+						}
+
+						if (*ps == NULL) {
+							tmp->upsnames = xrealloc(tmp->upsnames, count + 2);
+							tmp->upsnames[count] = xstrdup(upsname);
+							tmp->upsnames[count + 1] = NULL;
+						}
+					} else {
+						tmp->upsnames = xcalloc(2, sizeof(char*));
+						tmp->upsnames[0] = xstrdup(upsname);
+						tmp->upsnames[1] = NULL;
+					}
+				}
+
+				return;
+			}
+
+			/* Looping anyway, prepare for fall-through if we get to it */
+			last = tmp;
+			tmp = tmp->next;
+		}
+	}
+
+	if (nut_debug_level)
+		upslogx(LOG_INFO, "New timer: %s\t[%s]\t[%s]\t[%s]\t(will elapse in %ld seconds)",
+			name, NUT_STRARG(notifytype), NUT_STRARG(upsname), NUT_STRARG(notifymsg), ofs);
 
 	/* now add to the queue */
-	tmp = last = thead;
+	if (!shared_timer) {
+		tmp = last = thead;
 
-	while (tmp) {
-		last = tmp;
-		tmp = tmp->next;
-	}
+		while (tmp) {
+			last = tmp;
+			tmp = tmp->next;
+		}
+	}	/* else we already know */
 
 	tmp = xmalloc(sizeof(ttype_t));
 	tmp->name = xstrdup(name);
 	tmp->etime = now + ofs;
+	tmp->notifytypes = NULL;
+	tmp->notifymsgs = NULL;
+	tmp->upsnames = NULL;
 	tmp->next = NULL;
+
+	if (notifytype && *notifytype) {
+		tmp->notifytypes = xcalloc(2, sizeof(char*));
+		tmp->notifytypes[0] = xstrdup(notifytype);
+		tmp->notifytypes[1] = NULL;
+	}
+
+	if (notifymsg && *notifymsg) {
+		tmp->notifymsgs = xcalloc(2, sizeof(char*));
+		tmp->notifymsgs[0] = xstrdup(notifymsg);
+		tmp->notifymsgs[1] = NULL;
+	}
+
+	if (upsname && *upsname) {
+		tmp->upsnames = xcalloc(2, sizeof(char*));
+		tmp->upsnames[0] = xstrdup(upsname);
+		tmp->upsnames[1] = NULL;
+	}
 
 	if (last)
 		last->next = tmp;
@@ -237,22 +547,88 @@ static void start_timer(const char *name, const char *ofsstr)
 		thead = tmp;
 }
 
-static void cancel_timer(const char *name, const char *cname)
+static void cancel_timer(const char *name, const char *cname, const char *notifytype, const char *upsname, const char *notifymsg, int do_cancel_matched)
 {
 	ttype_t	*tmp;
+	size_t	removed = 0;
+
+	/* TOTHINK: Only cancel events associated with a particular UPS and/or type? */
+	NUT_UNUSED_VARIABLE(notifytype);
+	NUT_UNUSED_VARIABLE(upsname);
 
 	for (tmp = thead; tmp != NULL; tmp = tmp->next) {
 		if (!strcmp(tmp->name, name)) {		/* match */
-			if (verbose)
-				upslogx(LOG_INFO, "Cancelling timer: %s", name);
+			/* Note we do not match "notifymsg" as it likely differs */
+			if (!do_cancel_matched
+			||  (   (!notifytype || !(*notifytype))
+				 && (!upsname || !(*upsname)) )
+			) {
+				upsdebugx(2, "%s: cancelling of timer %s not constrained by caller's NOTIFYTYPE nor UPSNAME", __func__, name);
+			} else {
+				char	**ps = NULL;
+				int	matched = 0;
+
+				/* FIXME: Do not remove whole timer, just the respective strings?
+				 *  (Do drop the timer only if none remain) */
+				if (notifytype) {
+					matched = 0;
+					if (!(tmp->notifytypes)) {
+						upsdebugx(2, "%s: do not cancel timer %s due to lack of NOTIFYTYPE in it", __func__, name);
+						continue;
+					}
+					for (ps = tmp->notifytypes; *ps != NULL ; ps++) {
+						if (!strcmp(*ps, notifytype)) {
+							matched = 1;
+							break;
+						}
+					}
+					if (!matched) {
+						upsdebugx(2, "%s: do not cancel timer %s due to mismatch vs. caller's NOTIFYTYPE", __func__, name);
+						continue;
+					}
+				}
+
+				if (upsname) {
+					matched = 0;
+					if (!(tmp->upsnames)) {
+						upsdebugx(2, "%s: do not cancel timer %s due to lack of UPSNAME in it", __func__, name);
+						continue;
+					}
+					for (ps = tmp->upsnames; *ps != NULL ; ps++) {
+						if (!strcmp(*ps, upsname)) {
+							matched = 1;
+							break;
+						}
+					}
+					if (!matched) {
+						upsdebugx(2, "%s: do not cancel timer %s due to mismatch vs. caller's UPSNAME", __func__, name);
+						continue;
+					}
+				}
+			}
+
+			if (nut_debug_level) {
+				if (notifymsg && *notifymsg) {
+					upslogx(LOG_INFO, "Cancelling timer: %s: %s", name, notifymsg);
+				} else {
+					upslogx(LOG_INFO, "Cancelling timer: %s", name);
+				}
+			}
 			removetimer(tmp);
-			return;
+			removed++;
+
+			/* Go on, we want to continue and cancel possibly many
+			 * timers with this name (modulo constraints by envvars) */
 		}
 	}
+	if (removed > 0)
+		return;
 
-	/* this is not necessarily an error */
+	/* this is not necessarily an error: per docs,
+	 * if the timer has passed then pass the optional argument cmd to CMDSCRIPT.
+	 */
 	if (cname && cname[0]) {
-		if (verbose)
+		if (nut_debug_level)
 			upslogx(LOG_INFO, "Cancel %s, event: %s", name, cname);
 
 		exec_cmd(cname);
@@ -285,9 +661,12 @@ static void us_serialize(int op)
 			ret = read(pipefd[0], &ch, 1);
 			close(pipefd[0]);
 			break;
+
+		default:
+			break;
 	}
 }
-#endif
+#endif	/* !WIN32 */
 
 static TYPE_FD open_sock(void)
 {
@@ -360,7 +739,7 @@ static TYPE_FD open_sock(void)
 
 	/* Wait for a connection */
 	ConnectNamedPipe(fd,&connect_overlapped);
-#endif
+#endif /* WIN32 */
 
 	return fd;
 }
@@ -369,6 +748,12 @@ static void conn_del(conn_t *target)
 {
 	conn_t	*tmp, *last = NULL;
 
+	if (!target)
+		return;
+
+#ifndef WIN32
+	upsdebugx(3, "%s: closing connection %d", __func__, target->fd);
+#endif
 	tmp = connhead;
 
 	while (tmp) {
@@ -409,6 +794,10 @@ static int send_to_one(conn_t *conn, const char *fmt, ...)
 #ifdef HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_FORMAT_SECURITY
 #pragma GCC diagnostic ignored "-Wformat-security"
 #endif
+	/* Note: Not converting to hardened NUT methods with dynamic
+	 * format string checking, this one is used locally with
+	 * fixed strings (and args) */
+	/* FIXME: Actually, only fixed strings, no formatting here. */
 	vsnprintf(buf, sizeof(buf), fmt, ap);
 #ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_FORMAT_NONLITERAL
 #pragma GCC diagnostic pop
@@ -416,6 +805,8 @@ static int send_to_one(conn_t *conn, const char *fmt, ...)
 	va_end(ap);
 
 	buflen = strlen(buf);
+	upsdebugx(5, "%s: sending %" PRIuSIZE " bytes: [%s]", __func__, buflen, buf);
+
 	if (buflen >= SSIZE_MAX) {
 		/* Can't compare buflen to ret */
 		upsdebugx(2, "send_to_one(): buffered message too large");
@@ -423,10 +814,10 @@ static int send_to_one(conn_t *conn, const char *fmt, ...)
 		if (VALID_FD(conn->fd)) {
 #ifndef WIN32
 			close(conn->fd);
-#else
+#else	/* WIN32 */
 			FlushFileBuffers(conn->fd);
 			CloseHandle(conn->fd);
-#endif
+#endif	/* WIN32 */
 			conn->fd = ERROR_FD;
 		}
 
@@ -446,7 +837,7 @@ static int send_to_one(conn_t *conn, const char *fmt, ...)
 
 		return 0;	/* failed */
 	}
-#else
+#else	/* WIN32 */
 	DWORD bytesWritten = 0;
 	BOOL  result = FALSE;
 
@@ -481,7 +872,7 @@ static int send_to_one(conn_t *conn, const char *fmt, ...)
 
 		return 0;	/* failed */
 	}
-#endif
+#endif /* WIN32 */
 
 	return 1;	/* OK */
 }
@@ -494,11 +885,11 @@ static TYPE_FD conn_add(TYPE_FD sockfd)
 	int	ret;
 	conn_t	*tmp, *last;
 	struct	sockaddr_un	saddr;
-#if defined(__hpux) && !defined(_XOPEN_SOURCE_EXTENDED)
+# if defined(__hpux) && !defined(_XOPEN_SOURCE_EXTENDED)
 	int			salen;
-#else
+# else
 	socklen_t	salen;
-#endif
+# endif
 
 	salen = sizeof(saddr);
 	acc = accept(sockfd, (struct sockaddr *) &saddr, &salen);
@@ -621,37 +1012,128 @@ static TYPE_FD conn_add(TYPE_FD sockfd)
 	else
 		connhead = conn;
 
-	upsdebugx(3, "new connection on fd %p", acc);
+	upsdebugx(3, "new connection on handle %p", acc);
 
 	pconf_init(&conn->ctx, NULL);
-#endif
+#endif /* WIN32 */
 
 	return acc;
 }
 
 static int sock_arg(conn_t *conn)
 {
+	/* "Server-side" listener for the timer daemon */
 	if (conn->ctx.numargs < 1)
 		return 0;
 
-	/* CANCEL <name> [<cmd>] */
-	if (!strcmp(conn->ctx.arglist[0], "CANCEL")) {
+	/* LIST-TIMERS (no args expected now)
+	 * returns a list with tab-separated values for:
+	 * NAME TO_ABS TO_REL NOTIFYTYPES UPSNAMES NOTIFYMSGS_TABSEP
+	 */
+	if (!strcmp(conn->ctx.arglist[0], "LIST-TIMERS")) {
+		ttype_t	*item = thead;
+		char	*s = NULL;
+		time_t	now;
 
-		if (conn->ctx.numargs < 3)
-			cancel_timer(conn->ctx.arglist[1], NULL);
-		else
-			cancel_timer(conn->ctx.arglist[1], conn->ctx.arglist[2]);
+		send_to_one(conn, "BEGIN LIST TIMERS\n");
+		time(&now);
 
+		while (item) {
+			if (item->name) {
+				send_to_one(conn, "%s\t%ld\t%g\t",
+					item->name, (long)item->etime, difftime(item->etime, now));
+
+				s = NULL;
+				if (item->notifytypes && *(item->notifytypes) && **(item->notifytypes)) {
+					s = collect_string(item->notifytypes, "NOTIFYTYPE", ",", NULL, NULL);
+				}
+
+				if (s && *s) {
+					send_to_one(conn, "%s\t", s);
+				} else {
+					send_to_one(conn, "\"\"\t");
+				}
+				if (s) {
+					free(s);
+				}
+
+				s = NULL;
+				if (item->upsnames && *(item->upsnames) && **(item->upsnames)) {
+					s = collect_string(item->upsnames, "UPSNAME", ",", NULL, NULL);
+				}
+
+				if (s && *s) {
+					send_to_one(conn, "%s\t", s);
+				} else {
+					send_to_one(conn, "\"\"\t");
+				}
+				if (s) {
+					free(s);
+				}
+
+				s = NULL;
+				if (item->notifymsgs && *(item->notifymsgs) && **(item->notifymsgs)) {
+					s = collect_string(item->notifymsgs, "NOTIFYMSG", ".\t", NULL, NULL);
+				}
+
+				if (s && *s) {
+					send_to_one(conn, "%s\n", s);
+				} else {
+					send_to_one(conn, "\"\"\n");
+				}
+				if (s) {
+					free(s);
+				}
+			}
+			item = item->next;
+		}
+
+		send_to_one(conn, "END LIST TIMERS\n");
+		send_to_one(conn, "OK\n\0");
+		return 1;
+	}
+
+	/* CANCEL <name> [<cmd>] [<NOTIFYTYPE> <UPSNAME> <NOTIFYMSG_FOR_LOGINFO>] */
+	{ /* scoping */
+		int	do_cancel = !strcmp(conn->ctx.arglist[0], "CANCEL"),
+			do_cancel_matched = !strcmp(conn->ctx.arglist[0], "CANCEL-MATCHED");
+
+		if (do_cancel || do_cancel_matched) {
+			/* "cmd" may be present and empty, this is handled in the method */
+			if (conn->ctx.numargs < 3)
+				cancel_timer(conn->ctx.arglist[1], NULL,
+					NULL, NULL, NULL, do_cancel_matched);
+			else
+			if (conn->ctx.numargs < 6)
+				cancel_timer(conn->ctx.arglist[1], conn->ctx.arglist[2],
+					NULL, NULL, NULL, do_cancel_matched);
+			else
+				cancel_timer(conn->ctx.arglist[1], conn->ctx.arglist[2],
+					conn->ctx.arglist[3], conn->ctx.arglist[4],
+					conn->ctx.arglist[5], do_cancel_matched);
+
+			send_to_one(conn, "OK\n");
+			return 1;
+		}
+	}
+
+	if (conn->ctx.numargs < 6)
+		return 0;
+
+	/* START <name> <length> <NOTIFYTYPE> <UPSNAME> <NOTIFYMSG> */
+	if (!strcmp(conn->ctx.arglist[0], "START")) {
+		start_timer(conn->ctx.arglist[1], conn->ctx.arglist[2],
+			conn->ctx.arglist[3], conn->ctx.arglist[4],
+			conn->ctx.arglist[5], 0);
 		send_to_one(conn, "OK\n");
 		return 1;
 	}
 
-	if (conn->ctx.numargs < 3)
-		return 0;
-
-	/* START <name> <length> */
-	if (!strcmp(conn->ctx.arglist[0], "START")) {
-		start_timer(conn->ctx.arglist[1], conn->ctx.arglist[2]);
+	/* START-SHARED <name> <length> <NOTIFYTYPE> <UPSNAME> <NOTIFYMSG> */
+	if (!strcmp(conn->ctx.arglist[0], "START-SHARED")) {
+		start_timer(conn->ctx.arglist[1], conn->ctx.arglist[2],
+			conn->ctx.arglist[3], conn->ctx.arglist[4],
+			conn->ctx.arglist[5], 1);
 		send_to_one(conn, "OK\n");
 		return 1;
 	}
@@ -676,27 +1158,66 @@ static int sock_read(conn_t *conn)
 	ssize_t	ret;
 	char	ch;
 
+	upsdebugx(6, "Starting sock_read()");
 	for (i = 0; i < US_MAX_READ; i++) {
-
+		/* NOTE: This does not imply that each command line must
+		 * fit in the US_MAX_READ length limit - at worst we would
+		 * "return 0", and continue with pconf_char() next round.
+		 */
+		size_t numarg;
 #ifndef WIN32
+		errno = 0;
 		ret = read(conn->fd, &ch, 1);
+
+		if (ret > 0)
+			upsdebug_with_errno(6, "read() from fd %d returned %" PRIiSIZE " (bytes): '%c'",
+				conn->fd, ret, ch);
 
 		if (ret < 1) {
 
 			/* short read = no parsing, come back later */
-			if ((ret == -1) && (errno == EAGAIN))
+			if ((ret == -1) && (errno == EAGAIN)) {
+				upsdebugx(6, "Ending sock_read(): short read");
 				return 0;
+			}
 
 			/* O_NDELAY with zero bytes means nothing to read but
-			 * since read() follows a succesful select() with
-			 * ready file descriptor, ret shouldn't be 0. */
-			if (ret == 0)
+			 * since read() follows a successful select() with
+			 * ready file descriptor, ret shouldn't be 0.
+			 * This may also mean that the counterpart has exited
+			 * and the file descriptor should be reaped.
+			 */
+			if (ret == 0) {
+				struct pollfd pfd;
+				pfd.fd = conn->fd;
+				pfd.events = 0;
+				pfd.revents = 0;
+				/* Note: we check errno twice, since it could
+				 * have been set by read() above or by one
+				 * of the probing routines below
+				 */
+				if (errno
+				|| (fcntl(conn->fd, F_GETFD) < 0)
+				|| (poll(&pfd, 1, 0) <= 0)
+				||  errno
+				) {
+					upsdebug_with_errno(4, "read() from fd %d returned 0", conn->fd);
+					return -1;	/* connection closed, probably */
+				}
+				if (i == (US_MAX_READ - 1)) {
+					upsdebug_with_errno(4, "read() from fd %d returned 0 "
+						"too many times in a row, aborting "
+						"sock_read()", conn->fd);
+					return -1;	/* connection closed, probably */
+				}
 				continue;
+			}
 
 			/* some other problem */
+			upsdebugx(6, "Ending sock_read(): some other problem");
 			return -1;	/* error */
 		}
-#else
+#else	/* WIN32 */
 		DWORD bytesRead;
 		GetOverlappedResult(conn->fd, &conn->read_overlapped, &bytesRead,FALSE);
 		if( bytesRead < 1 ) {
@@ -711,7 +1232,8 @@ static int sock_read(conn_t *conn)
 		/* Restart async read */
 		memset(conn->buf,0,sizeof(conn->buf));
 		ReadFile(conn->fd,conn->buf,1,NULL,&(conn->read_overlapped));
-#endif
+#endif /* WIN32 */
+
 		ret = pconf_char(&conn->ctx, ch);
 
 		if (ret == 0)	/* nothing to parse yet */
@@ -721,10 +1243,14 @@ static int sock_read(conn_t *conn)
 			upslogx(LOG_NOTICE, "Parse error on sock: %s",
 				conn->ctx.errmsg);
 
+			upsdebugx(6, "Ending sock_read(): parse error");
 			return 0;	/* nothing parsed */
 		}
 
 		/* try to use it, and complain about unknown commands */
+		upsdebugx(3, "Ending sock_read() on a good note: try to use command:");
+		for (numarg = 0; numarg < conn->ctx.numargs; numarg++)
+			upsdebugx(3, "\targ %" PRIuSIZE ": %s", numarg, conn->ctx.arglist[numarg]);
 		if (!sock_arg(conn)) {
 			log_unknown(conn->ctx.numargs, conn->ctx.arglist);
 			send_to_one(conn, "ERR UNKNOWN\n");
@@ -732,6 +1258,9 @@ static int sock_read(conn_t *conn)
 
 		return 1;	/* we did some work */
 	}
+
+	upsdebug_with_errno(6, "sock_read() from fd %d returned nothing "
+		"(maybe still collecting the command line); ", conn->fd);
 
 	return 0;	/* fell out without parsing anything */
 }
@@ -762,24 +1291,71 @@ static void start_daemon(TYPE_FD lockfd)
 	}
 
 	/* child */
+	setproctag("timer");
 
-	close(0);
-	close(1);
-	close(2);
+	/* make fds 0-2 (typically) point somewhere defined */
+# ifdef HAVE_DUP2
+	/* system can close (if needed) and (re-)open a specific FD number */
+	if (1) { /* scoping */
+		TYPE_FD devnull = open("/dev/null", O_RDWR);
+		if (devnull < 0)
+			fatal_with_errno(EXIT_FAILURE, "open /dev/null");
 
-	/* make fds 0-2 point somewhere defined */
-	if (open("/dev/null", O_RDWR) != 0)
-		fatal_with_errno(EXIT_FAILURE, "open /dev/null");
+		if (dup2(devnull, STDIN_FILENO) != STDIN_FILENO)
+			fatal_with_errno(EXIT_FAILURE, "re-open /dev/null as STDIN");
+		if (dup2(devnull, STDOUT_FILENO) != STDOUT_FILENO)
+			fatal_with_errno(EXIT_FAILURE, "re-open /dev/null as STDOUT");
 
-	if (dup(0) == -1)
-		fatal_with_errno(EXIT_FAILURE, "dup");
+		if (nut_debug_level) {
+			upsdebugx(1, "Keeping stderr open due to debug verbosity %d", nut_debug_level);
+		} else {
+			if (dup2(devnull, STDERR_FILENO) != STDERR_FILENO)
+				fatal_with_errno(EXIT_FAILURE, "re-open /dev/null as STDERR");
+		}
 
-	if (dup(0) == -1)
-		fatal_with_errno(EXIT_FAILURE, "dup");
+		close(devnull);
+	}
+# else /* not HAVE_DUP2 */
+#  ifdef HAVE_DUP
+	/* opportunistically duplicate to the "lowest-available" FD number */
+	close(STDIN_FILENO);
+	if (open("/dev/null", O_RDWR) != STDIN_FILENO)
+		fatal_with_errno(EXIT_FAILURE, "re-open /dev/null as STDIN");
 
+	close(STDOUT_FILENO);
+	if (dup(STDIN_FILENO) != STDOUT_FILENO)
+		fatal_with_errno(EXIT_FAILURE, "dup /dev/null as STDOUT");
+
+	if (nut_debug_level) {
+		upsdebugx(1, "Keeping stderr open due to debug verbosity %d", nut_debug_level);
+	} else {
+		close(STDERR_FILENO);
+		if (dup(STDIN_FILENO) != STDERR_FILENO)
+			fatal_with_errno(EXIT_FAILURE, "dup /dev/null as STDERR");
+	}
+#  else /* not HAVE_DUP */
+	close(STDIN_FILENO);
+	if (open("/dev/null", O_RDWR) != STDIN_FILENO)
+		fatal_with_errno(EXIT_FAILURE, "re-open /dev/null as STDIN");
+
+	close(STDOUT_FILENO);
+	if (open("/dev/null", O_RDWR) != STDOUT_FILENO)
+		fatal_with_errno(EXIT_FAILURE, "re-open /dev/null as STDOUT");
+
+	if (nut_debug_level) {
+		upsdebugx(1, "Keeping stderr open due to debug verbosity %d", nut_debug_level);
+	} else {
+		close(STDERR_FILENO);
+		if (open("/dev/null", O_RDWR) != STDERR_FILENO)
+			fatal_with_errno(EXIT_FAILURE, "re-open /dev/null as STDERR");
+	}
+#  endif /* not HAVE_DUP */
+# endif /* not HAVE_DUP2 */
+
+	/* Still in child, non-WIN32 - work as timer daemon (infinite loop) */
 	pipefd = open_sock();
 
-	if (verbose)
+	if (nut_debug_level)
 		upslogx(LOG_INFO, "Timer daemon started");
 
 	/* release the parent */
@@ -788,10 +1364,25 @@ static void start_daemon(TYPE_FD lockfd)
 	/* drop the lock now that the background is running */
 	unlink(lockfn);
 	close(lockfd);
+	writepid(prog);
+
+	/* Whatever upsmon envvars were set when this daemon started, would be
+	 * irrelevant and only confusing at the moment a particular timer causes
+	 * CMDSCRIPT to run */
+	unsetenv("NOTIFYTYPE");
+	unsetenv("UPSNAME");
+	unsetenv("NOTIFYMSG");
 
 	/* now watch for activity */
+	upsdebugx(2, "Timer daemon waiting for connections on pipefd %d",
+		pipefd);
 
 	for (;;) {
+		int	zero_reads = 0, total_reads = 0;
+		struct timeval	start, now;
+
+		gettimeofday(&start, NULL);
+
 		/* wait at most 1s so we can check our timers regularly */
 		tv.tv_sec = 1;
 		tv.tv_usec = 0;
@@ -811,7 +1402,6 @@ static void start_daemon(TYPE_FD lockfd)
 		ret = select(maxfd + 1, &rfds, NULL, NULL, &tv);
 
 		if (ret > 0) {
-
 			if (FD_ISSET(pipefd, &rfds))
 				conn_add(pipefd);
 
@@ -821,10 +1411,15 @@ static void start_daemon(TYPE_FD lockfd)
 				tmpnext = tmp->next;
 
 				if (FD_ISSET(tmp->fd, &rfds)) {
-					if (sock_read(tmp) < 0) {
+					total_reads++;
+					ret = sock_read(tmp);
+					if (ret < 0) {
+						upsdebugx(3, "closing connection on fd %d", tmp->fd);
 						close(tmp->fd);
 						conn_del(tmp);
 					}
+					if (ret == 0)
+						zero_reads++;
 				}
 
 				tmp = tmpnext;
@@ -832,6 +1427,30 @@ static void start_daemon(TYPE_FD lockfd)
 		}
 
 		checktimers();
+
+		/* upsdebugx(6, "zero_reads=%d total_reads=%d", zero_reads, total_reads); */
+		if (zero_reads && zero_reads == total_reads) {
+			/* Catch run-away loops - that is, consider
+			 * throttling the cycle as to not hog CPU:
+			 * did select() spend its second to reply,
+			 * or had something to say immediately?
+			 * Note that while select() may have changed
+			 * "tv" to deduct the time waited, our further
+			 * processing loops could eat some more time.
+			 * So we just check the difference of "start"
+			 * and "now". If we did spend a substantial
+			 * part of the second, do not delay further.
+			 */
+			double d;
+			gettimeofday(&now, NULL);
+			d = difftimeval(now, start);
+			upsdebugx(6, "difftimeval() => %f sec", d);
+			if (d > 0 && d < 0.2) {
+				d = (1.0 - d) * 1000000.0;
+				upsdebugx(5, "Enforcing a throttling sleep: %f usec", d);
+				usleep((useconds_t)d);
+			}
+		}
 	}
 
 #else /* WIN32 */
@@ -839,24 +1458,32 @@ static void start_daemon(TYPE_FD lockfd)
 	DWORD timeout_ms;
 	HANDLE rfds[32];
 
-	char module[MAX_PATH];
+	char module[NUT_PATH_MAX + 1];
 	STARTUPINFO sinfo;
 	PROCESS_INFORMATION pinfo;
-	if( !GetModuleFileName(NULL,module,MAX_PATH) ) {
+	if (!GetModuleFileName(NULL, module, sizeof(module))) {
 		fatal_with_errno(EXIT_FAILURE, "Can't retrieve module name");
 	}
 	memset(&sinfo,0,sizeof(sinfo));
-	if(!CreateProcess(module, NULL, NULL,NULL,FALSE,0,NULL,NULL,&sinfo,&pinfo)) {
+	if (!CreateProcess(module, NULL, NULL, NULL, FALSE, 0, NULL, NULL, &sinfo, &pinfo)) {
 		fatal_with_errno(EXIT_FAILURE, "Can't create child process");
 	}
 	pipefd = open_sock();
 
-	if (verbose)
+	if (nut_debug_level)
 		upslogx(LOG_INFO, "Timer daemon started");
 
 	/* drop the lock now that the background is running */
 	CloseHandle(lockfd);
 	DeleteFile(lockfn);
+	writepid(prog);
+
+	/* Whatever upsmon envvars were set when this daemon started, would be
+	 * irrelevant and only confusing at the moment a particular timer causes
+	 * CMDSCRIPT to run */
+	unsetenv("NOTIFYTYPE");
+	unsetenv("UPSNAME");
+	unsetenv("NOTIFYMSG");
 
 	/* now watch for activity */
 
@@ -906,6 +1533,7 @@ static void start_daemon(TYPE_FD lockfd)
 			else {
 				if( tmp != NULL) {
 					if (sock_read(tmp) < 0) {
+						upsdebugx(3, "closing connection on handle %p", tmp->fd);
 						CloseHandle(tmp->fd);
 						conn_del(tmp);
 					}
@@ -916,7 +1544,13 @@ static void start_daemon(TYPE_FD lockfd)
 
 		checktimers();
 	}
-#endif
+#endif /* WIN32 */
+
+	/* Should not get here */
+/*
+	if (nut_debug_level)
+		upslogx(LOG_INFO, "Timer daemon ending");
+*/
 }
 
 /* --- 'client' functions --- */
@@ -968,7 +1602,7 @@ static TYPE_FD try_connect(void)
 	if (VALID_FD(pipefd))
 		return pipefd;
 
-#endif
+#endif /* WIN32 */
 
 	return ERROR_FD;
 }
@@ -977,9 +1611,9 @@ static TYPE_FD get_lock(const char *fn)
 {
 #ifndef WIN32
 	return open(fn, O_RDONLY | O_CREAT | O_EXCL, 0);
-#else
+#else	/* WIN32 */
 	return CreateFile(fn,GENERIC_ALL,0,NULL,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,NULL);
-#endif
+#endif	/* WIN32 */
 }
 
 /* try to connect to bg process, and start one if necessary */
@@ -1016,9 +1650,9 @@ static TYPE_FD check_parent(const char *cmd, const char *arg2)
 		/* blow this away in case we crashed before */
 #ifndef WIN32
 		unlink(lockfn);
-#else
+#else	/* WIN32 */
 		DeleteFile(lockfn);
-#endif
+#endif	/* WIN32 */
 
 		/* give the other one a chance to start it, then try again */
 		usleep(250000);
@@ -1033,27 +1667,42 @@ static void sendcmd(const char *cmd, const char *arg1, const char *arg2)
 	int	i;
 	ssize_t	ret;
 	size_t	enclen, buflen;
-	char buf[SMALLBUF], enc[SMALLBUF + 8];
+	char buf[LARGEBUF], enc[LARGEBUF + 8];
 #ifndef WIN32
 	int	ret_s;
 	struct	timeval tv;
 	fd_set	fdread;
-#else
+#else	/* WIN32 */
 	DWORD bytesWritten = 0;
-#endif
+#endif	/* WIN32 */
 	TYPE_FD pipefd;
 
-	/* insanity */
-	if (!arg1)
+	/* sanity-check */
+	if (!arg1 && !list_timers)
 		return;
 
-	/* build the request */
+	/* build the request
+	 * note that in list-timers mode we may have no args to send, but
+	 * otherwise we must have at least the timer name to start or cancel
+	 */
 	snprintf(buf, sizeof(buf), "%s \"%s\"",
-		cmd, pconf_encode(arg1, enc, sizeof(enc)));
+		cmd, arg1 ? pconf_encode(arg1, enc, sizeof(enc)) : "");
 
-	if (arg2)
-		snprintfcat(buf, sizeof(buf), " \"%s\"",
-			pconf_encode(arg2, enc, sizeof(enc)));
+	snprintfcat(buf, sizeof(buf), " \"%s\"",
+		arg2 ? pconf_encode(arg2, enc, sizeof(enc)) : "");
+
+	/* use envvars set by caller (upsmon) when launching this client process
+	 * (C variables are known not-null courtesy of main() method... except
+	 * when we are in the list-timers mode).
+	 */
+	snprintfcat(buf, sizeof(buf), " \"%s\"",
+		notify_type ? pconf_encode(notify_type, enc, sizeof(enc)) : "");
+
+	snprintfcat(buf, sizeof(buf), " \"%s\"",
+		ups_name? pconf_encode(ups_name, enc, sizeof(enc)) : "");
+
+	snprintfcat(buf, sizeof(buf), " \"%s\"",
+		notify_msg ? pconf_encode(notify_msg, enc, sizeof(enc)) : "");
 
 	snprintf(enc, sizeof(enc), "%s\n", buf);
 
@@ -1065,21 +1714,29 @@ static void sendcmd(const char *cmd, const char *arg1, const char *arg2)
 		fatalx(EXIT_FAILURE, "Unable to connect to daemon: buffered message too large");
 	}
 
-	/* see if the parent needs to be started (and maybe start it) */
-
 	for (i = 0; i < MAX_TRIES; i++) {
 
-		pipefd = check_parent(cmd, arg2);
+		if (list_timers) {
+			pipefd = try_connect();
 
-		if (pipefd == (TYPE_FD)PARENT_STARTED) {
-			/* loop back and try to connect now */
-			usleep(250000);
-			continue;
+			if (INVALID_FD(pipefd)) {
+				upsdebugx(1, "%s: failed to use PIPEFN='%s'", __func__, NUT_STRARG(pipefn));
+				fatalx(EXIT_FAILURE, "upssched timer is not running");
+			}
+		} else {
+			/* see if the parent needs to be started (and maybe start it) */
+			pipefd = check_parent(cmd, arg2);
+
+			if (pipefd == (TYPE_FD)PARENT_STARTED) {
+				/* loop back and try to connect now */
+				usleep(250000);
+				continue;
+			}
+
+			/* special case for CANCEL when no parent is running */
+			if (pipefd == (TYPE_FD)PARENT_UNNECESSARY)
+				return;
 		}
-
-		/* special case for CANCEL when no parent is running */
-		if (pipefd == (TYPE_FD)PARENT_UNNECESSARY)
-			return;
 
 		/* we're connected now */
 #ifndef WIN32
@@ -1087,9 +1744,15 @@ static void sendcmd(const char *cmd, const char *arg1, const char *arg2)
 
 		/* if we can't send the whole thing, loop back and try again */
 		if ((ret < 1) || (ret != (ssize_t)enclen)) {
-			upslogx(LOG_ERR, "write failed, trying again");
-			close(pipefd);
-			continue;
+			if (list_timers) {
+				upslogx(LOG_ERR, "write failed, daemon must have ended");
+				close(pipefd);
+				break;
+			} else {
+				upslogx(LOG_ERR, "write failed, trying again");
+				close(pipefd);
+				continue;
+			}
 		}
 
 		/* select on child's pipe fd */
@@ -1102,10 +1765,11 @@ static void sendcmd(const char *cmd, const char *arg1, const char *arg2)
 			FD_SET(pipefd, &fdread);
 
 			ret_s = select(pipefd + 1, &fdread, NULL, NULL, &tv);
+			upsdebugx(2, "%s: ret_s=%d", __func__, ret_s);
 			switch(ret_s) {
 				/* select error */
 				case -1:
-					upslogx(LOG_DEBUG, "parent select error: %s", strerror(errno));
+					upslog_with_errno(LOG_DEBUG, "parent select error");
 					break;
 
 				/* nothing to read */
@@ -1114,7 +1778,45 @@ static void sendcmd(const char *cmd, const char *arg1, const char *arg2)
 
 				/* available data to read */
 				default:
-					ret = read(pipefd, buf, sizeof(buf));
+					memset (buf, 0, sizeof (buf));
+					ret = read(pipefd, buf, sizeof(buf) - 1);
+					upsdebugx(2, "%s: ret=%" PRIiSIZE ": [%s]", __func__, ret, buf);
+
+					if (list_timers && ret > 0) {
+						/* ASSUME we see whole starting and/or ending lines
+						 * of the response within one read() operation
+						 */
+						char	*end = strstr(buf, "END LIST TIMERS\n"),
+								*ok = strstr(buf, "OK\n");
+
+						/* Require to continue the reading loop */
+						ret_s = -2;
+
+						if (end)
+							*end = '\0';
+						else {
+							end = strstr(buf, "\nEND");
+							if (end)
+								*(end+1) = '\0';
+						}
+
+						if (ok)
+							*ok = '\0';
+
+						if (!strncmp(buf, "BEGIN LIST TIMERS\n", 18)) {
+							printf("%s", buf + 18);
+						} else {
+							printf("%s", buf);
+						}
+
+						if (ok) {
+							ret = snprintf(buf, sizeof(buf), "%s", "OK\n\0");
+							ret_s = 1;
+						} else {
+							/* Let more of the response accumulate in the buffer */
+							usleep(250000);
+						}
+					}
 					break;
 			}
 		} while (ret_s <= 0);
@@ -1123,16 +1825,27 @@ static void sendcmd(const char *cmd, const char *arg1, const char *arg2)
 
 		/* same idea: no OK = go try it all again */
 		if (ret < 2) {
-			upslogx(LOG_ERR, "read confirmation failed, trying again");
-			continue;
+			if (list_timers) {
+				upslogx(LOG_ERR, "read confirmation failed, daemon must have ended");
+				break;
+			} else {
+				upslogx(LOG_ERR, "read confirmation failed, trying again");
+				continue;
+			}
 		}
 
 #else /* WIN32 */
 		ret = WriteFile(pipefd, enc, enclen, &bytesWritten, NULL);
 		if (ret == 0 || bytesWritten != enclen) {
-			upslogx(LOG_ERR, "write failed, trying again");
-			CloseHandle(pipefd);
-			continue;
+			if (list_timers) {
+				upslogx(LOG_ERR, "write failed, daemon must have ended");
+				CloseHandle(pipefd);
+				break;
+			} else {
+				upslogx(LOG_ERR, "write failed, trying again");
+				CloseHandle(pipefd);
+				continue;
+			}
 		}
 
 		OVERLAPPED read_overlapped;
@@ -1144,28 +1857,72 @@ static void sendcmd(const char *cmd, const char *arg1, const char *arg2)
 				FALSE, /* auto-reset*/
 				FALSE, /* inital state = non signaled*/
 				NULL /* no name*/);
-		if(read_overlapped.hEvent == NULL ) {
+		if (read_overlapped.hEvent == NULL) {
 			fatal_with_errno(EXIT_FAILURE, "Can't create event");
 		}
 
-		ReadFile(pipefd,buf,sizeof(buf)-1,NULL,&(read_overlapped));
+		/* Accommodate reading of longer replies like the loop above;
+		 * async (overlapped) read so not tracking bytesRead here, per
+		 * https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-readfile
+		 */
+		while (ReadFile(pipefd, buf, sizeof(buf)-1, NULL, &(read_overlapped))) {
+			ret = WaitForSingleObject(read_overlapped.hEvent, 2000);
 
-		ret = WaitForSingleObject(read_overlapped.hEvent,2000);
+			if (ret == WAIT_TIMEOUT || ret == WAIT_FAILED) {
+				if (list_timers) {
+					upslogx(LOG_ERR, "read confirmation failed, daemon must have ended");
+					CloseHandle(pipefd);
+					break;
+				} else {
+					upslogx(LOG_ERR, "read confirmation failed, trying again");
+					CloseHandle(pipefd);
+					continue;
+				}
+			}
 
-		if (ret == WAIT_TIMEOUT || ret == WAIT_FAILED) {
-			upslogx(LOG_ERR, "read confirmation failed, trying again");
-			CloseHandle(pipefd);
-			continue;
+			if (buf[0] == '\0')
+				break;
+
+			if (list_timers) {
+				/* ASSUME we see whole starting and/or ending lines
+				 * of the response within one read() operation
+				 */
+				char	*end = strstr(buf, "END LIST TIMERS\n"),
+						*ok = strstr(buf, "OK\n");
+
+				if (end)
+					*end = '\0';
+
+				if (ok)
+					*ok = '\0';
+
+				if (!strncmp(buf, "BEGIN LIST TIMERS\n", 18)) {
+					printf("%s", buf + 18);
+				} else {
+					printf("%s", buf);
+				}
+
+				if (ok) {
+					snprintf(buf, sizeof(buf), "OK\n");
+					break;
+				}
+			}
 		}
-#endif
+#endif /* WIN32 */
 
 		if (!strncmp(buf, "OK", 2))
 			return;		/* success */
 
 		upslogx(LOG_ERR, "read confirmation got [%s]", buf);
 
+		if (list_timers)
+			break;
+
 		/* try again ... */
 	}	/* loop until MAX_TRIES if no success above */
+
+	if (list_timers)
+		fatalx(EXIT_FAILURE, "Unable to connect to daemon or connection was broken during listing");
 
 	fatalx(EXIT_FAILURE, "Unable to connect to daemon and unable to start daemon");
 }
@@ -1190,41 +1947,85 @@ static void parse_at(const char *ntype, const char *un, const char *cmd,
 		fatalx(EXIT_FAILURE, "LOCKFN must be set before any ATs in the config file!");
 	}
 
-	/* check upsname: does this apply to us? */
-	if (strcmp(upsname, un) != 0)
-		if (strcmp(un, "*") != 0)
+	/* check ups_name: does this apply to us? */
+	upsdebugx(3, "%s: is '%s' in AT command the '%s' we were launched to process?",
+		__func__, un, ups_name);
+	if (strcmp(ups_name, un) != 0) {
+		if (strcmp(un, "*") != 0) {
+			upsdebugx(4, "%s: SKIP: '%s' in AT command "
+				"did not match the '%s' UPSNAME "
+				"we were launched to process",
+				__func__, un, ups_name);
 			return;		/* not for us, and not the wildcard */
+		} else {
+			upsdebugx(2, "%s: this AT command is for a wildcard: matched", __func__);
+		}
+	} else {
+		upsdebugx(2, "%s: '%s' in AT command matched the '%s' "
+			"UPSNAME we were launched to process",
+			__func__, un, ups_name);
+	}
 
 	/* see if the current notify type matches the one from the .conf */
-	if (strcasecmp(notify_type, ntype) != 0)
+	if (strcasecmp(notify_type, ntype) != 0) {
+		upsdebugx(4, "%s: SKIP: '%s' in AT command "
+			"did not match the '%s' NOTIFYTYPE "
+			"we were launched to process",
+			__func__, ntype, notify_type);
 		return;
+	}
 
 	/* if command is valid, send it to the daemon (which may start it) */
 
 	if (!strcmp(cmd, "START-TIMER")) {
+		upsdebugx(1, "%s: processing %s\t[%s]\t[%s]\t[%s]\t[%s]\t[%s]", __func__, cmd,
+			NUT_STRARG(ca1), NUT_STRARG(ca2),
+			NUT_STRARG(notify_type), NUT_STRARG(ups_name),
+			NUT_STRARG(notify_msg));
 		sendcmd("START", ca1, ca2);
 		return;
 	}
 
+	if (!strcmp(cmd, "START-TIMER-SHARED")) {
+		upsdebugx(1, "%s: processing %s\t[%s]\t[%s]\t[%s]\t[%s]\t[%s]", __func__, cmd,
+			NUT_STRARG(ca1), NUT_STRARG(ca2),
+			NUT_STRARG(notify_type), NUT_STRARG(ups_name),
+			NUT_STRARG(notify_msg));
+		sendcmd("START-SHARED", ca1, ca2);
+		return;
+	}
+
 	if (!strcmp(cmd, "CANCEL-TIMER")) {
+		upsdebugx(1, "%s: processing %s\t[%s]\t[%s]\t[%s]\t[%s]\t[%s]", __func__, cmd,
+			NUT_STRARG(ca1), NUT_STRARG(ca2),
+			NUT_STRARG(notify_type), NUT_STRARG(ups_name),
+			NUT_STRARG(notify_msg));
 		sendcmd("CANCEL", ca1, ca2);
 		return;
 	}
 
 	if (!strcmp(cmd, "EXECUTE")) {
+		upsdebugx(1, "%s: processing %s\t[%s]\t[%s]\t[%s]\t[%s]\t[%s]", __func__, cmd,
+			NUT_STRARG(ca1), NUT_STRARG(ca2),
+			NUT_STRARG(notify_type), NUT_STRARG(ups_name),
+			NUT_STRARG(notify_msg));
+
 		if (ca1[0] == '\0') {
 			upslogx(LOG_ERR, "Empty EXECUTE command argument");
 			return;
 		}
 
-		if (verbose)
+		if (nut_debug_level)
 			upslogx(LOG_INFO, "Executing command: %s", ca1);
 
 		exec_cmd(ca1);
 		return;
 	}
 
-	upslogx(LOG_ERR, "Invalid command: %s", cmd);
+	upslogx(LOG_ERR, "Invalid command: %s\t[%s]\t[%s]\t[%s]\t[%s]\t[%s]", cmd,
+			NUT_STRARG(ca1), NUT_STRARG(ca2),
+			NUT_STRARG(notify_type), NUT_STRARG(ups_name),
+			NUT_STRARG(notify_msg));
 }
 
 static int conf_arg(size_t numargs, char **arg)
@@ -1238,13 +2039,24 @@ static int conf_arg(size_t numargs, char **arg)
 		return 1;
 	}
 
+	/* DEBUG_MIN <num> */
+	if (!strcmp(arg[0], "DEBUG_MIN")) {
+		if (str_to_int(arg[1], &nut_debug_level_conf, 10)) {
+			if (nut_debug_level_conf > nut_debug_level) {
+				nut_debug_level = nut_debug_level_conf;
+				upsdebugx(1, "Applying debug_min=%d from upssched.conf", nut_debug_level);
+			}
+		}
+		return 1;
+	}
+
 	/* PIPEFN <pipename> */
 	if (!strcmp(arg[0], "PIPEFN")) {
 #ifndef WIN32
 		pipefn = xstrdup(arg[1]);
-#else
+#else	/* WIN32 */
 		pipefn = xstrdup("\\\\.\\pipe\\upssched");
-#endif
+#endif	/* WIN32 */
 		return 1;
 	}
 
@@ -1252,11 +2064,14 @@ static int conf_arg(size_t numargs, char **arg)
 	if (!strcmp(arg[0], "LOCKFN")) {
 #ifndef WIN32
 		lockfn = xstrdup(arg[1]);
-#else
+#else	/* WIN32 */
 		lockfn = filter_path(arg[1]);
-#endif
+#endif	/* WIN32 */
 		return 1;
 	}
+
+	if (list_timers)
+		return 2;
 
 	if (numargs < 5)
 		return 0;
@@ -1284,8 +2099,9 @@ static void upssched_err(const char *errmsg)
 
 static void checkconf(void)
 {
-	char	fn[SMALLBUF];
+	char	fn[NUT_PATH_MAX + 1];
 	PCONF_CTX_t	ctx;
+	int	numerrors = 0;
 
 	snprintf(fn, sizeof(fn), "%s/upssched.conf", confpath());
 
@@ -1300,12 +2116,18 @@ static void checkconf(void)
 		if (pconf_parse_error(&ctx)) {
 			upslogx(LOG_ERR, "Parse error: %s:%d: %s",
 				fn, ctx.linenum, ctx.errmsg);
+			numerrors++;
 			continue;
 		}
 
 		if (ctx.numargs < 1)
 			continue;
 
+		/* Note: for list_timers mode this only parses some config values
+		 * that are of interest for communications with the timer daemon
+		 * (e.g. PIPEFN), but for normal mode this also calls parse_at()
+		 * and does the actual work, as/when relevant, line by line.
+		 */
 		if (!conf_arg(ctx.numargs, ctx.arglist)) {
 			unsigned int	i;
 			char	errmsg[SMALLBUF];
@@ -1317,40 +2139,133 @@ static void checkconf(void)
 				snprintfcat(errmsg, sizeof(errmsg), " %s",
 					ctx.arglist[i]);
 
+			numerrors++;
 			upslogx(LOG_WARNING, "%s", errmsg);
 		}
+	}
+
+	if (list_timers) {
+		if (!pipefn || !(*pipefn)) {
+			fatalx(EXIT_FAILURE, "upssched.conf: invalid configuration for timer listing: lacks PIPEFN");
+		}
+
+		upsdebugx(1, "%s: processing LIST-TIMERS", __func__);
+
+		/* Here the send() also handles the response for this use-case */
+		sendcmd("LIST-TIMERS", NULL, NULL);
+	}
+
+	/* FIXME: Per legacy behavior, we silently went on.
+	 *  Maybe should abort on unusable configs?
+	 */
+	if (numerrors) {
+		upslogx(LOG_ERR, "Encountered %d config errors, those entries were ignored", numerrors);
 	}
 
 	pconf_finish(&ctx);
 }
 
+static void help(const char *arg_progname)
+	__attribute__((noreturn));
+
+static void help(const char *arg_progname)
+{
+	printf("upssched: upsmon's scheduling helper for offset timers\n");
+	printf("Practical behavior is managed by UPSNAME and NOTIFYTYPE envvars\n");
+
+	printf("\nUsage: %s [OPTIONS] [NOTIFYMSG]\n\n", arg_progname);
+	printf("  -D		raise debugging level (NOTE: keeps reporting when daemonized)\n");
+	printf("  -V		display the version of this software\n");
+	printf("  -h		display this help\n");
+	printf("  -l		display currently pending timers (if any)\n");
+
+	nut_report_config_flags();
+
+	printf("\n%s", suggest_doc_links(arg_progname, "upsmon.conf"));
+
+	exit(EXIT_SUCCESS);
+}
+
 int main(int argc, char **argv)
 {
-	const char	*prog = NULL;
-	/* More a use for argc to avoid warnings than a real need: */
-	if (argc > 0) {
-		xbasename(argv[0]);
-	} else {
-		xbasename("upssched");
+	int	i, argn = 0;
+
+	if (argc > 0)
+		prog = xbasename(argv[0]);
+	if (!prog)
+		prog = "upssched";
+
+	while ((i = getopt(argc, argv, "+DVhl")) != -1) {
+		argn++;
+		switch (i) {
+			case 'D':
+				nut_debug_level_args++;
+				break;
+
+			case 'h':
+				help(argv[0]);
+#ifndef HAVE___ATTRIBUTE__NORETURN
+				break;
+#endif
+
+			case 'l':
+				list_timers = 1;
+				break;
+
+			case 'V':
+				/* just show the optional CONFIG_FLAGS banner */
+				nut_report_config_flags();
+				exit(EXIT_SUCCESS);
+
+			default:
+				fatalx(EXIT_FAILURE,
+					"Error: unknown option -%c. Try -h for help.",
+					(char)i);
+		}
 	}
 
-	verbose = 1;		/* TODO: remove when done testing, or add -D */
+	nut_debug_level = nut_debug_level_args;
+	{ /* scoping */
+		char *s = getenv("NUT_DEBUG_LEVEL");
+		if (s && str_to_int(s, &nut_debug_level_env, 10)) {
+			if (nut_debug_level_env > 0 && nut_debug_level_args < 1) {
+				upslogx(LOG_INFO, "Defaulting debug verbosity to NUT_DEBUG_LEVEL=%d "
+					"since none was requested by command-line options", nut_debug_level_env);
+				nut_debug_level = nut_debug_level_env;
+			}	/* else follow -D and/or upssched.conf DEBUG_MIN settings */
+		}	/* else nothing to bother about */
+	}
 
 	/* normally we don't have stderr, so get this going to syslog early */
 	open_syslog(prog);
 	syslogbit_set();
 
-	upsname = getenv("UPSNAME");
+	ups_name = getenv("UPSNAME");
 	notify_type = getenv("NOTIFYTYPE");
+	upsdebugx(2, "Remaining argn=%d of argc=%d", argn, argc);
+	if (argc > argn + 1 && *argv[argn + 1])
+		notify_msg = argv[argn + 1];
 
-	if ((!upsname) || (!notify_type)) {
-		printf("Error: UPSNAME and NOTIFYTYPE must be set.\n");
-		printf("This program should only be run from upsmon.\n");
+	if ((!list_timers) && ((!ups_name) || (!notify_type))) {
+		printf("Error: environment variables UPSNAME and NOTIFYTYPE must be set.\n");
+		printf("This program should only be run from upsmon(%s).\n", MAN_SECTION_CMD_SYS);
 		exit(EXIT_FAILURE);
 	}
 
+	upsdebugx(1, "Handling NOTIFYTYPE='%s' for UPSNAME='%s'", notify_type, ups_name);
+	if (notify_msg)
+		upsdebugx(1, "Got a NOTIFYMSG from command line: %s", notify_msg);
+	else
+		upsdebugx(1, "Did not get any NOTIFYMSG from command line");
+
 	/* see if this matches anything in the config file */
+	/* This is actually the processing loop:
+	 * checkconf -> conf_arg -> parse_at -> sendcmd -> daemon if needed
+	 *  -> start_daemon -> conn_add(pipefd) or sock_read(conn)
+	 */
+	setproctag("cli");
 	checkconf();
 
+	upsdebugx(1, "Exiting upssched (CLI process)");
 	exit(EXIT_SUCCESS);
 }

@@ -15,9 +15,13 @@ AC_DEFUN([NUT_CHECK_ASCIIDOC],
 [
 if test -z "${nut_have_asciidoc_seen}"; then
 	nut_have_asciidoc_seen=yes
-	# Note: this is for both asciidoc and a2x at this time
-	ASCIIDOC_MIN_VERSION="8.6.3"
-	# Note: this is checked in the configure script if PDF is of interest at all
+	dnl # Note: this is typically same for both asciidoc and a2x:
+	dnl # most systems nowadays (2023) have both at 8.6.3 or newer.
+	dnl # Slackware 15 has asciidoc-8.1.0 and a2x-1.0.0 served in
+	dnl # a side-project repository...
+	ASCIIDOC_MIN_VERSION="8.1.0"
+	A2X_MIN_VERSION="1.0.0"
+	dnl # Note: this is checked in the configure script if PDF is of interest at all
 	DBLATEX_MIN_VERSION="0.2.5"
 
 	AC_PATH_PROGS([ASCIIDOC], [asciidoc])
@@ -67,7 +71,7 @@ if test -z "${nut_have_asciidoc_seen}"; then
 			dnl Some releases also report what flags they were compiled with as
 			dnl part of the version info, so the last-line match finds nothing.
 			dnl Also some builds return version data to stderr.
-			XMLLINT_VERSION="`${XMLLINT} --version 2>&1 | grep version`"
+			XMLLINT_VERSION="`${XMLLINT} --version 2>&1 | ${GREP} version`"
 			XMLLINT_VERSION="${XMLLINT_VERSION##* }"
 		fi
 		AC_MSG_RESULT(${XMLLINT_VERSION} found)
@@ -75,10 +79,6 @@ if test -z "${nut_have_asciidoc_seen}"; then
 
 	AC_PATH_PROGS([SOURCE_HIGHLIGHT], [source-highlight])
 	AM_CONDITIONAL([HAVE_SOURCE_HIGHLIGHT], [test -n "$SOURCE_HIGHLIGHT"])
-
-	dnl check for spell checking deps
-	AC_PATH_PROGS([ASPELL], [aspell])
-	AM_CONDITIONAL([HAVE_ASPELL], [test -n "$ASPELL"])
 
 	dnl Note that a common "nut_have_asciidoc" variable is in fact a flag
 	dnl that we have several tools needed for the documentation generation
@@ -92,8 +92,8 @@ if test -z "${nut_have_asciidoc_seen}"; then
 		nut_have_asciidoc="no"
 	])
 
-	AC_MSG_CHECKING([if a2x version can build manpages (minimum required ${ASCIIDOC_MIN_VERSION})])
-	AX_COMPARE_VERSION([${A2X_VERSION}], [ge], [${ASCIIDOC_MIN_VERSION}], [
+	AC_MSG_CHECKING([if a2x version can build manpages (minimum required ${A2X_MIN_VERSION})])
+	AX_COMPARE_VERSION([${A2X_VERSION}], [ge], [${A2X_MIN_VERSION}], [
 		AC_MSG_RESULT(yes)
 	], [
 		AC_MSG_RESULT(no)

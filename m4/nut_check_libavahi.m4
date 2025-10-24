@@ -7,11 +7,17 @@ AC_DEFUN([NUT_CHECK_LIBAVAHI],
 [
 if test -z "${nut_have_avahi_seen}"; then
 	nut_have_avahi_seen=yes
-	NUT_CHECK_PKGCONFIG
+	AC_REQUIRE([NUT_CHECK_PKGCONFIG])
 
 	dnl save CFLAGS and LIBS
 	CFLAGS_ORIG="${CFLAGS}"
 	LIBS_ORIG="${LIBS}"
+	CFLAGS=""
+	LIBS=""
+	depCFLAGS=""
+	depCFLAGS_SOURCE=""
+	depLIBS=""
+	depLIBS_SOURCE=""
 
 	AS_IF([test x"$have_PKG_CONFIG" = xyes],
 		[dnl See which version of the avahi library (if any) is installed
@@ -32,46 +38,40 @@ if test -z "${nut_have_avahi_seen}"; then
 	)
 
 	AC_MSG_CHECKING(for avahi cflags)
-	AC_ARG_WITH(avahi-includes,
-		AS_HELP_STRING([@<:@--with-avahi-includes=CFLAGS@:>@], [include flags for the avahi library]),
-	[
-		case "${withval}" in
-		yes|no)
-			AC_MSG_ERROR(invalid option --with(out)-avahi-includes - see docs/configure.txt)
-			;;
-		*)
-			CFLAGS="${withval}"
-			;;
-		esac
-	], [
-		AS_IF([test x"$have_PKG_CONFIG" = xyes],
-			[CFLAGS="`$PKG_CONFIG --silence-errors --cflags avahi-core avahi-client 2>/dev/null`" || CFLAGS="-I/usr/local/include -I/usr/include -L/usr/local/lib -L/usr/lib"],
-			[CFLAGS="-I/usr/local/include -I/usr/include -L/usr/local/lib -L/usr/lib"]
-		)]
+	NUT_ARG_WITH_LIBOPTS_INCLUDES([avahi], [auto])
+	AS_CASE([${nut_with_avahi_includes}],
+		[auto],	[AS_IF([test x"$have_PKG_CONFIG" = xyes],
+				[   { depCFLAGS="`$PKG_CONFIG --silence-errors --cflags avahi-core avahi-client 2>/dev/null`" \
+				      && depCFLAGS_SOURCE="pkg-config" ; } \
+				 || { depCFLAGS="-I/usr/local/include -I/usr/include -L/usr/local/lib -L/usr/lib" \
+				      && depCFLAGS_SOURCE="default" ; }],
+				[depCFLAGS="-I/usr/local/include -I/usr/include -L/usr/local/lib -L/usr/lib"
+				 depCFLAGS_SOURCE="default"]
+			)],
+				[depCFLAGS="${nut_with_avahi_includes}"
+				 depCFLAGS_SOURCE="confarg"]
 	)
-	AC_MSG_RESULT([${CFLAGS}])
+	AC_MSG_RESULT([${depCFLAGS} (source: ${depCFLAGS_SOURCE})])
 
 	AC_MSG_CHECKING(for avahi ldflags)
-	AC_ARG_WITH(avahi-libs,
-		AS_HELP_STRING([@<:@--with-avahi-libs=LIBS@:>@], [linker flags for the avahi library]),
-	[
-		case "${withval}" in
-		yes|no)
-			AC_MSG_ERROR(invalid option --with(out)-avahi-libs - see docs/configure.txt)
-			;;
-		*)
-			LIBS="${withval}"
-			;;
-		esac
-	], [
-		AS_IF([test x"$have_PKG_CONFIG" = xyes],
-			[LIBS="`$PKG_CONFIG --silence-errors --libs avahi-core avahi-client 2>/dev/null`" || LIBS="-lavahi-core -lavahi-client"],
-			[LIBS="-lavahi-core -lavahi-client"]
-		)]
+	NUT_ARG_WITH_LIBOPTS_LIBS([avahi], [auto])
+	AS_CASE([${nut_with_avahi_libs}],
+		[auto],	[AS_IF([test x"$have_PKG_CONFIG" = xyes],
+				[   { depLIBS="`$PKG_CONFIG --silence-errors --libs avahi-core avahi-client 2>/dev/null`" \
+				      && depLIBS_SOURCE="pkg-config" ; } \
+				 || { depLIBS="-lavahi-core -lavahi-client" \
+				      && depLIBS_SOURCE="default" ; }],
+				[depLIBS="-lavahi-core -lavahi-client"
+				 depLIBS_SOURCE="default"]
+			)],
+				[depLIBS="${nut_with_avahi_libs}"
+				 depLIBS_SOURCE="confarg"]
 	)
-	AC_MSG_RESULT([${LIBS}])
+	AC_MSG_RESULT([${depLIBS} (source: ${depLIBS_SOURCE})])
 
 	dnl check if avahi-core is usable
+	CFLAGS="${CFLAGS_ORIG} ${depCFLAGS}"
+	LIBS="${LIBS_ORIG} ${depLIBS}"
 	AC_CHECK_HEADERS(avahi-common/malloc.h, [nut_have_avahi=yes], [nut_have_avahi=no], [AC_INCLUDES_DEFAULT])
 	AC_CHECK_FUNCS(avahi_free, [], [nut_have_avahi=no])
 
@@ -80,10 +80,31 @@ if test -z "${nut_have_avahi_seen}"; then
 		AC_CHECK_HEADERS(avahi-client/client.h, [nut_have_avahi=yes], [nut_have_avahi=no], [AC_INCLUDES_DEFAULT])
 		AC_CHECK_FUNCS(avahi_client_new, [], [nut_have_avahi=no])
 		if test "${nut_have_avahi}" = "yes"; then
-			LIBAVAHI_CFLAGS="${CFLAGS}"
-			LIBAVAHI_LIBS="${LIBS}"
+			LIBAVAHI_CFLAGS="${depCFLAGS}"
+			LIBAVAHI_LIBS="${depLIBS}"
 		fi
+
+		dnl Help ltdl if we can (nut-scanner etc.)
+		for TOKEN in $depLIBS ; do
+			AS_CASE(["${TOKEN}"],
+				[-l*avahi*client*], [
+					AX_REALPATH_LIB([${TOKEN}], [SOPATH_LIBAVAHI], [])
+					AS_IF([test -n "${SOPATH_LIBAVAHI}" && test -s "${SOPATH_LIBAVAHI}"], [
+						AC_DEFINE_UNQUOTED([SOPATH_LIBAVAHI],["${SOPATH_LIBAVAHI}"],[Path to dynamic library on build system])
+						SOFILE_LIBAVAHI="`basename "$SOPATH_LIBAVAHI"`"
+						AC_DEFINE_UNQUOTED([SOFILE_LIBAVAHI],["${SOFILE_LIBAVAHI}"],[Base file name of dynamic library on build system])
+						break
+					])
+				]
+			)
+		done
+		unset TOKEN
 	fi
+
+	unset depCFLAGS
+	unset depLIBS
+	unset depCFLAGS_SOURCE
+	unset depLIBS_SOURCE
 
 	dnl restore original CFLAGS and LIBS
 	CFLAGS="${CFLAGS_ORIG}"

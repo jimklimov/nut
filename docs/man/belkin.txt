@@ -6,10 +6,14 @@ NAME
 
 belkin - Driver for Belkin serial UPS equipment
 
-NOTE
-----
+SYNOPSIS
+--------
 
-This man page only documents the hardware-specific features of the
+*belkin* -h
+
+*belkin* -a 'UPS_NAME' ['OPTIONS']
+
+NOTE: This man page only documents the hardware-specific features of the
 belkin driver.  For information about the core driver, see
 linkman:nutupsdrv[8].
 
@@ -38,7 +42,7 @@ There are dragons lurking within the protocol to this UPS.  I have one
 that essentially behaves like a glorified power strip due to some
 invasive probing on my part.  Don't mess with it directly.
 
-NOTE: the driver doesn't go anywhere near these character sequences,
+NOTE: The driver doesn't go anywhere near these character sequences,
 so it won't zap your UPS.  I only mention this here as yet another
 reminder of the perils of closed hardware.
 
@@ -61,4 +65,4 @@ linkman:usbhid-ups[8]
 Internet resources:
 ~~~~~~~~~~~~~~~~~~~
 
-The NUT (Network UPS Tools) home page: http://www.networkupstools.org/
+The NUT (Network UPS Tools) home page: https://www.networkupstools.org/

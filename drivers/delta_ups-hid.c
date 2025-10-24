@@ -33,13 +33,13 @@
 #define DELTA_UPS_HID_VERSION	"Delta UPS HID 0.6"
 
 /* Delta UPS */
-#define DELTA_UPS_VENDORID	0x05dd
+#define DELTA_VENDORID	0x05dd
 
 /* USB IDs device table */
 static usb_device_id_t delta_ups_usb_device_table[] = {
 	/* Delta RT Series, Single Phase, 1/2/3 kVA */
 	/* Delta UPS Amplon R Series, Single Phase UPS, 1/2/3 kVA */
-	{ USB_DEVICE(DELTA_UPS_VENDORID, 0x041b), NULL },
+	{ USB_DEVICE(DELTA_VENDORID, 0x041b), NULL },
 
 	/* Terminating entry */
 	{ 0, 0, NULL }
@@ -178,7 +178,7 @@ static hid_info_t delta_ups_hid2nut[] = {
 	{ "input.transfer.low.max", 0, 0, "UPS.PowerConverter.Output.DeltaConfigTransferLowMax", NULL, "%.1f", HU_FLAG_STATIC, NULL },
 	{ "input.transfer.high.min", 0, 0, "UPS.PowerConverter.Output.DeltaConfigTransferHighMin", NULL, "%.1f", HU_FLAG_STATIC, NULL },
 	{ "input.transfer.high.max", 0, 0, "UPS.PowerConverter.Output.DeltaConfigTransferHighMax", NULL, "%.1f", HU_FLAG_STATIC, NULL },
-	/* FIXME: Check vs hardware, is this an "input" or "outlet/outpu" value after all? */
+	/* FIXME: Check vs. hardware, is this an "input" or "outlet/outpu" value after all? */
 	{ "input.source", 0, 0, "UPS.OutletSystem.Outlet.DeltaOutputSource", NULL, "%s", 0, delta_ups_output_source_info },
 	{ "input.frequency", 0, 0, "UPS.PowerConverter.Input.Frequency", NULL, "%.1f", HU_FLAG_QUICK_POLL, NULL },
 

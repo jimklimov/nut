@@ -12,13 +12,20 @@ AC_DEFUN([NUT_CHECK_LIBUSB],
 [
 if test -z "${nut_have_libusb_seen}"; then
 	nut_have_libusb_seen=yes
-	NUT_CHECK_PKGCONFIG
+	AC_REQUIRE([NUT_CHECK_PKGCONFIG])
+
+	dnl Our USB matching relies on regex abilities
+	AC_REQUIRE([NUT_CHECK_LIBREGEX])
 
 	dnl save CFLAGS and LIBS
 	CFLAGS_ORIG="${CFLAGS}"
 	LIBS_ORIG="${LIBS}"
 	CFLAGS=""
 	LIBS=""
+	depCFLAGS=""
+	depCFLAGS_SOURCE=""
+	depLIBS=""
+	depLIBS_SOURCE=""
 
 	dnl Magic-format string to hold chosen libusb version and its config-source
 	nut_usb_lib=""
@@ -46,24 +53,8 @@ if test -z "${nut_have_libusb_seen}"; then
 
 	dnl Note: it seems the script was only shipped for libusb-0.1
 	dnl So we don't separate into LIBUSB_0_1_CONFIG and LIBUSB_1_0_CONFIG
-	AC_PATH_PROGS([LIBUSB_CONFIG], [libusb-config], [none])
-
-	AC_ARG_WITH(libusb-config,
-		AS_HELP_STRING([@<:@--with-libusb-config=/path/to/libusb-config@:>@],
-			[path to program that reports LibUSB configuration]), dnl ...for LibUSB-0.1
-		[
-			AS_CASE(["${withval}"],
-				[""], [], dnl empty arg
-				[yes|no], [
-					dnl MAYBE bump preference of script over pkg-config?
-					AC_MSG_ERROR([invalid option --with(out)-libusb-config - see docs/configure.txt])
-				],
-				[dnl default
-				LIBUSB_CONFIG="${withval}"
-				]
-			)
-		]
-	)
+	dnl MAYBE bump preference of a found script over pkg-config?
+	NUT_ARG_WITH_LIBOPTS_CONFIGSCRIPT([libusb], [], [], [], [LibUSB(-0.1)])
 
 	AS_IF([test x"${LIBUSB_CONFIG}" != xnone],
 		[AC_MSG_CHECKING([via ${LIBUSB_CONFIG}])
@@ -81,13 +72,23 @@ if test -z "${nut_have_libusb_seen}"; then
 		 nut_usb_lib="(libusb-1.0)"
 		 dnl ...except on Windows, where we support libusb-0.1(-compat)
 		 dnl better so far (allow manual specification though, to let
-		 dnl someone finally develop the on-par support):
+		 dnl someone finally develop the on-par support), see also
+		 dnl https://github.com/networkupstools/nut/issues/1507
+		 dnl Note this may upset detection of libmodbus RTU USB support.
 		 AS_IF([test x"${LIBUSB_0_1_VERSION}" != xnone], [
 			AS_CASE(["${target_os}"],
 				[*mingw*], [
-					AC_MSG_NOTICE([mingw builds prefer libusb-0.1(-compat) if available])
-					LIBUSB_VERSION="${LIBUSB_0_1_VERSION}"
-					nut_usb_lib="(libusb-0.1)"
+					AS_IF([test x"$build" = x"$host"], [
+						AS_IF([test "${nut_with_modbus_and_usb}" = "yes"], [
+							AC_MSG_NOTICE(["Normally" mingw/MSYS2 native builds prefer libusb-0.1(-compat) over libusb-1.0 if both are available, but you requested --with-modbus+usb so preferring libusb-1.0 in this build])
+						], [
+							AC_MSG_NOTICE([mingw/MSYS2 native builds prefer libusb-0.1(-compat) over libusb-1.0 if both are available until https://github.com/networkupstools/nut/issues/1507 is solved])
+							LIBUSB_VERSION="${LIBUSB_0_1_VERSION}"
+							nut_usb_lib="(libusb-0.1)"
+						])
+						],[
+						AC_MSG_NOTICE([mingw cross-builds prefer libusb-1.0 over libusb-0.1(-compat) if both are available])
+						])
 					])
 				]
 			)
@@ -106,7 +107,7 @@ if test -z "${nut_have_libusb_seen}"; then
 	)
 
 	dnl Pick up the default or caller-provided choice here from
-	dnl NUT_ARG_WITH(usb, ...) in the main configure.ac script
+	dnl NUT-ARG-WITH(usb, ...) in the main configure.ac script
 	AC_MSG_CHECKING([for libusb preferred version])
 	AS_CASE(["${nut_with_usb}"],
 		[auto], [], dnl Use preference picked above
@@ -147,61 +148,59 @@ if test -z "${nut_have_libusb_seen}"; then
 	dnl and *then* pick one set of values to use?
 	AS_CASE([${nut_usb_lib}],
 		["(libusb-1.0)"], [
-			CFLAGS="`$PKG_CONFIG --silence-errors --cflags libusb-1.0 2>/dev/null`"
-			LIBS="`$PKG_CONFIG --silence-errors --libs libusb-1.0 2>/dev/null`"
+			depCFLAGS="`$PKG_CONFIG --silence-errors --cflags libusb-1.0 2>/dev/null`"
+			depLIBS="`$PKG_CONFIG --silence-errors --libs libusb-1.0 2>/dev/null`"
+			depCFLAGS_SOURCE="pkg-config(libusb-1.0)"
+			depLIBS_SOURCE="pkg-config(libusb-1.0)"
 			],
 		["(libusb-0.1)"], [
-			CFLAGS="`$PKG_CONFIG --silence-errors --cflags libusb 2>/dev/null`"
-			LIBS="`$PKG_CONFIG --silence-errors --libs libusb 2>/dev/null`"
+			depCFLAGS="`$PKG_CONFIG --silence-errors --cflags libusb 2>/dev/null`"
+			depLIBS="`$PKG_CONFIG --silence-errors --libs libusb 2>/dev/null`"
+			depCFLAGS_SOURCE="pkg-config(libusb-0.1)"
+			depLIBS_SOURCE="pkg-config(libusb-0.1)"
 			],
 		["(libusb-0.1-config)"], [
-			CFLAGS="`$LIBUSB_CONFIG --cflags 2>/dev/null`"
-			LIBS="`$LIBUSB_CONFIG --libs 2>/dev/null`"
+			depCFLAGS="`$LIBUSB_CONFIG --cflags 2>/dev/null`"
+			depLIBS="`$LIBUSB_CONFIG --libs 2>/dev/null`"
+			depCFLAGS_SOURCE="${LIBUSB_CONFIG} program (libusb-0.1)"
+			depLIBS_SOURCE="${LIBUSB_CONFIG} program (libusb-0.1)"
 			],
 		[dnl default, for other versions or "none"
 			AC_MSG_WARN([Defaulting libusb configuration])
 			LIBUSB_VERSION="none"
-			CFLAGS=""
-			LIBS="-lusb"
+			depCFLAGS=""
+			depLIBS="-lusb"
+			depCFLAGS_SOURCE="default"
+			depLIBS_SOURCE="default"
 		]
 	)
 
 	dnl check optional user-provided values for cflags/ldflags
 	dnl and publish what we end up using
 	AC_MSG_CHECKING(for libusb cflags)
-	AC_ARG_WITH(usb-includes,
-		AS_HELP_STRING([@<:@--with-usb-includes=CFLAGS@:>@], [include flags for the libusb library]),
-	[
-		AS_CASE(["${withval}"],
-			[yes|no], [
-				AC_MSG_ERROR(invalid option --with(out)-usb-includes - see docs/configure.txt)
-			],
-			[dnl default
-				CFLAGS="${withval}"
-			]
-		)
-	], [])
-	AC_MSG_RESULT([${CFLAGS}])
+	NUT_ARG_WITH_LIBOPTS_INCLUDES([usb], [auto], [libusb])
+	AS_CASE([${nut_with_usb_includes}],
+		[auto], [],	dnl Keep what we had found above
+			[depCFLAGS="${nut_with_usb_includes}"
+			 depCFLAGS_SOURCE="confarg"]
+	)
+	AC_MSG_RESULT([${depCFLAGS} (source: ${depCFLAGS_SOURCE})])
 
 	AC_MSG_CHECKING(for libusb ldflags)
-	AC_ARG_WITH(usb-libs,
-		AS_HELP_STRING([@<:@--with-usb-libs=LIBS@:>@], [linker flags for the libusb library]),
-	[
-		AS_CASE(["${withval}"],
-			[yes|no], [
-				AC_MSG_ERROR(invalid option --with(out)-usb-libs - see docs/configure.txt)
-			],
-			[dnl default
-				LIBS="${withval}"
-			]
-		)
-	], [])
-	AC_MSG_RESULT([${LIBS}])
+	NUT_ARG_WITH_LIBOPTS_LIBS([usb], [auto], [libusb])
+	AS_CASE([${nut_with_usb_libs}],
+		[auto], [],	dnl Keep what we had found above
+			[depLIBS="${nut_with_usb_libs}"
+			 depLIBS_SOURCE="confarg"]
+	)
+	AC_MSG_RESULT([${depLIBS} (source: ${depLIBS_SOURCE})])
 
 	dnl TODO: Consult chosen nut_usb_lib value and/or nut_with_usb argument
 	dnl (with "auto" we may use a 0.1 if present and working while a 1.0 is
 	dnl present but useless)
 	dnl Check if libusb is usable
+	CFLAGS="${CFLAGS_ORIG} ${depCFLAGS}"
+	LIBS="${LIBS_ORIG} ${depLIBS}"
 	AC_LANG_PUSH([C])
 	if test -n "${LIBUSB_VERSION}"; then
 		dnl Test specifically for libusb-1.0 via pkg-config, else fall back below
@@ -255,16 +254,18 @@ if test -z "${nut_have_libusb_seen}"; then
 				dnl paths, but not the pkg-config or libusb-config data
 				AS_IF([test "${nut_have_libusb}" = "yes" && test "$LIBUSB_VERSION" = "none" && test -z "$LIBS" -o x"$LIBS" = x"-lusb" ],
 					[AC_MSG_CHECKING([if libusb is just present in path])
-					 LIBS="-L/usr/lib -L/usr/local/lib -lusb"
+					 depLIBS="-L/usr/lib -L/usr/local/lib -lusb"
 					 dnl TODO: Detect bitness for trying /mingw32 or /usr/$ARCH as well?
 					 dnl This currently caters to mingw-w64-x86_64-libusb-win32 of MSYS2:
 					 AS_CASE(["${target_os}"],
-						[*mingw*], [LIBS="-L/mingw64/lib $LIBS"])
+						[*mingw*], [depLIBS="-L/mingw64/lib $depLIBS"])
 					 unset ac_cv_func_usb_init || true
+					 LIBS="${LIBS_ORIG} ${depLIBS}"
 					 AC_CHECK_FUNCS(usb_init, [], [
 						AC_MSG_CHECKING([if libusb0 is just present in path])
-						LIBS="$LIBS"0
+						depLIBS="$depLIBS"0
 						unset ac_cv_func_usb_init || true
+						LIBS="${LIBS_ORIG} ${depLIBS}"
 						AC_CHECK_FUNCS(usb_init, [nut_usb_lib="(libusb-0.1)"], [nut_have_libusb=no])
 						])
 					 AC_MSG_RESULT([${nut_have_libusb}])
@@ -286,6 +287,7 @@ if test -z "${nut_have_libusb_seen}"; then
 		nut_have_libusb=no
 	fi
 
+	nut_with_usb_busport=no
 	AS_IF([test "${nut_have_libusb}" = "yes"], [
 		dnl ----------------------------------------------------------------------
 		dnl additional USB-related checks
@@ -305,28 +307,48 @@ if test -z "${nut_have_libusb_seen}"; then
 			[solaris2.1*], [
 				AC_MSG_CHECKING([for Solaris 10 / 11 specific configuration for usb drivers])
 				AC_SEARCH_LIBS(nanosleep, rt)
-				LIBS="-R/usr/sfw/lib ${LIBS}"
+				dnl Collect possibly updated dependencies after AC SEARCH LIBS:
+				AS_IF([test x"${LIBS}" != x"${LIBS_ORIG} ${depLIBS}"], [
+					AS_IF([test x = x"${LIBS_ORIG}"], [depLIBS="$LIBS"], [
+						depLIBS="`echo "$LIBS" | sed -e 's|'"${LIBS_ORIG}"'| |' -e 's|^ *||' -e 's| *$||'`"
+					])
+				])
+				depLIBS="-R/usr/sfw/lib ${depLIBS}"
 				dnl FIXME: Sun's libusb doesn't support timeout (so blocks notification)
 				dnl and need to call libusb close upon reconnection
 				dnl TODO: Somehow test for susceptible versions?
 				AC_DEFINE(SUN_LIBUSB, 1, [Define to 1 for Sun version of the libusb.])
 				SUN_LIBUSB=1
-				AC_MSG_RESULT([${LIBS}])
+				AC_MSG_RESULT([${depLIBS}])
 				],
 			[hpux11*], [
-				CFLAGS="${CFLAGS} -lpthread"
+				depCFLAGS="${depCFLAGS} -lpthread"
 				]
 		)
 
-		dnl # With USB we can match desired devices by regex;
-		dnl # and currently have no other use for the library:
-		AC_SEARCH_LIBS(regcomp, regex)
+		CFLAGS="${CFLAGS_ORIG} ${depCFLAGS}"
+		LIBS="${LIBS_ORIG} ${depLIBS}"
+
+		dnl AC_MSG_CHECKING([for libusb bus port support])
+		dnl Per https://github.com/networkupstools/nut/issues/2043#issuecomment-1721856494 :
+		dnl #if defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000102)
+		dnl DEFINE WITH_USB_BUSPORT
+		dnl #endif
+		AC_CHECK_FUNCS(libusb_get_port_number, [nut_with_usb_busport=yes])
 	])
 	AC_LANG_POP([C])
 
+	AS_IF([test x"${nut_with_usb_busport}" = xyes], [
+		AC_DEFINE(WITH_USB_BUSPORT, 1,
+			[Define to 1 for libusb versions where we can support "busport" USB matching value.])
+	], [
+		AC_DEFINE(WITH_USB_BUSPORT, 0,
+			[Define to 1 for libusb versions where we can support "busport" USB matching value.])
+	])
+
 	AS_IF([test "${nut_have_libusb}" = "yes"], [
-		LIBUSB_CFLAGS="${CFLAGS}"
-		LIBUSB_LIBS="${LIBS}"
+		LIBUSB_CFLAGS="${depCFLAGS}"
+		LIBUSB_LIBS="${depLIBS}"
 	], [
 		AS_CASE(["${nut_with_usb}"],
 			[no|auto], [],
@@ -346,9 +368,11 @@ if test -z "${nut_have_libusb_seen}"; then
 		nut_with_usb="${nut_have_libusb}"
 	fi
 
-	dnl AC_MSG_NOTICE([DEBUG: nut_have_libusb='${nut_have_libusb}'])
-	dnl AC_MSG_NOTICE([DEBUG: nut_with_usb='${nut_with_usb}'])
-	dnl AC_MSG_NOTICE([DEBUG: nut_usb_lib='${nut_usb_lib}'])
+	AS_IF([test x"${nut_enable_configure_debug}" = xyes], [
+		AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) nut_have_libusb='${nut_have_libusb}'])
+		AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) nut_with_usb='${nut_with_usb}'])
+		AC_MSG_NOTICE([(CONFIGURE-DEVEL-DEBUG) nut_usb_lib='${nut_usb_lib}'])
+	])
 
 	dnl Note: AC_DEFINE specifies a verbatim "value" so we pre-calculate it!
 	dnl Source code should be careful to use "#if" and not "#ifdef" when
@@ -356,17 +380,56 @@ if test -z "${nut_have_libusb_seen}"; then
 	dnl with some value.
 	AS_IF([test "${nut_with_usb}" = "yes" && test "${nut_usb_lib}" = "(libusb-1.0)"],
 		[AC_DEFINE([WITH_LIBUSB_1_0], [1],
-			[Define to 1 for version 1.0 of the libusb (via pkg-config).])],
+			[Define to 1 for version 1.0 of the libusb (via pkg-config).])
+
+		 dnl Help ltdl if we can (nut-scanner etc.)
+		 for TOKEN in $depLIBS ; do
+			AS_CASE(["${TOKEN}"],
+				[-l*usb*], [
+					AX_REALPATH_LIB([${TOKEN}], [SOPATH_LIBUSB1], [])
+					AS_IF([test -n "${SOPATH_LIBUSB1}" && test -s "${SOPATH_LIBUSB1}"], [
+						AC_DEFINE_UNQUOTED([SOPATH_LIBUSB1],["${SOPATH_LIBUSB1}"],[Path to dynamic library on build system])
+						SOFILE_LIBUSB1="`basename "$SOPATH_LIBUSB1"`"
+						AC_DEFINE_UNQUOTED([SOFILE_LIBUSB1],["${SOFILE_LIBUSB1}"],[Base file name of dynamic library on build system])
+						break
+					])
+				]
+			)
+		 done
+		 unset TOKEN
+		],
 		[AC_DEFINE([WITH_LIBUSB_1_0], [0],
 			[Define to 1 for version 1.0 of the libusb (via pkg-config).])]
 	)
 
 	AS_IF([test "${nut_with_usb}" = "yes" && test "${nut_usb_lib}" = "(libusb-0.1)" -o "${nut_usb_lib}" = "(libusb-0.1-config)"],
 		[AC_DEFINE([WITH_LIBUSB_0_1], [1],
-			[Define to 1 for version 0.1 of the libusb (via pkg-config or libusb-config).])],
+			[Define to 1 for version 0.1 of the libusb (via pkg-config or libusb-config).])
+
+		 dnl Help ltdl if we can (nut-scanner etc.)
+		 for TOKEN in $depLIBS ; do
+			AS_CASE(["${TOKEN}"],
+				[-l*usb*], [
+					AX_REALPATH_LIB([${TOKEN}], [SOPATH_LIBUSB0], [])
+					AS_IF([test -n "${SOPATH_LIBUSB0}" && test -s "${SOPATH_LIBUSB0}"], [
+						AC_DEFINE_UNQUOTED([SOPATH_LIBUSB0],["${SOPATH_LIBUSB0}"],[Path to dynamic library on build system])
+						SOFILE_LIBUSB0="`basename "$SOPATH_LIBUSB0"`"
+						AC_DEFINE_UNQUOTED([SOFILE_LIBUSB0],["${SOFILE_LIBUSB0}"],[Base file name of dynamic library on build system])
+						break
+					])
+				]
+			)
+		 done
+		 unset TOKEN
+		],
 		[AC_DEFINE([WITH_LIBUSB_0_1], [0],
 			[Define to 1 for version 0.1 of the libusb (via pkg-config or libusb-config).])]
 	)
+
+	unset depCFLAGS
+	unset depLIBS
+	unset depCFLAGS_SOURCE
+	unset depLIBS_SOURCE
 
 	dnl restore original CFLAGS and LIBS
 	CFLAGS="${CFLAGS_ORIG}"

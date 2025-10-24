@@ -57,7 +57,7 @@
 #include <ctype.h>
 #ifndef WIN32
 #include <sys/ioctl.h>
-#endif
+#endif	/* !WIN32 */
 #include "timehead.h"
 #include "main.h"
 #include "serial.h"
@@ -69,7 +69,7 @@
 /* --------------------------------------------------------------- */
 
 #define DRIVER_NAME	"MGE UPS SYSTEMS/U-Talk driver"
-#define DRIVER_VERSION	"0.94"
+#define DRIVER_VERSION	"0.101"
 
 
 /* driver description structure */
@@ -166,10 +166,9 @@ void upsdrv_makevartable(void)
 
 void upsdrv_initups(void)
 {
-	char buf[BUFFLEN];
 #ifndef WIN32
 	int RTS = TIOCM_RTS;
-#endif
+#endif	/* !WIN32 */
 
 	upsfd = ser_open(device_path);
 	ser_set_speed(upsfd, device_path, B2400);
@@ -179,17 +178,44 @@ void upsdrv_initups(void)
 	if (testvar ("oldmac"))
 		RTS = ~TIOCM_RTS;
 
+	/* TOTHINK: This looks like comms with the device and may belong in
+	 * upsdrv_initinfo(). But in upsdrv_cleanup() we have disable_ups_comm()
+	 * at least, which gets registered and might get called before initinfo.
+	 */
+
 	/* Init serial line */
 	ioctl(upsfd, TIOCMBIC, &RTS);
-#else
+#else	/* WIN32 */
 	if (testvar ("oldmac")) {
 		EscapeCommFunction(((serial_handler_t *)upsfd)->handle,CLRRTS);
 	}
 	else {
 		EscapeCommFunction(((serial_handler_t *)upsfd)->handle,SETRTS);
 	}
-#endif
+#endif	/* WIN32 */
 	enable_ups_comm();
+}
+
+/* --------------------------------------------------------------- */
+
+void upsdrv_initinfo(void)
+{
+	char buf[BUFFLEN];
+	const char *model = NULL;
+	char *firmware = NULL;
+	char *p;
+	char *v = NULL;  /* for parsing Si output, get Version ID */
+	int  table;
+	int  tries;
+	int  status_ok = 0;
+	ssize_t  bytes_rcvd;
+	int  si_data1 = 0;
+	int  si_data2 = 0;
+	mge_info_item_t *item;
+	models_name_t *model_info;
+	mge_model_info_t *legacy_model;
+	char infostr[32];
+	ssize_t  chars_rcvd;
 
 	/* Try to set "Low Battery Level" (if supported and given) */
 	if (getval ("lowbatt"))
@@ -226,28 +252,6 @@ void upsdrv_initups(void)
 		else
 			upsdebugx(1, "initups: OffDelay unavailable");
 	}
-}
-
-/* --------------------------------------------------------------- */
-
-void upsdrv_initinfo(void)
-{
-	char buf[BUFFLEN];
-	const char *model = NULL;
-	char *firmware = NULL;
-	char *p;
-	char *v = NULL;  /* for parsing Si output, get Version ID */
-	int  table;
-	int  tries;
-	int  status_ok = 0;
-	ssize_t  bytes_rcvd;
-	int  si_data1 = 0;
-	int  si_data2 = 0;
-	mge_info_item_t *item;
-	models_name_t *model_info;
-	mge_model_info_t *legacy_model;
-	char infostr[32];
-	ssize_t  chars_rcvd;
 
 	/* manufacturer -------------------------------------------- */
 	dstate_setinfo("ups.mfr", "MGE UPS SYSTEMS");
@@ -477,8 +481,29 @@ void upsdrv_updateinfo(void)
 
 void upsdrv_shutdown(void)
 {
-	char buf[BUFFLEN];
-	/*  static time_t lastcmd = 0; */
+	/* Only implement "shutdown.default"; do not invoke
+	 * general handling of other `sdcommands` here */
+
+	char	buf[BUFFLEN];
+	/* static time_t	lastcmd = 0; */
+
+	/* We can enter this method either by handling of INSTCMD (whether it
+	 * was called by user, or by ourselves here via loop method), or by
+	 * handling of `drivername -k`. Avoid infinite loops with this flag
+	 * here and with handling_instcmd_shutdown above.
+	 */
+	static char	already_shutting_down = 0;
+
+	if (already_shutting_down)
+		return;
+
+	already_shutting_down = 1;
+
+	/* Here we are if handling explicit INSTCMD to shut down,
+	 * or this method was called and works to handle default
+	 * "sdcommands", or is recursively called with a custom
+	 * value of "sdcommands" pointing here.
+	 */
 	memset(buf, 0, sizeof(buf));
 
 	if (sdtype == SD_RETURN) {
@@ -488,8 +513,8 @@ void upsdrv_shutdown(void)
 		upslogx(LOG_INFO, "UPS response to Automatic Restart was %s", buf);
 	}
 
-	/* Only call the effective shutoff if restart is ok */
-	/* or if we need only a stayoff... */
+	/* Only call the effective shutoff if restart is ok,
+	 * or if we need (caller asked for) only a stayoff... */
 	if (!strcmp(buf, "OK") || (sdtype == SD_STAYOFF)) {
 		/* shutdown UPS */
 		mge_command(buf, sizeof(buf), "Sx 0");
@@ -498,13 +523,23 @@ void upsdrv_shutdown(void)
 	}
 /*	if(strcmp(buf, "OK")) */
 
-	/* call the cleanup to disable/close the comm link */
-	upsdrv_cleanup();
+	if (handling_upsdrv_shutdown > 0) {
+		/* call the cleanup to disable/close the comm link */
+		upsdrv_cleanup();
+	} else {
+		/* Reset the flags if driver is not going down */
+		already_shutting_down = 0;
+	}
 }
 
 /* --------------------------------------------------------------- */
 
 void upsdrv_help(void)
+{
+}
+
+/* optionally tweak prognames[] entries */
+void upsdrv_tweak_prognames(void)
 {
 }
 
@@ -517,9 +552,15 @@ int instcmd(const char *cmdname, const char *extra)
 {
 	char temp[BUFFLEN];
 
+	/* May be used in logging below, but not as a command argument */
+	NUT_UNUSED_VARIABLE(extra);
+	upsdebug_INSTCMD_STARTING(cmdname, extra);
+
 	/* Start battery test */
 	if (!strcasecmp(cmdname, "test.battery.start"))
 	{
+		upslog_INSTCMD_POWERSTATE_MAYBE(cmdname, extra);
+
 		mge_command(temp, sizeof(temp), "Bx 1");
 		upsdebugx(2, "UPS response to %s was %s", cmdname, temp);
 
@@ -545,18 +586,22 @@ int instcmd(const char *cmdname, const char *extra)
 	if (!strcasecmp(cmdname, "shutdown.stayoff"))
 	{
 		sdtype = SD_STAYOFF;
+		upslog_INSTCMD_POWERSTATE_CHANGE(cmdname, extra);
 		upsdrv_shutdown();
 	}
 
 	if (!strcasecmp(cmdname, "shutdown.return"))
 	{
 		sdtype = SD_RETURN;
+		upslog_INSTCMD_POWERSTATE_CHANGE(cmdname, extra);
 		upsdrv_shutdown();
 	}
 
 	/* Power Off [all] plugs */
 	if (!strcasecmp(cmdname, "load.off"))
 	{
+		upslog_INSTCMD_POWERSTATE_CHANGE(cmdname, extra);
+
 		/* TODO: Powershare (per plug) control */
 		mge_command(temp, sizeof(temp), "Wy 65535");
 		upsdebugx(2, "UPS response to Select All Plugs was %s", temp);
@@ -577,6 +622,8 @@ int instcmd(const char *cmdname, const char *extra)
 	/* Power On all plugs */
 	if (!strcasecmp(cmdname, "load.on"))
 	{
+		upslog_INSTCMD_POWERSTATE_MAYBE(cmdname, extra);
+
 		/* TODO: add per plug control */
 		mge_command(temp, sizeof(temp), "Wy 65535");
 		upsdebugx(2, "UPS response to Select All Plugs was %s", temp);
@@ -596,10 +643,11 @@ int instcmd(const char *cmdname, const char *extra)
 
 	/* Switch on/off Maintenance Bypass */
 	if ((!strcasecmp(cmdname, "bypass.start"))
-		|| (!strcasecmp(cmdname, "bypass.stop")))
+	 || (!strcasecmp(cmdname, "bypass.stop")))
 	{
 		/* TODO: add control on bypass value */
 		/* read maintenance bypass status */
+		upslog_INSTCMD_POWERSTATE_MAYBE(cmdname, extra);
 		if(mge_command(temp, sizeof(temp), "Ps") > 0)
 		{
 			if (temp[0] == '1')
@@ -622,7 +670,7 @@ int instcmd(const char *cmdname, const char *extra)
 		}
 	}
 
-	upslogx(LOG_NOTICE, "instcmd: unknown command [%s] [%s]", cmdname, extra);
+	upslog_INSTCMD_UNKNOWN(cmdname, extra);
 	return STAT_INSTCMD_UNKNOWN;
 }
 
@@ -633,6 +681,8 @@ int setvar(const char *varname, const char *val)
 {
 	char temp[BUFFLEN];
 	char cmd[15];
+
+	upsdebug_SET_STARTING(varname, val);
 
 	/* TODO : add some controls */
 
@@ -645,9 +695,11 @@ int setvar(const char *varname, const char *val)
 		/* Execute command */
 		mge_command(temp, sizeof(temp), cmd);
 		upslogx(LOG_INFO, "setvar: UPS response to Set %s to %s was %s", varname, val, temp);
-	} else
-		upsdebugx(1, "setvar: Variable %s not supported by UPS", varname);
+		return STAT_SET_HANDLED;
+	}
 
+	upsdebugx(1, "setvar: Variable %s not supported by UPS", varname);
+	upslog_SET_UNKNOWN(varname, val);
 	return STAT_SET_UNKNOWN;
 }
 
@@ -705,6 +757,10 @@ static void extract_info(const char *buf, const mge_info_item_t *item,
 #ifdef HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_FORMAT_SECURITY
 #pragma GCC diagnostic ignored "-Wformat-security"
 #endif
+	/* Note: Not converting to hardened NUT methods with dynamic
+	 * format string checking, this one is used locally with
+	 * fixed strings from the mge_info[] mapping table */
+
 	/* write into infostr with proper formatting */
 	if ( strpbrk(item->fmt, "feEgG") ) {           /* float */
 		snprintf(infostr, infolen, item->fmt,
@@ -732,7 +788,7 @@ static void extract_info(const char *buf, const mge_info_item_t *item,
    NOTE: MGE counts bytes/chars the opposite way as C,
          see mge-utalk manpage.  If status commands send two
          data items, these are separated by a space, so
-	 the elements of the second item are in buf[16..9].
+         the elements of the second item are in buf[16..9].
 */
 
 static int get_ups_status(void)
@@ -749,7 +805,8 @@ static int get_ups_status(void)
 		if (exit_flag != 0)
 			return FALSE;
 
-		/* must clear status buffer before each round */
+		/* must clear alarm and status buffers before each round */
+		alarm_init();
 		status_init();
 
 		/* system status */
@@ -777,11 +834,10 @@ static int get_ups_status(void)
 			}
 			/* buf[2] not used */
 			if (buf[1] == '1')
-				status_set("COMMFAULT"); /* self-invented */
+				alarm_set("COMMFAULT"); /* self-invented */
 				/* FIXME: better to call datastale()?! */
 			if (buf[0] == '1')
-				status_set("ALARM");     /* self-invented */
-				/* FIXME: better to use ups.alarm */
+				alarm_set("DEVICEALARM");     /* self-invented */
 		}  /* if strlen */
 
 		/* battery status */
@@ -840,6 +896,7 @@ static int get_ups_status(void)
 
 	} while ( !ok && tries++ < MAXTRIES );
 
+	alarm_commit();
 	status_commit();
 
 	return ok;
@@ -903,6 +960,9 @@ static ssize_t mge_command(char *reply, size_t replylen, const char *fmt, ...)
 #ifdef HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_FORMAT_SECURITY
 #pragma GCC diagnostic ignored "-Wformat-security"
 #endif
+	/* Note: Not converting to hardened NUT methods with dynamic
+	 * format string checking, this one is used locally with
+	 * fixed strings (and args) quite intensively */
 	ret = vsnprintf(command, sizeof(command), fmt, ap);
 #ifdef HAVE_PRAGMAS_FOR_GCC_DIAGNOSTIC_IGNORED_FORMAT_NONLITERAL
 #pragma GCC diagnostic pop
@@ -956,7 +1016,9 @@ static ssize_t mge_command(char *reply, size_t replylen, const char *fmt, ...)
 	bytes_rcvd = ser_get_line(upsfd, reply, replylen,
 		MGE_REPLY_ENDCHAR, MGE_REPLY_IGNCHAR, 3, 0);
 
-	upsdebugx(4, "mge_command: received %" PRIiSIZE " byte(s)", bytes_rcvd);
+	upsdebugx(4, "mge_command: sent %" PRIiSIZE
+		", received %" PRIiSIZE " byte(s)",
+		bytes_sent, bytes_rcvd);
 
 	return bytes_rcvd;
 }

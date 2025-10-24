@@ -48,7 +48,7 @@
 #include "timehead.h"
 
 #define DRIVER_NAME	"Microsol Solis UPS driver"
-#define DRIVER_VERSION	"0.68"
+#define DRIVER_VERSION	"0.73"
 
 /* driver description structure */
 upsdrv_info_t upsdrv_info = {
@@ -413,16 +413,18 @@ static void scan_received_pack(void) {
 				OutVoltage = RecPack[1] * a *  TENSAO_SAIDA_F1_MI[configRelay] + TENSAO_SAIDA_F2_MI[configRelay];
 			}
 		} else {
+			double	RealPower, potVA1, potVA2, potLin, potRe;
+
 			OutCurrent = (float)(corrente_saida_F1_MR * RecPack[5] + corrente_saida_F2_MR);
 			OutVoltage = RecPack[1] * TENSAO_SAIDA_F1_MR[configRelay] + TENSAO_SAIDA_F2_MR[configRelay];
 			AppPower = OutCurrent * OutVoltage;
 
-			double RealPower = (RecPack[7] + RecPack[8] * 256);
+			RealPower = (RecPack[7] + RecPack[8] * 256);
 
-			double potVA1 = 5.968 * AppPower - 284.36;
-			double potVA2 = 7.149 * AppPower - 567.18;
-			double potLin = 0.1664 * RealPower + 49.182;
-			double potRe = 0.1519 * RealPower + 32.644;
+			potVA1 = 5.968 * AppPower - 284.36;
+			potVA2 = 7.149 * AppPower - 567.18;
+			potLin = 0.1664 * RealPower + 49.182;
+			potRe = 0.1519 * RealPower + 32.644;
 			if (fabs(potVA1 - RealPower) < fabs(potVA2 - RealPower))
 				RealPower = potLin;
 			else
@@ -617,7 +619,8 @@ static void comm_receive(const unsigned char *bufptr, size_t size) {
 		for (i = 0 ; i < packet_size-2 ; ++i )
 			CheckSum += RecPack[i];
 		CheckSum = CheckSum % 256;
-		upsdebugx(4, "%s: calculated checksum = 0x%02x, RecPack[23] = 0x%02x", __func__, CheckSum, RecPack[23]);
+		upsdebugx(4, "%s: calculated checksum = 0x%02x, RecPack[23] = 0x%02x",
+			__func__, (unsigned int)CheckSum, RecPack[23]);
 
 		/* clean port: */
 		/* ser_flush_in(upsfd,"",0); */
@@ -797,8 +800,10 @@ static void get_base_info(void) {
 		Model = "Solis 3.0";
 		break;
 	case 16:
-	  Model = "Microsol Back-Ups BZ1200-BR";
-	  break;
+		Model = "Microsol Back-Ups BZ1200-BR";
+		break;
+	default:
+		break;
 	}
 
 	/* if( isprogram ) */
@@ -891,8 +896,15 @@ static void get_update_info(void) {
 }
 
 static int instcmd(const char *cmdname, const char *extra) {
+	/* May be used in logging below, but not as a command argument */
+	NUT_UNUSED_VARIABLE(extra);
+	upsdebug_INSTCMD_STARTING(cmdname, extra);
+
 	if (!strcasecmp(cmdname, "shutdown.return")) {
 		/* shutdown and restart */
+		/* FIXME: check with HW if this is not
+		 *  a "shutdown.reboot" instead (or also)? */
+		upslog_INSTCMD_POWERSTATE_CHANGE(cmdname, extra);
 		ser_send_char(upsfd, CMD_SHUTRET); /* 0xDE */
 		/* ser_send_char(upsfd, ENDCHAR); */
 		return STAT_INSTCMD_HANDLED;
@@ -900,12 +912,13 @@ static int instcmd(const char *cmdname, const char *extra) {
 
 	if (!strcasecmp(cmdname, "shutdown.stayoff")) {
 		/* shutdown now (one way) */
+		upslog_INSTCMD_POWERSTATE_CHANGE(cmdname, extra);
 		ser_send_char(upsfd, CMD_SHUT); /* 0xDD */
 		/* ser_send_char(upsfd, ENDCHAR); */
 		return STAT_INSTCMD_HANDLED;
 	}
 
-	upslogx(LOG_NOTICE, "instcmd: unknown command [%s] [%s]", cmdname, extra);
+	upslog_INSTCMD_UNKNOWN(cmdname, extra);
 	return STAT_INSTCMD_UNKNOWN;
 
 }
@@ -956,12 +969,19 @@ void upsdrv_updateinfo(void) {
  *  - on line: send shutdown+return, UPS will cycle and return soon.
  */
 void upsdrv_shutdown(void) {
+	/* Only implement "shutdown.default"; do not invoke
+	 * general handling of other `sdcommands` here */
+
 	if (!SourceFail) {     /* on line */
+		upslog_INSTCMD_POWERSTATE_CHANGE("shutdown.return", (char *)NULL);
 		upslogx(LOG_NOTICE, "On line, sending shutdown+return command...\n");
 		ser_send_char(upsfd, CMD_SHUTRET );
+		/* Seems AKA: instcmd("shutdown.return", NULL); */
 	} else {
+		upslog_INSTCMD_POWERSTATE_CHANGE("shutdown.stayoff", (char *)NULL);
 		upslogx(LOG_NOTICE, "On battery, sending normal shutdown command...\n");
 		ser_send_char(upsfd, CMD_SHUT);
+		/* Seems AKA: instcmd("shutdown.stayoff", NULL); */
 	}
 }
 
@@ -983,6 +1003,11 @@ void upsdrv_help(void) {
 	printf(" where houron is power-on hour and houroff is shutdown and power-off hour\n");
 	printf(" Uses daysweek and houron to programming and save UPS power on/off\n");
 	printf(" These are valid only if prgshut = 2 or 3\n");
+}
+
+/* optionally tweak prognames[] entries */
+void upsdrv_tweak_prognames(void)
+{
 }
 
 void upsdrv_makevartable(void) {

@@ -7,7 +7,7 @@
  * device support from such legacy drivers over time.
  *
  * A document describing the protocol implemented by this driver can be
- * found online at "http://www.networkupstools.org/protocols/megatec.html".
+ * found online at "https://www.networkupstools.org/protocols/megatec.html".
  *
  * Copyright (C) 2003-2009  Arjen de Korte <adkorte-guest@alioth.debian.org>
  * Copyright (C) 2011-2012  Arnaud Quette <arnaud.quette@free.fr>
@@ -34,10 +34,10 @@
 #include "blazer.h"
 #ifdef WIN32
 #include "wincompat.h"
-#endif
+#endif	/* WIN32 */
 
 #define DRIVER_NAME	"Megatec/Q1 protocol USB driver"
-#define DRIVER_VERSION	"0.14"
+#define DRIVER_VERSION	"0.24"
 
 /* driver description structure */
 upsdrv_info_t upsdrv_info = {
@@ -48,6 +48,39 @@ upsdrv_info_t upsdrv_info = {
 	DRV_BETA,
 	{ NULL }
 };
+
+/* Unregistered vendor 0x0001 (commonly identified as Fry's Electronics) */
+#define NONAME0001_VENDORID	0x0001
+
+/* Unregistered vendor 0xFFFF */
+#define NONAMEFFFF_VENDORID	0xffff
+
+/* ST Microelectronics */
+#define STMICRO_VENDORID	0x0483
+
+/* Sysgration Ltd. */
+#define SYSGRATION_VENDORID	0x05b8
+
+/* Cypress Semiconductor */
+#define CYPRESS_VENDORID	0x0665
+
+/* Phoenixtec Power Co., Ltd */
+#define PHOENIXTEC_VENDORID	0x06da
+
+/* Lakeview Research */
+#define LAKEVIEW_VENDORID	0x0925
+
+/* Unitek UPS Systems */
+#define UNITEK_VENDORID	0x0f03
+
+/* GE */
+#define GE_VENDORID	0x14f0
+
+/* QinHeng Electronics */
+#define QINHENG_VENDORID	0x1a86
+
+/* Legrand */
+#define LEGRAND_VENDORID	0x1cb0
 
 #ifndef TESTING
 
@@ -137,6 +170,9 @@ static int phoenix_command(const char *cmd, char *buf, size_t buflen)
 			break;
 
 		case LIBUSB_ERROR_TIMEOUT: /** Operation or Connection timed out */
+			break;
+
+		default:
 			break;
 		}
 
@@ -300,6 +336,7 @@ static int krauler_command(const char *cmd, char *buf, size_t buflen)
 			upsdebugx(1, "received %d (%d)", ret, buf[0]);
 
 			if (langid_fix != -1) {
+				size_t	di, si, size;
 				/* Limit this check, at least for now */
 				/* Invalid receive size - message corrupted */
 				if (ret != buf[0])
@@ -311,7 +348,7 @@ static int krauler_command(const char *cmd, char *buf, size_t buflen)
 				/* Simple unicode -> ASCII inplace conversion
 				 * FIXME: this code is at least shared with mge-shut/libshut
 				 * Create a common function? */
-				size_t di, si, size = (size_t)buf[0];
+				size = (size_t)buf[0];
 				for (di = 0, si = 2; si < size; si += 2) {
 					if (di >= (buflen - 1))
 						break;
@@ -386,18 +423,18 @@ static void *phoenix_subdriver(USBDevice_t *device)
 
 
 static usb_device_id_t blazer_usb_id[] = {
-	{ USB_DEVICE(0x05b8, 0x0000), &cypress_subdriver },	/* Agiler UPS */
-	{ USB_DEVICE(0x0001, 0x0000), &krauler_subdriver },	/* Krauler UP-M500VA */
-	{ USB_DEVICE(0xffff, 0x0000), &krauler_subdriver },	/* Ablerex 625L USB */
-	{ USB_DEVICE(0x0665, 0x5161), &cypress_subdriver },	/* Belkin F6C1200-UNV */
-	{ USB_DEVICE(0x06da, 0x0002), &cypress_subdriver },	/* Online Yunto YQ450 */
-	{ USB_DEVICE(0x06da, 0x0003), &ippon_subdriver },	/* Mustek Powermust */
-	{ USB_DEVICE(0x06da, 0x0004), &cypress_subdriver },	/* Phoenixtec Innova 3/1 T */
-	{ USB_DEVICE(0x06da, 0x0005), &cypress_subdriver },	/* Phoenixtec Innova RT */
-	{ USB_DEVICE(0x06da, 0x0201), &cypress_subdriver },	/* Phoenixtec Innova T */
-	{ USB_DEVICE(0x06da, 0x0601), &phoenix_subdriver },	/* Online Zinto A */
-	{ USB_DEVICE(0x0f03, 0x0001), &cypress_subdriver },	/* Unitek Alpha 1200Sx */
-	{ USB_DEVICE(0x14f0, 0x00c9), &phoenix_subdriver },	/* GE EP series */
+	{ USB_DEVICE(SYSGRATION_VENDORID,	0x0000), &cypress_subdriver },	/* Agiler UPS */
+	{ USB_DEVICE(NONAME0001_VENDORID,	0x0000), &krauler_subdriver },	/* Krauler UP-M500VA */
+	{ USB_DEVICE(NONAMEFFFF_VENDORID,	0x0000), &krauler_subdriver },	/* Ablerex 625L USB */
+	{ USB_DEVICE(CYPRESS_VENDORID,	0x5161), &cypress_subdriver },	/* Belkin F6C1200-UNV */
+	{ USB_DEVICE(PHOENIXTEC_VENDORID,	0x0002), &cypress_subdriver },	/* Online Yunto YQ450 */
+	{ USB_DEVICE(PHOENIXTEC_VENDORID,	0x0003), &ippon_subdriver },	/* Mustek Powermust */
+	{ USB_DEVICE(PHOENIXTEC_VENDORID,	0x0004), &cypress_subdriver },	/* Phoenixtec Innova 3/1 T */
+	{ USB_DEVICE(PHOENIXTEC_VENDORID,	0x0005), &cypress_subdriver },	/* Phoenixtec Innova RT */
+	{ USB_DEVICE(PHOENIXTEC_VENDORID,	0x0201), &cypress_subdriver },	/* Phoenixtec Innova T */
+	{ USB_DEVICE(PHOENIXTEC_VENDORID,	0x0601), &phoenix_subdriver },	/* Online Zinto A */
+	{ USB_DEVICE(UNITEK_VENDORID,	0x0001), &cypress_subdriver },	/* Unitek Alpha 1200Sx */
+	{ USB_DEVICE(GE_VENDORID,	0x00c9), &phoenix_subdriver },	/* GE EP series */
 
 	/* Terminating entry */
 	{ 0, 0, NULL }
@@ -445,11 +482,15 @@ ssize_t blazer_command(const char *cmd, char *buf, size_t buflen)
 	ssize_t	ret;
 
 	if (udev == NULL) {
+		dstate_setinfo("driver.state", "reconnect.trying");
+
 		ret = usb->open_dev(&udev, &usbdevice, reopen_matcher, NULL);
 
 		if (ret < 1) {
 			return ret;
 		}
+
+		dstate_setinfo("driver.state", "reconnect.updateinfo");
 	}
 
 	ret = (*subdriver_command)(cmd, buf, buflen);
@@ -496,6 +537,7 @@ ssize_t blazer_command(const char *cmd, char *buf, size_t buflen)
 	case LIBUSB_ERROR_NOT_FOUND:		/* No such file or directory */
 	fallthrough_case_reconnect:
 		/* Uh oh, got to reconnect! */
+		dstate_setinfo("driver.state", "reconnect.trying");
 		usb->close_dev(udev);
 		udev = NULL;
 		break;
@@ -508,7 +550,7 @@ ssize_t blazer_command(const char *cmd, char *buf, size_t buflen)
 # if EPROTO && WITH_LIBUSB_0_1
 	case -EPROTO:		/* Protocol error */
 # endif
-#endif
+#endif	/* !WIN32 */
 	default:
 		break;
 	}
@@ -535,7 +577,7 @@ ssize_t blazer_command(const char *cmd, char *buf, size_t buflen)
 			continue;
 		}
 
-		/* TODO: Range-check int vs ssize_t values */
+		/* TODO: Range-check int vs. ssize_t values */
 		return (ssize_t)snprintf(buf, buflen, "%s", testing[i].answer);
 	}
 
@@ -559,8 +601,9 @@ static const struct subdriver_t {
 void upsdrv_help(void)
 {
 #ifndef TESTING
-	printf("\nAcceptable values for 'subdriver' via -x or ups.conf in this driver: ");
 	size_t i;
+
+	printf("\nAcceptable values for 'subdriver' via -x or ups.conf in this driver: ");
 
 	for (i = 0; subdriver[i].name != NULL; i++) {
 		if (i>0)
@@ -569,14 +612,20 @@ void upsdrv_help(void)
 	}
 	printf("\n\n");
 #endif	/* TESTING */
+}
 
-	printf("Read The Fine Manual ('man 8 blazer_usb')\n");
+
+/* optionally tweak prognames[] entries */
+void upsdrv_tweak_prognames(void)
+{
 }
 
 
 void upsdrv_makevartable(void)
 {
 	addvar(VAR_VALUE, "subdriver", "Serial-over-USB subdriver selection");
+
+	/* allow -x vendor=X, vendorid=X, product=X, productid=X, serial=X */
 	nut_usb_addvars();
 
 	addvar(VAR_VALUE, "langid_fix", "Apply the language ID workaround to the krauler subdriver (0x409 or 0x4095)");
@@ -590,7 +639,7 @@ void upsdrv_initups(void)
 #ifndef TESTING
 	int	ret, langid;
 	char	tbuf[255]; /* Some devices choke on size > 255 */
-	char	*regex_array[7];
+	char	*regex_array[USBMATCHER_REGEXP_ARRAY_LIMIT];
 	char	*subdrv = getval("subdriver");
 
 	warn_if_bad_usb_port_filename(device_path);
@@ -602,6 +651,13 @@ void upsdrv_initups(void)
 	regex_array[4] = getval("serial");
 	regex_array[5] = getval("bus");
 	regex_array[6] = getval("device");
+#if (defined WITH_USB_BUSPORT) && (WITH_USB_BUSPORT)
+	regex_array[7] = getval("busport");
+# else
+	if (getval("busport")) {
+		upslogx(LOG_WARNING, "\"busport\" is configured for the device, but is not actually handled by current build combination of NUT and libusb (ignored)");
+	}
+# endif
 
 	/* check for language ID workaround (#1) */
 	if (getval("langid_fix")) {
@@ -612,7 +668,8 @@ void upsdrv_initups(void)
 		}
 		else {
 			langid_fix = (int)u_langid_fix;
-			upsdebugx(2, "language ID workaround enabled (using '0x%x')", langid_fix);
+			upsdebugx(2, "language ID workaround enabled (using '0x%x')",
+				(unsigned int)langid_fix);
 		}
 	}
 
@@ -693,7 +750,9 @@ void upsdrv_initups(void)
 		ret = usb_get_string(udev, 0, 0, (usb_ctrl_charbuf)tbuf, sizeof(tbuf));
 		if (ret >= 4) {
 			langid = (unsigned char)tbuf[2] | ((unsigned char)tbuf[3] << 8);
-			upsdebugx(1, "First supported language ID: 0x%x (please report to the NUT maintainer!)", langid);
+			upsdebugx(1, "First supported language ID: 0x%x "
+				"(please report to the NUT maintainer!)",
+				(unsigned int)langid);
 		}
 	}
 #endif	/* TESTING */
@@ -718,5 +777,8 @@ void upsdrv_cleanup(void)
 	free(usbdevice.Serial);
 	free(usbdevice.Bus);
 	free(usbdevice.Device);
+#if (defined WITH_USB_BUSPORT) && (WITH_USB_BUSPORT)
+	free(usbdevice.BusPort);
+# endif
 #endif	/* TESTING */
 }

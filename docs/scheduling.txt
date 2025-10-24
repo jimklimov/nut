@@ -1,6 +1,11 @@
 Advanced usage and scheduling notes
 ===================================
 
+//////////////////////////////////////////////////////////////////////////////
+// You can find a rendered variant of this document on the web at
+// https://networkupstools.org/docs/user-manual.chunked/Advanced_usage_scheduling_notes.html
+//////////////////////////////////////////////////////////////////////////////
+
 upsmon can call out to a helper script or program when the device changes
 state.  The example upsmon.conf has a full list of which state changes
 are available -- ONLINE, ONBATT, LOWBATT, and more.
@@ -180,12 +185,12 @@ Executing commands immediately
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 As an example, consider the scenario where a UPS goes onto battery power.
-However, the users are not informed until 60 seconds later -- using a timer as
+However, the users are not informed until 30 seconds later -- using a timer as
 described above. Whilst this may let the *logged in* users know that the UPS
 is on battery power, it does not inform any users subsequently logging in. To
 enable this we could, at the same time, create a file which is read and
 displayed to any user trying to login whilst the UPS is on battery power. If
-the UPS comes back onto utility power within 60 seconds, then we can cancel
+the UPS comes back onto utility power within 30 seconds, then we can cancel
 the timer and remove the file, as described above. However, if the UPS comes
 back onto utility power say 5 minutes later then we do not want to use any
 timers but we still want to remove the file. To do this we could use:
@@ -255,7 +260,7 @@ in your CMDSCRIPT:
 
 	/sbin/upsmon -c fsd
 
-NOTE: the path to `upsmon` must be provided. The default for an installation
+NOTE: The path to `upsmon` must be provided. The default for an installation
 built from sources is `/usr/local/ups` (so `/usr/local/ups/sbin/upsmon`),
 while packaged installations will generally comply to
 link:http://refspecs.linuxfoundation.org/fhs.shtml[FHS -- Filesystem Hierarchy Standard]

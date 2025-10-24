@@ -615,6 +615,8 @@ int	str_to_double_strict(const char *string, double *number, const int base)
 	return 1;
 }
 
+/* Probably derived from https://stackoverflow.com/a/68816055/4715872
+ * or a similar suggestion */
 int str_ends_with(const char *s, const char *suff) {
 	size_t slen;
 	size_t sufflen;
@@ -627,3 +629,31 @@ int str_ends_with(const char *s, const char *suff) {
 
 	return (slen >= sufflen) && (!memcmp(s + slen - sufflen, suff, sufflen));
 }
+
+#ifndef HAVE_STRTOF
+# include <errno.h>
+# include <stdio.h>
+float strtof(const char *nptr, char **endptr)
+{
+	double d;
+	int i;
+
+	if (!nptr || !*nptr) {
+		errno = EINVAL;
+		return 0;
+	}
+
+	/* FIXME: LC_NUMERIC=C for dot floats */
+	i = sscanf(nptr, "%f", &d);
+	if (i < 1) {
+		errno = EINVAL;
+		return 0;
+	}
+
+	if (endptr) {
+		*endptr = (char*)nptr + i;
+	}
+
+	return (float)d;
+}
+#endif

@@ -18,7 +18,7 @@
 */
 
 #ifndef NUTCLIENTMEM_HPP_SEEN
-#define NUTCLIENTMEM_HPP_SEEN
+#define NUTCLIENTMEM_HPP_SEEN 1
 
 /* Begin of C++ nutclient library declaration */
 #ifdef __cplusplus
@@ -122,4 +122,4 @@ NUTCLIENT_MEM_t nutclient_mem_create_client();
 #endif /* __cplusplus */
 /* End of C nutclient library declaration */
 
-#endif	/* NUTCLIENTMOCK_HPP_SEEN */
+#endif	/* NUTCLIENTMEM_HPP_SEEN */

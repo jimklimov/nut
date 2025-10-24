@@ -1,16 +1,16 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # an auxiliary script to produce a "stub" snmp-ups subdriver from
 # SNMP data from a real agent or from dump files
 #
-# Version: 0.15
+# Version: 0.17
 #
 # See also: docs/snmp-subdrivers.txt
 #
 # Copyright (C)
 # 2011 - 2012 Arnaud Quette <arnaud.quette@free.fr>
 # 2015 - 2022 Eaton (author: Arnaud Quette <ArnaudQuette@Eaton.com>)
-# 2011 - 2022 Jim Klimov <jimklimov+nut@gmail.com>
+# 2011 - 2025 Jim Klimov <jimklimov+nut@gmail.com>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -76,6 +76,10 @@ usage() {
 	echo " - 'snmp-mibs-downloader' package (on Debian) to get all standard MIBs"
 }
 
+# tools
+[ -n "${GREP}" ] || { GREP="`command -v grep`" && [ x"${GREP}" != x ] || { echo "$0: FAILED to locate GREP tool" >&2 ; exit 1 ; } ; }
+[ -n "${EGREP}" ] || { if ( [ x"`echo a | $GREP -E '(a|b)'`" = xa ] ) 2>/dev/null ; then EGREP="$GREP -E" ; else EGREP="`command -v egrep`" ; fi && [ x"${EGREP}" != x ] || { echo "$0: FAILED to locate EGREP tool" >&2 ; exit 1 ; } ; }
+
 # variables
 DRIVER=""
 KEEP=""
@@ -86,6 +90,19 @@ DEVICE_SYSOID=""
 SYSOID=""
 MODE=0
 
+if (command -v mktemp) >/dev/null ; then true ; else
+# Have a simple (unsafe, unfeatured) fallback implementation:
+mktemp() {
+    if [ x"$1" = x"-d" ] ; then
+        shift
+        mkdir -p "$1.$$" || return
+    else
+        cat /dev/null > "$1.$$" || return
+    fi
+    echo "$1.$$"
+}
+fi
+
 # constants
 NAME=gen-snmp-subdriver
 TMPDIR="${TEMPDIR:-/tmp}"
@@ -95,6 +112,23 @@ DFL_NUMWALKFILE="`mktemp "$TMPDIR/$NAME-NUMWALK.XXXXXX"`"
 DFL_STRWALKFILE="`mktemp "$TMPDIR/$NAME-STRWALK.XXXXXX"`"
 TMP_NUMWALKFILE="`mktemp "$TMPDIR/$NAME-TMP-NUMWALK.XXXXXX"`"
 TMP_STRWALKFILE="`mktemp "$TMPDIR/$NAME-TMP-STRWALK.XXXXXX"`"
+
+# Platforms vary with tooling abilitites...
+TOLOWER="cat"
+for TR_VARIANT in "tr 'A-Z' 'a-z'" "tr '[:upper:]' '[:lower:]'" "tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz'" ; do
+    if [ x"`echo C | $TR_VARIANT`" = xc ] ; then
+        TOLOWER="$TR_VARIANT"
+        break
+    fi
+done
+
+TOUPPER="cat"
+for TR_VARIANT in "tr 'a-z' 'A-Z'" "tr '[:lower:]' '[:upper:]'" "tr 'abcdefghijklmnopqrstuvwxyz' 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'" ; do
+    if [ x"`echo c | $TR_VARIANT`" = xC ] ; then
+        TOUPPER="$TR_VARIANT"
+        break
+    fi
+done
 
 get_snmp_data() {
 	# 1) get the sysOID (points the mfr specif MIB), apart if there's an override
@@ -132,8 +166,8 @@ get_snmp_data() {
 
 generate_C() {
 	# create file names, lowercase
-	LDRIVER="`echo "$DRIVER" | tr A-Z a-z`"
-	UDRIVER="`echo "$DRIVER" | tr a-z A-Z`"
+	LDRIVER="`echo "$DRIVER" | $TOLOWER`"
+	UDRIVER="`echo "$DRIVER" | $TOUPPER`"
 	# keep dashes in name for files
 	CFILE="$LDRIVER-mib.c"
 	HFILE="$LDRIVER-mib.h"
@@ -206,16 +240,16 @@ generate_C() {
 
 	#include "${HFILE}"
 
-	#define ${UDRIVER}_MIB_VERSION  "0.1"
+	#define ${UDRIVER}_MIB_VERSION  "0.01"
 
 	#define ${UDRIVER}_SYSOID       "${DEVICE_SYSOID}"
 
 	/* To create a value lookup structure (as needed on the 2nd line of the example
 	 * below), use the following kind of declaration, outside of the present snmp_info_t[]:
 	 * static info_lkp_t onbatt_info[] = {
-	 * 	{ 1, "OB" },
-	 * 	{ 2, "OL" },
-	 * 	{ 0, NULL }
+	 * 	info_lkp_default(1, "OB"),
+	 * 	info_lkp_default(2, "OL"),
+	 * 	info_lkp_sentinel
 	 * };
 	 */
 
@@ -223,7 +257,7 @@ generate_C() {
 	static snmp_info_t ${LDRIVER}_mib[] = {
 
 		/* Data format:
-		 * { info_type, info_flags, info_len, OID, dfl, flags, oid2info },
+		 * snmp_info_default(info_type, info_flags, info_len, OID, dfl, flags, oid2info),
 		 *
 		 *	info_type:	NUT INFO_ or CMD_ element name
 		 *	info_flags:	flags to set in addinfo
@@ -234,15 +268,15 @@ generate_C() {
 		 *	oid2info: lookup table between OID and NUT values
 		 *
 		 * Example:
-		 * { "input.voltage", 0, 0.1, ".1.3.6.1.4.1.705.1.6.2.1.2.1", "", SU_INPUT_1, NULL },
-		 * { "ups.status", ST_FLAG_STRING, SU_INFOSIZE, ".1.3.6.1.4.1.705.1.7.3.0", "", SU_FLAG_OK | SU_STATUS_BATT, onbatt_info },
+		 * snmp_info_default("input.voltage", 0, 0.1, ".1.3.6.1.4.1.705.1.6.2.1.2.1", "", SU_INPUT_1, NULL),
+		 * snmp_info_default("ups.status", ST_FLAG_STRING, SU_INFOSIZE, ".1.3.6.1.4.1.705.1.7.3.0", "", SU_FLAG_OK | SU_STATUS_BATT, onbatt_info),
 		 *
 		 * To create a value lookup structure (as needed on the 2nd line), use the
 		 * following kind of declaration, outside of the present snmp_info_t[]:
 		 * static info_lkp_t onbatt_info[] = {
-		 * 	{ 1, "OB" },
-		 * 	{ 2, "OL" },
-		 * 	{ 0, NULL }
+		 * 	info_lkp_default(1, "OB"),
+		 * 	info_lkp_default(2, "OL"),
+		 * 	info_lkp_sentinel
 		 * };
 		 */
 
@@ -253,9 +287,9 @@ generate_C() {
 
 	# Same file, indented text (TABs not stripped):
 	cat >> "$CFILE" <<EOF
-	{ "device.description", ST_FLAG_STRING | ST_FLAG_RW, SU_INFOSIZE, ".1.3.6.1.2.1.1.1.0", NULL, SU_FLAG_OK, NULL },
-	{ "device.contact", ST_FLAG_STRING | ST_FLAG_RW, SU_INFOSIZE, ".1.3.6.1.2.1.1.4.0", NULL, SU_FLAG_OK, NULL },
-	{ "device.location", ST_FLAG_STRING | ST_FLAG_RW, SU_INFOSIZE, ".1.3.6.1.2.1.1.6.0", NULL, SU_FLAG_OK, NULL },
+	snmp_info_default("device.description", ST_FLAG_STRING | ST_FLAG_RW, SU_INFOSIZE, ".1.3.6.1.2.1.1.1.0", NULL, SU_FLAG_OK, NULL),
+	snmp_info_default("device.contact", ST_FLAG_STRING | ST_FLAG_RW, SU_INFOSIZE, ".1.3.6.1.2.1.1.4.0", NULL, SU_FLAG_OK, NULL),
+	snmp_info_default("device.location", ST_FLAG_STRING | ST_FLAG_RW, SU_INFOSIZE, ".1.3.6.1.2.1.1.6.0", NULL, SU_FLAG_OK, NULL),
 
 /* Please revise values discovered by data walk for mappings to
  * docs/nut-names.txt and group the rest under the ifdef below:
@@ -269,7 +303,7 @@ EOF
 		LINENB="`expr $LINENB + 1`"
 		FULL_STR_OID="$line"
 		STR_OID="`echo "$line" | cut -d'.' -f1`"
-		echo "$line" | grep STRING > /dev/null
+		echo "$line" | ${GREP} STRING > /dev/null
 		if [ $? -eq 0 ]; then
 			ST_FLAG_TYPE="ST_FLAG_STRING"
 			SU_INFOSIZE="SU_INFOSIZE"
@@ -279,7 +313,7 @@ EOF
 		fi
 		# get the matching numeric OID
 		NUM_OID="`sed -n "${LINENB}p" "${NUMWALKFILE}" | cut -d' ' -f1`"
-		printf "\t/* ${FULL_STR_OID} */\n\t{ \"unmapped.${STR_OID}\", ${ST_FLAG_TYPE}, ${SU_INFOSIZE}, \"${NUM_OID}\", NULL, SU_FLAG_OK, NULL },\n"
+		printf "\t/* ${FULL_STR_OID} */\n\tsnmp_info_default(\"unmapped.${STR_OID}\", ${ST_FLAG_TYPE}, ${SU_INFOSIZE}, \"${NUM_OID}\", NULL, SU_FLAG_OK, NULL),\n"
 	done < "${STRWALKFILE}" >> "${CFILE}"
 
 	# append footer (TABs not stripped):
@@ -287,7 +321,7 @@ EOF
 #endif	/* if WITH_UNMAPPED_DATA_POINTS */
 
 	/* end of structure. */
-	{ NULL, 0, 0, NULL, NULL, 0, NULL }
+	snmp_info_sentinel
 };
 
 mib2nut_info_t  ${LDRIVER} = { "${LDRIVER}", ${UDRIVER}_MIB_VERSION, NULL, NULL, ${LDRIVER}_mib, ${UDRIVER}_DEVICE_SYSOID };
@@ -316,7 +350,7 @@ while [ $# -gt 0 ]; do
 	elif [ $# -gt 1 -a "$1" = "-s" ]; then
 		SYSOID="$2"
 		shift 2
-	elif echo "$1" | grep -qv '^-'; then
+	elif echo "$1" | ${GREP} -v '^-' >/dev/null ; then
 		if [ $# -gt 1 ]; then
 			NUMWALKFILE="$1"
 			shift
@@ -355,7 +389,7 @@ if [ -z "$NUMWALKFILE" ]; then
 	while [ -z "$HOSTNAME" ]; do
 		printf "\n\tPlease enter the SNMP host IP address or name.\n"
 		read -p "SNMP host IP name or address: " HOSTNAME < /dev/tty
-		if echo "$HOSTNAME" | grep -E -q '[^a-zA-Z0-9.-]'; then
+		if echo "$HOSTNAME" | ${EGREP} '[^a-zA-Z0-9.-]' >/dev/null ; then
 			echo "Please use only letters, digits, dash and period character"
 			HOSTNAME=""
 		fi
@@ -382,7 +416,7 @@ else
 		fi
 		# Extract the sysOID
 		# Format is "1.3.6.1.2.1.1.2.0 = OID: 1.3.6.1.4.1.4555.1.1.1"
-		DEVICE_SYSOID="`grep 1.3.6.1.2.1.1.2.0 "$RAWWALKFILE" | cut -d' ' -f4`"
+		DEVICE_SYSOID="`${GREP} 1.3.6.1.2.1.1.2.0 "$RAWWALKFILE" | cut -d' ' -f4`"
 		if [ -n "$DEVICE_SYSOID" ]; then
 			echo "Found sysOID $DEVICE_SYSOID"
 		else
@@ -393,7 +427,7 @@ else
 		# Switch to the entry point, and extract the subtree
 		# Extract the numeric walk
 		echo -n "Extracting numeric SNMP walk..."
-		grep "$DEVICE_SYSOID" "$RAWWALKFILE" | grep -E -v "1.3.6.1.2.1.1.2.0" 2>/dev/null 1> "$NUMWALKFILE"
+		${GREP} "$DEVICE_SYSOID" "$RAWWALKFILE" | ${EGREP} -v "1.3.6.1.2.1.1.2.0" 2>/dev/null 1> "$NUMWALKFILE"
 		echo " done"
 
 		# Create the string walk from a translation of the numeric one
@@ -418,7 +452,7 @@ else
 Please enter the value of sysOID, as displayed by snmp-ups. For example '.1.3.6.1.4.1.2254.2.4'.
 You can get it using: snmpget -v1 -c XXX <host> $SYSOID_NUMBER"
 			read -p "Value of sysOID: " SYSOID < /dev/tty
-			if echo "$SYSOID" | grep -E -q '[^0-9.]'; then
+			if echo "$SYSOID" | ${EGREP} '[^0-9.]' >/dev/null ; then
 				echo "Please use only the numeric form, with dots and digits"
 				SYSOID=""
 			fi
@@ -445,15 +479,16 @@ while [ -z "$DRIVER" ]; do
 Please enter a name for this driver. Use only letters and numbers. Use
 natural (upper- and lowercase) capitalization, e.g., 'Belkin', 'APC'."
 	read -p "Name of subdriver: " DRIVER < /dev/tty
-	if echo "$DRIVER" | grep -E -q '[^a-zA-Z0-9]'; then
+	if echo "$DRIVER" | ${EGREP} '[^a-zA-Z0-9]' >/dev/null ; then
 		echo "Please use only letters and digits"
 		DRIVER=""
 	fi
 done
 
 # remove blank and "End of MIB" lines
-grep -E -e "^[[:space:]]?$" -e "End of MIB" -v "${NUMWALKFILE}" > "${TMP_NUMWALKFILE}"
-grep -E -e "^[[:space:]]?$" -e "End of MIB" -v "${STRWALKFILE}" > "${TMP_STRWALKFILE}"
+TABCHAR="`printf '\t'`"
+${EGREP} "^[ ${TABCHAR}]?\$" | ${GREP} "End of MIB" | ${GREP} -v "${NUMWALKFILE}" > "${TMP_NUMWALKFILE}"
+${EGREP} "^[ ${TABCHAR}]?\$" | ${GREP} "End of MIB" | ${GREP} -v "${STRWALKFILE}" > "${TMP_STRWALKFILE}"
 NUMWALKFILE="${TMP_NUMWALKFILE}"
 STRWALKFILE="${TMP_STRWALKFILE}"
 
