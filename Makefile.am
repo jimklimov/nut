@@ -1520,6 +1520,8 @@ install-win-bundle-thirdparty:
 	    GREP='$(GREP)' EGREP='$(EGREP)' \
 	    DESTDIR="" '$(abs_top_srcdir)/scripts/Windows/dllldd.sh' dllldddir . \
 	    | while read D ; do \
+	        BD="`basename \"$$D\"`" ; \
+	        if test -e './$(bindir)/'"$$BD" && diff './$(bindir)/'"$$BD" "$$D" 2>/dev/null >/dev/null ; then continue ; fi ; \
 	        echo "   DLL->bin       $$D" 2>&1 ; \
 	        cp -pf "$$D" './$(bindir)/' ; \
 	    done ; \
