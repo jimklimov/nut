@@ -554,6 +554,12 @@ void s_upsdebugx(int level, const char *fmt, ...)
 	__attribute__ ((__format__ (__printf__, 2, 3)));
 void s_upsdebug_hex(int level, const char *msg, const void *buf, size_t len);
 void s_upsdebug_ascii(int level, const char *msg, const void *buf, size_t len);
+
+/* Extract errors from Windows API and report after formatted message;
+ * no-op in "ifndef WIN32" builds: */
+void s_upsdebugx_with_winerr(int level, const char *fmt, ...)
+	__attribute__ ((__format__ (__printf__, 2, 3)));
+
 /* These macros should help avoid run-time overheads
  * passing data for messages nobody would ever see.
  *
@@ -576,6 +582,8 @@ void s_upsdebug_ascii(int level, const char *msg, const void *buf, size_t len);
 	do { if (nut_debug_level >= (level)) { s_upsdebug_hex((level), msg, buf, len); } } while(0)
 #define upsdebug_ascii(level, msg, buf, len) \
 	do { if (nut_debug_level >= (level)) { s_upsdebug_ascii((level), msg, buf, len); } } while(0)
+#define upsdebug_with_winerr(level, ...) \
+	do { if (nut_debug_level >= (level)) { s_upsdebug_with_winerr((level), __VA_ARGS__); } } while(0)
 
 void fatal_with_errno(int status, const char *fmt, ...)
 	__attribute__ ((__format__ (__printf__, 2, 3))) __attribute__((noreturn));

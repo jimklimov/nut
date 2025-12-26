@@ -4337,6 +4337,47 @@ failed:
 	s_upsdebugx(level, "%s", "Failed to print a hex dump for debug");
 }
 
+void s_upsdebugx_with_winerr(int level, const char * fmt, ...)
+{
+#ifdef WIN32
+	LPVOID	WinBuf;
+	DWORD	WinErr = GetLastError();
+
+	va_list	ap;
+	CHAR	*buf = NULL;
+	int	ret = -1;
+
+	if (fmt && *fmt) {
+		buf = xmalloc(LARGEBUF);
+		if (buf) {
+			va_start(ap, fmt);
+			ret = vsnprintf(buf, LARGEBUF, fmt, ap);
+			va_end(ap);
+		}
+        }
+
+	FormatMessage(
+		FORMAT_MESSAGE_MAX_WIDTH_MASK |
+		FORMAT_MESSAGE_ALLOCATE_BUFFER |
+		FORMAT_MESSAGE_FROM_SYSTEM |
+		FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL,
+		WinErr,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPTSTR) &WinBuf,
+		0, NULL
+		);
+
+	upsdebugx(level, "%s: %s",
+                (ret < 0 || !buf || !*buf ? "Windows API returned an error" : buf),
+                (char *)WinBuf);
+	LocalFree(WinBuf);
+#else
+	NUT_UNUSED_VARIABLE(level);
+	NUT_UNUSED_VARIABLE(fmt);
+#endif /* WIN32 */
+}
+
 /* taken from www.asciitable.com */
 static const char* ascii_symb[] = {
 	"NUL",  /*  0x00    */
