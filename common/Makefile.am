@@ -15,8 +15,28 @@ AM_LDFLAGS = -no-undefined
 EXTRA_DIST =
 CLEANFILES =
 
+# Track unique NUT implementation-detail libraries that are commonly
+# used in different programs, and may get bundled into a shared lib.
+# Note that for rebuild-time optimization with static libraries, we
+# have historically used a number of source-file selections which may
+# overlap (e.g. libcommon includes libcommonclient and some more).
 noinst_LTLIBRARIES = libparseconf.la libcommon.la libcommonclient.la
 lib_LTLIBRARIES =
+
+if ENABLE_SHARED_PRIVATE_LIBS
+### Hopefully we can bundle this code together and
+### install this somewhat away from the public eye?..
+### We still do build static (noinst) libs to include
+### them into shared library files that should remain
+### compatible for existing consumers (in/out of tree).
+  lib_LTLIBRARIES += libnutprivate-common-all.la
+  libnutprivate_common_all_la_SOURCES =
+  libnutprivate_common_all_la_LIBADD = libcommon.la libcommonversion.la
+
+  lib_LTLIBRARIES += libnutprivate-common-client.la
+  libnutprivate_common_client_la_SOURCES =
+  libnutprivate_common_client_la_LIBADD = libcommonclient.la libcommonversion.la
+endif ENABLE_SHARED_PRIVATE_LIBS
 
 # We define the recipe below in any case, but only activate it by default
 # if the build configuration tells us to:
