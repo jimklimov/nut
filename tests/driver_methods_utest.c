@@ -73,6 +73,10 @@ int main(int argc, char **argv) {
 	NUT_UNUSED_VARIABLE(argc);
 	NUT_UNUSED_VARIABLE(argv);
 
+/* #if !(defined ENABLE_SHARED_PRIVATE_LIBS) || !ENABLE_SHARED_PRIVATE_LIBS */
+	default_register_upsdrv_callbacks();
+/* #endif */
+
 	cases_passed = 0;
 	cases_failed = 0;
 
