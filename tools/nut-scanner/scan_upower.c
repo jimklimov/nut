@@ -38,9 +38,9 @@ nutscan_device_t * nutscan_scan_upower(void);
 #include <ltdl.h>
 
 /* dynamic link library stuff */
-static lt_dlhandle dl_handle = NULL;
+static lt_dlhandle dl_handle = NULL, dl_handle_dep = NULL;
 static const char *dl_error = NULL;
-static char *dl_saved_libname = NULL;
+static char *dl_saved_libname = NULL, *dl_saved_libname_dep = NULL;
 
 /* Function pointers */
 static GDBusConnection * (*nut_g_bus_get_sync)(GBusType bus_type, GCancellable *cancellable, GError **error);
@@ -63,12 +63,20 @@ static GVariant * (*nut_g_variant_get_child_value)(GVariant *value, gsize index_
 int nutscan_unload_library(int *avail, lt_dlhandle *pdl_handle, char **libpath);
 int nutscan_unload_upower_library(void)
 {
-	return nutscan_unload_library(&nutscan_avail_upower, &dl_handle, &dl_saved_libname);
+	int	ret = nutscan_unload_library(&nutscan_avail_upower, &dl_handle, &dl_saved_libname);
+	if (dl_handle_dep) {
+		int	avail_dep = 1;
+		int	ret_dep = nutscan_unload_library(&avail_dep, &dl_handle_dep, &dl_saved_libname_dep);
+		if (ret == 0)
+			ret = ret_dep;
+	}
+	return ret;
 }
 
 /* Return 0 on error; visible externally */
-int nutscan_load_upower_library(const char *libname_path);
-int nutscan_load_upower_library(const char *libname_path)
+/* #define nutscan_load_upower_library(x) nutscan_load_upower_library(x, NULL) */
+int nutscan_load_upower_library(const char *libname_path, const char *libname_path_dep);
+int nutscan_load_upower_library(const char *libname_path, const char *libname_path_dep)
 {
 	if (dl_handle != NULL) {
 		/* if previous init failed */
@@ -84,10 +92,34 @@ int nutscan_load_upower_library(const char *libname_path)
 		return 0;
 	}
 
+	if (libname_path_dep == NULL) {
+		upsdebugx(1, "GLIB2 library (as dependency for GIO) not found. Hoping for system linker to do the right thing.");
+	}
+
 	if (lt_dlinit() != 0) {
 		upsdebugx(0, "%s: Error initializing lt_dlinit", __func__);
 		return 0;
 	}
+
+	/* At least Windows wants dependency (libglib2) module to be in the
+	 * symbol namespace before it parses the finally requested library.
+	 */
+	if ( libname_path_dep != NULL
+	 && (dl_handle_dep == NULL
+	     || dl_handle_dep == (lt_dlhandle)1	/* if previous init failed */
+	) ) {
+		dl_handle_dep = lt_dlopen(libname_path_dep);
+		if (!dl_handle_dep) {
+			dl_error = lt_dlerror();
+			goto err;
+		}
+		if (dl_saved_libname_dep)
+			free(dl_saved_libname_dep);
+		dl_saved_libname_dep = xstrdup(libname_path_dep);
+	}
+
+	/* Clear any existing error */
+	lt_dlerror();
 
 	dl_handle = lt_dlopen(libname_path);
 	if (!dl_handle) {
