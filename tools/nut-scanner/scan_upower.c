@@ -89,6 +89,8 @@ int nutscan_unload_upower_library(void)
 int nutscan_load_upower_library(const char *libname_path, const char *libname_path_dep1, const char *libname_path_dep2, const char *libname_path_dep3);
 int nutscan_load_upower_library(const char *libname_path, const char *libname_path_dep1, const char *libname_path_dep2, const char *libname_path_dep3)
 {
+	char	*symbol = NULL;
+
 	if (dl_handle != NULL) {
 		/* if previous init failed */
 		if (dl_handle == (lt_dlhandle)1) {
@@ -174,45 +176,47 @@ int nutscan_load_upower_library(const char *libname_path, const char *libname_pa
 		dl_error = lt_dlerror();
 		goto err;
 	}
+	upsdebugx(2, "%s: lt_dlopen() succeeded, searching for needed methods", __func__);
 
 	/* Clear any existing error */
 	lt_dlerror();
 
-	*(void **) (&nut_g_bus_get_sync) = lt_dlsym(dl_handle, "g_bus_get_sync");
+	*(void **) (&nut_g_bus_get_sync) = lt_dlsym(dl_handle, symbol = "g_bus_get_sync");
 	if ((dl_error = lt_dlerror()) != NULL) goto err;
 
-	*(void **) (&nut_g_dbus_proxy_new_sync) = lt_dlsym(dl_handle, "g_dbus_proxy_new_sync");
+	*(void **) (&nut_g_dbus_proxy_new_sync) = lt_dlsym(dl_handle, symbol = "g_dbus_proxy_new_sync");
 	if ((dl_error = lt_dlerror()) != NULL) goto err;
 
-	*(void **) (&nut_g_dbus_proxy_call_sync) = lt_dlsym(dl_handle, "g_dbus_proxy_call_sync");
+	*(void **) (&nut_g_dbus_proxy_call_sync) = lt_dlsym(dl_handle, symbol = "g_dbus_proxy_call_sync");
 	if ((dl_error = lt_dlerror()) != NULL) goto err;
 
-	*(void **) (&nut_g_dbus_proxy_get_cached_property) = lt_dlsym(dl_handle, "g_dbus_proxy_get_cached_property");
+	*(void **) (&nut_g_dbus_proxy_get_cached_property) = lt_dlsym(dl_handle, symbol = "g_dbus_proxy_get_cached_property");
 	if ((dl_error = lt_dlerror()) != NULL) goto err;
 
-	*(void **) (&nut_g_variant_unref) = lt_dlsym(dl_handle, "g_variant_unref");
+	*(void **) (&nut_g_variant_unref) = lt_dlsym(dl_handle, symbol = "g_variant_unref");
 	if ((dl_error = lt_dlerror()) != NULL) goto err;
 
-	*(void **) (&nut_g_object_unref) = lt_dlsym(dl_handle, "g_object_unref");
+	*(void **) (&nut_g_object_unref) = lt_dlsym(dl_handle, symbol = "g_object_unref");
 	if ((dl_error = lt_dlerror()) != NULL) goto err;
 
-	*(void **) (&nut_g_error_free) = lt_dlsym(dl_handle, "g_error_free");
+	*(void **) (&nut_g_error_free) = lt_dlsym(dl_handle, symbol = "g_error_free");
 	if ((dl_error = lt_dlerror()) != NULL) goto err;
 
-	*(void **) (&nut_g_variant_get_string) = lt_dlsym(dl_handle, "g_variant_get_string");
+	*(void **) (&nut_g_variant_get_string) = lt_dlsym(dl_handle, symbol = "g_variant_get_string");
 	if ((dl_error = lt_dlerror()) != NULL) goto err;
 
-	*(void **) (&nut_g_variant_iter_next) = lt_dlsym(dl_handle, "g_variant_iter_next");
+	*(void **) (&nut_g_variant_iter_next) = lt_dlsym(dl_handle, symbol = "g_variant_iter_next");
 	if ((dl_error = lt_dlerror()) != NULL) goto err;
 
-	*(void **) (&nut_g_variant_iter_init) = lt_dlsym(dl_handle, "g_variant_iter_init");
+	*(void **) (&nut_g_variant_iter_init) = lt_dlsym(dl_handle, symbol = "g_variant_iter_init");
 	if ((dl_error = lt_dlerror()) != NULL) goto err;
 
-	*(void **) (&nut_g_variant_get_uint32) = lt_dlsym(dl_handle, "g_variant_get_uint32");
+	*(void **) (&nut_g_variant_get_uint32) = lt_dlsym(dl_handle, symbol = "g_variant_get_uint32");
 	if ((dl_error = lt_dlerror()) != NULL) goto err;
 
-	*(void **) (&nut_g_variant_get_child_value) = lt_dlsym(dl_handle, "g_variant_get_child_value");
+	*(void **) (&nut_g_variant_get_child_value) = lt_dlsym(dl_handle, symbol = "g_variant_get_child_value");
 	if ((dl_error = lt_dlerror()) != NULL) goto err;
+	symbol = NULL;
 
 	if (dl_saved_libname)
 		free(dl_saved_libname);
@@ -222,8 +226,12 @@ int nutscan_load_upower_library(const char *libname_path, const char *libname_pa
 
 err:
 	upsdebugx(0,
-		"Cannot load GIO library (%s) : %s. UPower search disabled.",
-		libname_path, dl_error);
+		"Cannot load GIO library (%s) : %s%s%s%s. UPower search disabled.",
+		libname_path, dl_error,
+		symbol ? " Error happened during search for symbol '" : "",
+		symbol ? symbol : "",
+		symbol ? "'" : ""
+		);
 	dl_handle = (lt_dlhandle)1;
 	lt_dlexit();
 	if (dl_saved_libname) {
