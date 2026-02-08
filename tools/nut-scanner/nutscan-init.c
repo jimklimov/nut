@@ -73,7 +73,7 @@ int nutscan_load_ipmi_library(const char *libname_path);
 int nutscan_unload_ipmi_library(void);
 int nutscan_load_upsclient_library(const char *libname_path);
 int nutscan_unload_upsclient_library(void);
-int nutscan_load_upower_library(const char *libname_path, const char *libname_path_dep);
+int nutscan_load_upower_library(const char *libname_path, const char *libname_path_dep1, const char *libname_path_dep2, const char *libname_path_dep3);
 int nutscan_unload_upower_library(void);
 
 #ifdef HAVE_PTHREAD
@@ -537,10 +537,10 @@ void nutscan_init(void)
 
 #if (defined WITH_UPOWER) && WITH_UPOWER
 /* NOTE: There may be a stack of libraries involved (libgio, libglib2,
- *  libmount...) in driver programs, but one entry point suffices
+ *  libmount, libgobject...) in driver programs, but one entry point suffices
  *  (and/or dynamically pulls in the others) for just the scan itself */
 	{ /* scoping */
-	char	*libname_glib2 = NULL;
+	char	*libname_glib2 = NULL, *libname_mount = NULL, *libname_gobject = NULL;
 # ifdef SOFILE_LIBGIO
 	if (!libname) {
 		libname = get_libname(SOFILE_LIBGIO);
@@ -580,57 +580,149 @@ void nutscan_init(void)
 	}
 # endif	/* SOPATH_LIBGLIB */
 
+# ifdef SOFILE_LIBMOUNT
+	libname_mount = get_libname(SOFILE_LIBMOUNT);
+# endif	/* SOFILE_LIBMOUNT */
+# ifdef WIN32
+	if (!libname_mount) {
+		libname_mount = get_libname("libmount-2.0-0" SOEXT);
+	}
+# endif	/* WIN32 */
+	if (!libname_mount) {
+		libname_mount = get_libname("libmount-2.0" SOEXT);
+	}
+	if (!libname_mount) {
+		libname_mount = get_libname("libmount" SOEXT);
+	}
+# ifdef SOPATH_LIBMOUNT
+	if (!libname_mount) {
+		libname_mount = get_libname(SOPATH_LIBMOUNT);
+	}
+# endif	/* SOPATH_LIBMOUNT */
+
+# ifdef SOFILE_LIBGOBJECT
+	libname_gobject = get_libname(SOFILE_LIBGOBJECT);
+# endif	/* SOFILE_LIBGOBJECT */
+# ifdef WIN32
+	if (!libname_gobject) {
+		libname_gobject = get_libname("libgobject-2.0-0" SOEXT);
+	}
+# endif	/* WIN32 */
+	if (!libname_gobject) {
+		libname_gobject = get_libname("libgobject-2.0" SOEXT);
+	}
+	if (!libname_gobject) {
+		libname_gobject = get_libname("libgobject2" SOEXT);
+	}
+	if (!libname_gobject) {
+		libname_gobject = get_libname("libgobject" SOEXT);
+	}
+# ifdef SOPATH_LIBGOBJECT
+	if (!libname_gobject) {
+		libname_gobject = get_libname(SOPATH_LIBGOBJECT);
+	}
+# endif	/* SOPATH_LIBGOBJECT */
+
 	if (libname) {
 		upsdebugx(1, "%s: get_libname() resolved '%s' for %s "
-			"(and '%s' for %s), loading them",
+			"(and '%s' for %s, '%s' for %s, '%s' for %s), "
+			"loading them",
 			__func__, libname, "LibGIO",
-			libname_glib2, "LibGLIB2");
-		nutscan_avail_upower = nutscan_load_upower_library(libname, libname_glib2);
+			libname_glib2, "LibGLIB2",
+			libname_mount, "LibMOUNT",
+			libname_gobject, "LibGOBJECT");
+		nutscan_avail_upower = nutscan_load_upower_library(libname, libname_glib2, libname_mount, libname_gobject);
+
 		free(libname);
-		free(libname_glib2);
 		libname = NULL;
-		libname_glib2 = NULL;
 	} else {
+		char	*dep1 = libname_glib2, *dep2 = libname_mount, *dep3 = libname_gobject;
+
 		/* let libtool (lt_dlopen) do its default magic maybe better */
 		upsdebugx(1, "%s: get_libname() did not resolve libname for %s, "
 			"trying to load it with libtool default resolver",
 			__func__, "LibGIO");
 # ifdef SOFILE_LIBGIO
 #  ifdef SOFILE_LIBGLIB
-		if (!nutscan_avail_upower) {
-			nutscan_avail_upower = nutscan_load_upower_library(SOFILE_LIBGIO, SOFILE_LIBGLIB);
-		}
-#  else	/* !SOFILE_LIBGLIB */
-		if (!nutscan_avail_upower) {
-			nutscan_avail_upower = nutscan_load_upower_library(SOFILE_LIBGIO, NULL);
-		}
+		dep1 = SOFILE_LIBGLIB;
 #  endif	/* !SOFILE_LIBGLIB */
+#  ifdef SOFILE_LIBMOUNT
+		dep2 = SOFILE_LIBMOUNT;
+#  endif	/* !SOFILE_LIBMOUNT */
+#  ifdef SOFILE_LIBGOBJECT
+		dep3 = SOFILE_LIBGOBJECT;
+#  endif	/* !SOFILE_LIBMOUNT */
+		if (!nutscan_avail_upower) {
+			nutscan_avail_upower = nutscan_load_upower_library(SOFILE_LIBGIO, dep1, dep2, dep3);
+		}
 # endif	/* SOFILE_LIBGIO */
+
+#ifdef WIN32
 		if (!nutscan_avail_upower) {
-			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0" SOEXT, "libglib2-2.0" SOEXT);
+			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0-0" SOEXT, "libglib-2.0-0" SOEXT, "libmount-2.0-0" SOEXT, "libgobject-2.0-0" SOEXT);
 		}
 		if (!nutscan_avail_upower) {
-			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0" SOEXT, "libglib-2.0" SOEXT);
+			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0-0" SOEXT, "libglib-2.0-0" SOEXT, NULL, "libgobject-2.0-0" SOEXT);
 		}
 		if (!nutscan_avail_upower) {
-			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0" SOEXT, NULL);
+			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0-0" SOEXT, "libglib-2.0-0" SOEXT, "libmount-2.0-0" SOEXT, NULL);
 		}
+		if (!nutscan_avail_upower) {
+			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0-0" SOEXT, NULL, "libmount-2.0-0" SOEXT, "libgobject-2.0-0" SOEXT);
+		}
+		if (!nutscan_avail_upower) {
+			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0-0" SOEXT, NULL, NULL, "libgobject-2.0-0" SOEXT);
+		}
+		if (!nutscan_avail_upower) {
+			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0-0" SOEXT, NULL, NULL, NULL);
+		}
+#endif	/* WIN32 */
+
+		if (!nutscan_avail_upower) {
+			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0" SOEXT, "libglib-2.0" SOEXT, "libmount-2.0" SOEXT, "libgobject-2.0" SOEXT);
+		}
+		if (!nutscan_avail_upower) {
+			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0" SOEXT, "libglib-2.0" SOEXT, NULL, "libgobject-2.0" SOEXT);
+		}
+		if (!nutscan_avail_upower) {
+			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0" SOEXT, "libglib-2.0" SOEXT, "libmount-2.0" SOEXT, NULL);
+		}
+		if (!nutscan_avail_upower) {
+			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0" SOEXT, NULL, "libmount-2.0" SOEXT, "libgobject-2.0" SOEXT);
+		}
+		if (!nutscan_avail_upower) {
+			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0" SOEXT, NULL, NULL, "libgobject-2.0" SOEXT);
+		}
+		if (!nutscan_avail_upower) {
+			nutscan_avail_upower = nutscan_load_upower_library("libgio-2.0" SOEXT, NULL, NULL, NULL);
+		}
+
 # ifdef SOPATH_LIBGIO
+		if (!nutscan_avail_upower) {
+			dep1 = libname_glib2;
+			dep2 = libname_mount;
+			dep3 = libname_gobject;
 #  ifdef SOPATH_LIBGLIB
-		if (!nutscan_avail_upower) {
-			nutscan_avail_upower = nutscan_load_upower_library(SOPATH_LIBGIO, SOPATH_LIBGLIB);
-		}
-#  else	/* !SOPATH_LIBGLIB */
-		if (!nutscan_avail_upower) {
-			nutscan_avail_upower = nutscan_load_upower_library(SOPATH_LIBGIO, NULL);
-		}
+			dep1 = SOPATH_LIBGLIB;
 #  endif	/* !SOPATH_LIBGLIB */
+#  ifdef SOPATH_LIBMOUNT
+			dep2 = SOPATH_LIBMOUNT;
+#  endif	/* !SOPATH_LIBMOUNT */
+#  ifdef SOFILE_LIBGOBJECT
+			dep3 = SOFILE_LIBGOBJECT;
+#  endif	/* !SOFILE_LIBGOBJECT */
+			nutscan_avail_upower = nutscan_load_upower_library(SOPATH_LIBGIO, dep1, dep2, dep3);
+		}
 # endif	/* SOPATH_LIBGIO */
 	}
 	upsdebugx(1, "%s: %s to load the library for %s",
 		__func__, nutscan_avail_upower ? "succeeded" : "failed", "LibGIO");
 	if (libname_glib2)
 		free(libname_glib2);
+	if (libname_mount)
+		free(libname_mount);
+	if (libname_gobject)
+		free(libname_gobject);
 	}	/* scoping */
 #else	/* !WITH_UPOWER */
 	upsdebugx(1, "%s: skipped loading the library for %s: was absent during NUT build",

@@ -38,9 +38,9 @@ nutscan_device_t * nutscan_scan_upower(void);
 #include <ltdl.h>
 
 /* dynamic link library stuff */
-static lt_dlhandle dl_handle = NULL, dl_handle_dep = NULL;
+static lt_dlhandle dl_handle = NULL, dl_handle_dep1 = NULL, dl_handle_dep2 = NULL, dl_handle_dep3 = NULL;
 static const char *dl_error = NULL;
-static char *dl_saved_libname = NULL, *dl_saved_libname_dep = NULL;
+static char *dl_saved_libname = NULL, *dl_saved_libname_dep1 = NULL, *dl_saved_libname_dep2 = NULL, *dl_saved_libname_dep3 = NULL;
 
 /* Function pointers */
 static GDBusConnection * (*nut_g_bus_get_sync)(GBusType bus_type, GCancellable *cancellable, GError **error);
@@ -64,9 +64,21 @@ int nutscan_unload_library(int *avail, lt_dlhandle *pdl_handle, char **libpath);
 int nutscan_unload_upower_library(void)
 {
 	int	ret = nutscan_unload_library(&nutscan_avail_upower, &dl_handle, &dl_saved_libname);
-	if (dl_handle_dep) {
+	if (dl_handle_dep1) {
 		int	avail_dep = 1;
-		int	ret_dep = nutscan_unload_library(&avail_dep, &dl_handle_dep, &dl_saved_libname_dep);
+		int	ret_dep = nutscan_unload_library(&avail_dep, &dl_handle_dep1, &dl_saved_libname_dep1);
+		if (ret == 0)
+			ret = ret_dep;
+	}
+	if (dl_handle_dep2) {
+		int	avail_dep = 1;
+		int	ret_dep = nutscan_unload_library(&avail_dep, &dl_handle_dep2, &dl_saved_libname_dep2);
+		if (ret == 0)
+			ret = ret_dep;
+	}
+	if (dl_handle_dep3) {
+		int	avail_dep = 1;
+		int	ret_dep = nutscan_unload_library(&avail_dep, &dl_handle_dep3, &dl_saved_libname_dep3);
 		if (ret == 0)
 			ret = ret_dep;
 	}
@@ -75,8 +87,8 @@ int nutscan_unload_upower_library(void)
 
 /* Return 0 on error; visible externally */
 /* #define nutscan_load_upower_library(x) nutscan_load_upower_library(x, NULL) */
-int nutscan_load_upower_library(const char *libname_path, const char *libname_path_dep);
-int nutscan_load_upower_library(const char *libname_path, const char *libname_path_dep)
+int nutscan_load_upower_library(const char *libname_path, const char *libname_path_dep1, const char *libname_path_dep2, const char *libname_path_dep3);
+int nutscan_load_upower_library(const char *libname_path, const char *libname_path_dep1, const char *libname_path_dep2, const char *libname_path_dep3)
 {
 	if (dl_handle != NULL) {
 		/* if previous init failed */
@@ -92,8 +104,16 @@ int nutscan_load_upower_library(const char *libname_path, const char *libname_pa
 		return 0;
 	}
 
-	if (libname_path_dep == NULL) {
-		upsdebugx(1, "GLIB2 library (as dependency for GIO) not found. Hoping for system linker to do the right thing.");
+	if (libname_path_dep1 == NULL) {
+		upsdebugx(1, "GLIB2 library (as a potential dependency for GIO) not found. Hoping for system linker to do the right thing.");
+	}
+
+	if (libname_path_dep2 == NULL) {
+		upsdebugx(1, "GMOUNT library (as a potential dependency for GIO) not found. Hoping for system linker to do the right thing.");
+	}
+
+	if (libname_path_dep3 == NULL) {
+		upsdebugx(1, "GOBJECT library (as a potential dependency for GIO) not found. Hoping for system linker to do the right thing.");
 	}
 
 	if (lt_dlinit() != 0) {
@@ -101,21 +121,50 @@ int nutscan_load_upower_library(const char *libname_path, const char *libname_pa
 		return 0;
 	}
 
-	/* At least Windows wants dependency (libglib2) module to be in the
-	 * symbol namespace before it parses the finally requested library.
+	/* At least Windows wants dependency (libglib2, libmount maybe, libgobject) module(s) to be
+	 * in the symbol namespace before it parses the finally requested library.
+	 * TOTHINK: Unload if loaded but argument is NULL? Or let it be?..
 	 */
-	if ( libname_path_dep != NULL
-	 && (dl_handle_dep == NULL
-	     || dl_handle_dep == (lt_dlhandle)1	/* if previous init failed */
+	if ( libname_path_dep3 != NULL
+	 && (dl_handle_dep3 == NULL
+	     || dl_handle_dep3 == (lt_dlhandle)1	/* if previous init failed */
 	) ) {
-		dl_handle_dep = lt_dlopen(libname_path_dep);
-		if (!dl_handle_dep) {
+		dl_handle_dep3 = lt_dlopen(libname_path_dep3);
+		if (!dl_handle_dep3) {
 			dl_error = lt_dlerror();
 			goto err;
 		}
-		if (dl_saved_libname_dep)
-			free(dl_saved_libname_dep);
-		dl_saved_libname_dep = xstrdup(libname_path_dep);
+		if (dl_saved_libname_dep3)
+			free(dl_saved_libname_dep3);
+		dl_saved_libname_dep3 = xstrdup(libname_path_dep3);
+	}
+
+	if ( libname_path_dep2 != NULL
+	 && (dl_handle_dep2 == NULL
+	     || dl_handle_dep2 == (lt_dlhandle)1	/* if previous init failed */
+	) ) {
+		dl_handle_dep2 = lt_dlopen(libname_path_dep2);
+		if (!dl_handle_dep2) {
+			dl_error = lt_dlerror();
+			goto err;
+		}
+		if (dl_saved_libname_dep2)
+			free(dl_saved_libname_dep2);
+		dl_saved_libname_dep2 = xstrdup(libname_path_dep2);
+	}
+
+	if ( libname_path_dep1 != NULL
+	 && (dl_handle_dep1 == NULL
+	     || dl_handle_dep1 == (lt_dlhandle)1	/* if previous init failed */
+	) ) {
+		dl_handle_dep1 = lt_dlopen(libname_path_dep1);
+		if (!dl_handle_dep1) {
+			dl_error = lt_dlerror();
+			goto err;
+		}
+		if (dl_saved_libname_dep1)
+			free(dl_saved_libname_dep1);
+		dl_saved_libname_dep1 = xstrdup(libname_path_dep1);
 	}
 
 	/* Clear any existing error */
