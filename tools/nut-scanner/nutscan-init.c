@@ -546,6 +546,11 @@ void nutscan_init(void)
 		libname = get_libname(SOFILE_LIBGIO);
 	}
 # endif	/* SOFILE_LIBGIO */
+# ifdef WIN32
+	if (!libname) {
+		libname = get_libname("libgio-2.0-0" SOEXT);
+	}
+# endif	/* WIN32 */
 	if (!libname) {
 		libname = get_libname("libgio-2.0" SOEXT);
 	}
@@ -558,11 +563,16 @@ void nutscan_init(void)
 # ifdef SOFILE_LIBGLIB
 	libname_glib2 = get_libname(SOFILE_LIBGLIB);
 # endif	/* SOFILE_LIBGLIB */
+# ifdef WIN32
 	if (!libname_glib2) {
-		libname_glib2 = get_libname("libglib2-2.0" SOEXT);
+		libname_glib2 = get_libname("libglib-2.0-0" SOEXT);
 	}
+# endif	/* WIN32 */
 	if (!libname_glib2) {
 		libname_glib2 = get_libname("libglib-2.0" SOEXT);
+	}
+	if (!libname_glib2) {
+		libname_glib2 = get_libname("libglib2" SOEXT);
 	}
 # ifdef SOPATH_LIBGLIB
 	if (!libname_glib2) {
