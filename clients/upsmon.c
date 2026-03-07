@@ -3788,6 +3788,7 @@ int main(int argc, char *argv[])
 	const char	*prog = xbasename(argv[0]);
 	const char	*net_connect_timeout = NULL;
 	int	i, cmdret = -1, checking_flag = 0, foreground = -1;
+	struct timeval	prevstart;
 
 #ifndef WIN32
 	pid_t	oldpid = -1;
@@ -4163,6 +4164,7 @@ int main(int argc, char *argv[])
 	open_syslog(prog);
 
 	upsnotify(NOTIFY_STATE_READY_WITH_PID, NULL);
+	gettimeofday(&prevstart, NULL);
 
 	while (exit_flag == 0) {
 		utype_t	*ups;
@@ -4263,7 +4265,7 @@ int main(int argc, char *argv[])
 				/* Note the system clock may be or not be updated */
 				gettimeofday(&now, NULL);
 				time(&ttNow);
-				dt = difftimeval(now, start);
+				dt = difftimeval(now, prevstart);
 
 				do_notify(NULL, NOTIFY_SUSPEND_FINISHED, NULL);
 				upslogx(LOG_INFO, "%s: Processing OS wake-up after sleep; %.06f seconds since previous loop cycle start", prog, dt);
@@ -4468,6 +4470,8 @@ end_loop_cycle:
 		 * in a timely manner, not buffered indefinitely: */
 		fflush(stdout);
 		fflush(stderr);
+
+		prevstart = start;
 	}
 
 	upslogx(LOG_INFO, "Signal %d: exiting", exit_flag);
