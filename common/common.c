@@ -3961,6 +3961,12 @@ vupslog_too_long:
 
 		gettimeofday(&now, NULL);
 		upslog_start = now;
+
+#ifdef WIN32
+		/* Ensure line buffering for sane logs on Windows console
+		 * especially when many threads/daemons write there. */
+		setvbuf(stderr, NULL, _IOLBF, BUFSIZ);
+#endif
 	}
 
 	if (xbit_test(upslog_flags, UPSLOG_STDERR) || xbit_test(upslog_flags, UPSLOG_STDOUT)) {
