@@ -749,11 +749,15 @@ const char *upscli_strerror(UPSCONN_t *ups)
 static ssize_t upscli_select_read(const int fd, void *buf, const size_t buflen, const time_t d_sec, const suseconds_t d_usec)
 {
 	ssize_t		ret;
-	fd_set		fds;
+	fd_set		fds, efds;
 	struct timeval	tv;
 
 	FD_ZERO(&fds);
 	FD_SET(fd, &fds);
+
+	/* Track also "exceptional conditions" */
+	FD_ZERO(&efds);
+	FD_SET(fd, &efds);
 
 	upsdebugx(6, "%s: will wait on select() for up to %" PRIuMAX ".%" PRIuMAX " seconds",
 		__func__, (uintmax_t)d_sec, (uintmax_t)d_usec);
@@ -761,7 +765,7 @@ static ssize_t upscli_select_read(const int fd, void *buf, const size_t buflen, 
 	tv.tv_usec = d_usec;
 
 	errno = 0;
-	ret = select(fd + 1, &fds, NULL, NULL, &tv);
+	ret = select(fd + 1, &fds, NULL, &efds, &tv);
 
 	if (ret < 1) {
 		upsdebug_with_errno(3, "%s: select() failed: %" PRIiSIZE, __func__, ret);
