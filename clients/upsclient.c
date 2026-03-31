@@ -1081,13 +1081,14 @@ static int upscli_sslinit(UPSCONN_t *ups, int verifycert)
 #else	/* WITH_SSL */
 
 # ifdef WITH_OPENSSL
-	int res;
+	int	res;
 # elif defined(WITH_NSS) /* WITH_OPENSSL */
 	SECStatus	status;
 	PRFileDesc	*socket;
 	HOST_CERT_t *cert;
 # endif /* WITH_OPENSSL | WITH_NSS */
 	char	buf[UPSCLI_NETBUF_LEN];
+	ssize_t	ret;
 
 	/* Intend to initialize upscli with no ssl db if not already done.
 	 * Compatibility stuff for old clients which do not initialize them.
@@ -1255,9 +1256,7 @@ static int upscli_sslinit(UPSCONN_t *ups, int verifycert)
 		}
 	}
 
-	upsdebugx(3, "%s: Succeeded to STARTTLS (OpenSSL)", __func__);
-
-	return 1;
+	upsdebugx(3, "%s: Succeeded to initially STARTTLS (OpenSSL)", __func__);
 
 # elif defined(WITH_NSS) /* WITH_OPENSSL */
 
@@ -1346,11 +1345,48 @@ static int upscli_sslinit(UPSCONN_t *ups, int verifycert)
 		return -1;
 	}
 
-	upsdebugx(3, "%s: Succeeded to STARTTLS (NSS)", __func__);
+	upsdebugx(3, "%s: Succeeded to initially STARTTLS (NSS)", __func__);
+# endif /* WITH_OPENSSL | WITH_NSS */
+
+	/* Is anything pending already - errors, confirmations?
+	 * Do not close the connection upon empty reads, etc.
+	 */
+	memset(buf, 0, sizeof(buf));
+	ret = upscli_readline_timeout_may_disconnect(ups, buf, sizeof(buf), 1, 0);
+	if (ret == 0) {
+		upsdebugx(3, "%s: Got a message just after STARTTLS was established: [%s]: %s",
+			__func__, buf, upscli_strerror(ups));
+	} else
+	if (ups->upserror == UPSCLI_ERR_SSLERR && ups->ssl) {
+#ifdef WITH_OPENSSL
+		SSL
+#elif defined(WITH_NSS)
+		PRFileDesc
+#else
+		void
+#endif
+			*pssl = ups->ssl;
+
+		upsdebugx(3, "%s: Got a message just after STARTTLS was established, but with an SSL error (%s), try a plaintext read",
+			__func__, upscli_strerror(ups));
+		memset(buf, 0, sizeof(buf));
+		ups->ssl = NULL;
+		ret = upscli_readline_timeout_may_disconnect(ups, buf, sizeof(buf), 1, 0);
+		ups->ssl = pssl;
+		if (ret == 0)
+			upsdebugx(3, "%s: Got a plaintext message just after STARTTLS was established: [%s]: %s",
+				__func__, buf, upscli_strerror(ups));
+	}
+
+	if (!strncmp(buf, "ERR ", 4)) {
+		upsdebugx(3, "%s: STARTTLS ultimately did not init: %s", __func__, buf);
+		/* FIXME: Free some context? Or drop it? Code above is inconclusive...
+		ups->ssl = NULL;
+		*/
+		return -1;		/* not supported */
+	}
 
 	return 1;
-
-# endif /* WITH_OPENSSL | WITH_NSS */
 #endif /* WITH_SSL */
 }
 
