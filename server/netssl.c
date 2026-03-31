@@ -653,12 +653,21 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 				client->addr);
 		} else {
 			nss_error("net_starttls / SSL_ForceHandshake");
+			send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL handshake failed\"");
 			/* TODO : Close the connection. */
 			return;
 		}
 	}
+
 	client->ssl_connected = 1;
 # endif /* WITH_OPENSSL | WITH_NSS */
+
+	if (!sendback(client, "OK STARTTLS ESTABLISHED\n")) {
+		upsdebugx(3, "%s: failed to send confirmation while client->ssl_connected=%d",
+			__func__, client->ssl_connected);
+		client->ssl_connected = 0;
+		return;
+	}
 }
 
 void ssl_init(void)
