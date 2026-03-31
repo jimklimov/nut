@@ -419,6 +419,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 
 	if (!client->ssl) {
 		upslog_with_errno(LOG_ERR, "SSL_new failed\n");
+		send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL init failed\"");
 		ssl_debug();
 		return;
 	}
@@ -426,6 +427,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 	if (SSL_set_fd(client->ssl, client->sock_fd) != 1) {
 		upslog_with_errno(LOG_ERR, "SSL_set_fd failed\n");
 		ssl_debug();
+		send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL init failed\"");
 		return;
 	}
 
@@ -503,6 +505,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 					 * we stop retrying even if non-fatal because
 					 * select() itself failed. */
 					ssl_error(client->ssl, ret);
+					send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL handshake failed\"");
 					return;
 				}
 				ssl_retries++;
@@ -522,6 +525,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 					__func__, ssl_err);
 			}
 			ssl_error(client->ssl, ret);
+			send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL handshake failed\"");
 			return;
 		}
 
@@ -531,6 +535,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 				" (non-blocking handshake never completed)",
 				__func__, ssl_retries);
 			ssl_error(client->ssl, ret);
+			send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL handshake failed\"");
 			return;
 		}
 	}
@@ -542,6 +547,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 	if (socket == NULL) {
 		upslogx(LOG_ERR, "Can not initialize SSL connection");
 		nss_error("net_starttls / PR_ImportTCPSocket");
+		send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL init failed\"");
 		return;
 	}
 
@@ -550,6 +556,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 	if (client->ssl == NULL) {
 		upslogx(LOG_ERR, "Can not initialize SSL connection");
 		nss_error("net_starttls / SSL_ImportFD");
+		send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL init failed\"");
 		return;
 	}
 
@@ -557,6 +564,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 	if (SSL_SetPKCS11PinArg(client->ssl, client) == -1) {
 		upslogx(LOG_ERR, "Can not initialize SSL connection");
 		nss_error("net_starttls / SSL_SetPKCS11PinArg");
+		send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL init failed\"");
 		return;
 	}
 
@@ -637,6 +645,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 					(certrequest == NETSSL_CERTREQ_REQUIRE ? "require" : "request")
 					);
 				nss_error("net_starttls / SSL_ForceHandshake");
+				send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL trust failed\"");
 				return;
 			}
 # endif
