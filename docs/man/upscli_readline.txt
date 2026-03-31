@@ -34,7 +34,9 @@ function to return '-1'.
 The difference between the two functions is that *upscli_readline_timeout()*
 lets the caller decide the amount of time ('timeout' seconds) after which it
 should give up and return, whereas *upscli_readline()* does not offer this
-freedom, and uses NUT default network timeout (5 seconds).
+freedom, and uses NUT default network timeout (either 5 seconds by built-in
+default, or a value specified by configuration, client command-line settings,
+or the `NUT_DEFAULT_CONNECT_TIMEOUT` environment variable).
 
 RETURN VALUE
 ------------
@@ -46,6 +48,9 @@ SEE ALSO
 --------
 
 linkman:upscli_fd[3], linkman:upscli_get[3],
+linkman:upscli_set_default_connect_timeout[3],
+linkman:upscli_get_default_connect_timeout[3],
+linkman:upscli_init_default_connect_timeout[3],
 linkman:upscli_readline[3], linkman:upscli_sendline[3],
 linkman:upscli_ssl[3],
 linkman:upscli_strerror[3], linkman:upscli_upserror[3]
