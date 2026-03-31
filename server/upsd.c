@@ -654,6 +654,9 @@ int sendback(nut_ctype_t *client, const char *fmt, ...)
 	char	ans[NUT_NET_ANSWER_MAX+1];
 	va_list	ap;
 	const char	*op = NULL;
+#ifdef WITH_SSL
+	int	use_ssl = 0;
+#endif
 
 	if (!client) {
 		return 0;
@@ -672,8 +675,28 @@ int sendback(nut_ctype_t *client, const char *fmt, ...)
 
 #ifdef WITH_SSL
 	if (client->ssl) {
+		use_ssl = 1;
+		if (!client->ssl_connected) {
+			if (!strncmp("ERR ", ans, 4)) {
+				use_ssl = -1;
+			} else {
+				upsdebugx(3, "%s: WARNING: client has SSL context but is not connected, "
+					"our ssl_write will likely fail!", __func__);
+			}
+		}
+	}
+
+	if (use_ssl) {
+		/* SSL context attached AND handshake completed */
 		op = "ssl_write";
 		res = ssl_write(client, ans, len);
+		if ((res < 0 || len != (size_t)res) && use_ssl == -1) {
+			upsdebugx(3, "%s: client has SSL context but is not connected, "
+				"is this a send_err() from STARTTLS? "
+				"Falling back to plaintext!", __func__);
+			op = "write";
+			res = write(client->sock_fd, ans, len);
+		}
 	} else
 #endif /* WITH_SSL */
 	{
