@@ -576,6 +576,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 	if (status != SECSuccess) {
 		upslogx(LOG_ERR, "Can not initialize SSL connection");
 		nss_error("net_starttls / SSL_AuthCertificateHook");
+		send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL trust failed\"");
 		return;
 	}
 
@@ -584,6 +585,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 	if (status != SECSuccess) {
 		upslogx(LOG_ERR, "Can not initialize SSL connection");
 		nss_error("net_starttls / SSL_BadCertHook");
+		send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL trust failed\"");
 		return;
 	}
 
@@ -592,6 +594,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 	if (status != SECSuccess) {
 		upslogx(LOG_ERR, "Can not initialize SSL connection");
 		nss_error("net_starttls / SSL_HandshakeCallback");
+		send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL init failed\"");
 		return;
 	}
 
@@ -600,6 +603,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 	if (status != SECSuccess) {
 		upslogx(LOG_ERR, "Can not initialize SSL connection");
 		nss_error("net_starttls / SSL_ConfigSecureServer");
+		send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL init failed\"");
 		return;
 	}
 #if (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_PUSH_POP) && (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_CAST_FUNCTION_TYPE_STRICT)
@@ -611,6 +615,7 @@ void net_starttls(nut_ctype_t *client, size_t numarg, const char **arg)
 	if (status != SECSuccess) {
 		upslogx(LOG_ERR, "Can not initialize SSL connection");
 		nss_error("net_starttls / SSL_ResetHandshake");
+		send_err_extra(client, NUT_ERR_ACCESS_DENIED, "\"SSL handshake failed\"");
 		return;
 	}
 
