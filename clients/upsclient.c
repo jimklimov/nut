@@ -1860,6 +1860,7 @@ ssize_t upscli_readline(UPSCONN_t *ups, char *buf, size_t buflen)
 {
 	return upscli_readline_timeout(ups, buf, buflen,
 		upscli_default_connect_timeout_initialized
+		&& upscli_default_connect_timeout.tv_sec > 0
 		? upscli_default_connect_timeout.tv_sec
 		: DEFAULT_NETWORK_TIMEOUT
 		);
