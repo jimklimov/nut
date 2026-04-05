@@ -643,6 +643,7 @@ int pipe_ready(pipe_conn_t *conn)
 {
 	DWORD	bytesRead;
 	BOOL	res;
+	size_t	len;
 
 	res = GetOverlappedResult(conn->handle, &conn->overlapped, &bytesRead, FALSE);
 	if (res == 0) {
@@ -677,9 +678,10 @@ int send_to_named_pipe(const char * pipe_name, const char * data)
 		return 1;
 	}
 
-	result = WriteFile(pipe, data, strlen(data) + 1, &bytesWritten, NULL);
+	len = strlen(data);
+	result = WriteFile(pipe, data, len + 1, &bytesWritten, NULL);
 
-	if (result == 0 || bytesWritten != strlen(data) + 1) {
+	if (result == 0 || bytesWritten != len + 1) {
 		CloseHandle(pipe);
 		return 1;
 	}
