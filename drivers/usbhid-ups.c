@@ -2550,9 +2550,8 @@ static bool_t hid_ups_walk(walkmode_t mode)
 
 static int reconnect_ups(void)
 {
-	int ret;
 	char	*val;
-	int wait_before_reconnect = 0;
+	int	ret, wait_before_reconnect = 0;
 
 	dstate_setinfo("driver.state", "reconnect.trying");
 
@@ -2577,7 +2576,7 @@ static int reconnect_ups(void)
 		sleep(wait_before_reconnect);
 		upsdebugx(4, " trying to reconnect");
 	} else {
-		upsdebugx(4, " device has been disconnected, try to reconnect");
+		upsdebugx(4, " device has been disconnected, trying to reconnect now");
 	}
 	upsdebugx(4, "===================================================================");
 
@@ -2592,8 +2591,7 @@ static int reconnect_ups(void)
 	return 0;
 }
 
-/* Convert the local status information to NUT format and set NUT
-   alarms. */
+/* Convert the local status information to NUT format and set NUT alarms. */
 static void ups_alarm_set(void)
 {
 	if (ups_status & STATUS(REPLACEBATT)) {
