@@ -1774,7 +1774,7 @@ void upsdrv_initups(void)
 	case 0:
 		break;
 	case -1:
-		fatal_with_errno(EXIT_FAILURE, "HIDNewRegexMatcher()");
+		fatal_with_errno(EXIT_FAILURE, "USBNewRegexMatcher()");
 #ifndef HAVE___ATTRIBUTE__NORETURN
 		exit(EXIT_FAILURE);
 		/* Should not get here in practice, but
