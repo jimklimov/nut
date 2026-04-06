@@ -6,7 +6,7 @@
  *   2005-2006 Peter Selinger <selinger@users.sourceforge.net>
  *   2007-2009 Arjen de Korte <adkorte-guest@alioth.debian.org>
  *   2016      Eaton / Arnaud Quette <ArnaudQuette@Eaton.com>
- *   2020-2025 Jim Klimov <jimklimov+nut@gmail.com>
+ *   2020-2026 Jim Klimov <jimklimov+nut@gmail.com>
  *
  * This program was sponsored by MGE UPS SYSTEMS, and now Eaton
  *
@@ -52,6 +52,8 @@
 #include "mge-hid.h"
 
 #if !((defined SHUT_MODE) && SHUT_MODE)
+#	include "usb-common.h"
+
 	/* explore stub goes first, others alphabetically */
 #	include "explore-hid.h"
 #	include "apc-hid.h"
@@ -1426,7 +1428,7 @@ void upsdrv_updateinfo(void)
 		evtCount = HIDGetEvents(udev, event, MAX_EVENT_NUM);
 		switch (evtCount)
 		{
-		case LIBUSB_ERROR_BUSY:      /* Device or resource busy */
+		case LIBUSB_ERROR_BUSY:		/* Device or resource busy */
 			upslog_with_errno(LOG_CRIT, "Got disconnected by another driver");
 			goto fallthrough_reconnect;
 		case NUT_LIBUSB_CODE_NO_EVENTS:	/* No HID Events */
@@ -1439,36 +1441,44 @@ void upsdrv_updateinfo(void)
 				goto fallthrough_reconnect;
 			}
 			break;
-#if WITH_LIBUSB_0_1 /* limit to libusb 0.1 implementation */
-		case -EPERM:		/* Operation not permitted */
+#if WITH_LIBUSB_0_1	/* limit to libusb 0.1 implementation */
+		case -EPERM:			/* Operation not permitted */
 #endif
-		case LIBUSB_ERROR_NO_DEVICE: /* No such device */
-		case LIBUSB_ERROR_ACCESS:    /* Permission denied */
-#if WITH_LIBUSB_0_1         /* limit to libusb 0.1 implementation */
-		case -ENXIO:		    /* No such device or address */
+		case LIBUSB_ERROR_NO_DEVICE:	/* No such device */
+		case LIBUSB_ERROR_ACCESS:	/* Permission denied */
+#if WITH_LIBUSB_0_1	/* limit to libusb 0.1 implementation */
+		case -ENXIO:			/* No such device or address */
 #endif
-		case LIBUSB_ERROR_NOT_FOUND: /* No such file or directory */
-		case LIBUSB_ERROR_NO_MEM:    /* Insufficient memory */
+		case LIBUSB_ERROR_NOT_FOUND:	/* No such file or directory */
+		case LIBUSB_ERROR_NO_MEM:	/* Insufficient memory */
+#if !((defined SHUT_MODE) && SHUT_MODE)
+			upsdebugx(1, "%s: HIDGetEvents(): libusb fault: %s", __func__, nut_usb_strerror(evtCount));;
+			goto fallthrough_reconnect;
+#endif
 		fallthrough_reconnect:
 			/* Uh oh, got to reconnect! */
 			dstate_setinfo("driver.state", "reconnect.trying");
 			hd = NULL;
 			return;
-		case LIBUSB_ERROR_IO:        /* I/O error */
+		case LIBUSB_ERROR_IO:		/* I/O error */
 			/* Uh oh, got to reconnect, with a special suggestion! */
+#if !((defined SHUT_MODE) && SHUT_MODE)
+			upsdebugx(1, "%s: HIDGetEvents(): libusb fault: %s", __func__, nut_usb_strerror(evtCount));;
+#endif
 			dstate_setinfo("driver.state", "reconnect.trying");
 			interrupt_pipe_EIO_count++;
 			hd = NULL;
 			return;
 		default:
 			upsdebugx(1, "Got %i HID objects...", (evtCount >= 0) ? evtCount : 0);
-			if (evtCount > 0)
+			if (evtCount > 0) {
 				interrupt_pipe_no_events_count = 0;
-			else
+			} else {
 				upsdebugx(1, "Got unhandled result from HIDGetEvents(): %i\n"
 					"Please report it to NUT developers, with an 'upsc' output for your device,\n"
 					"versions of NUT and libusb used, and verbose driver debug log if possible.",
 					evtCount);
+			}
 			break;
 		}
 	} else {
@@ -2392,58 +2402,69 @@ static bool_t hid_ups_walk(walkmode_t mode)
 
 		switch (retcode)
 		{
-		case LIBUSB_ERROR_BUSY:      /* Device or resource busy */
+		case LIBUSB_ERROR_BUSY:		/* Device or resource busy */
 			upslog_with_errno(LOG_CRIT, "Got disconnected by another driver");
 			goto fallthrough_reconnect;
 
-#if WITH_LIBUSB_0_1 /* limit to libusb 0.1 implementation */
-		case -EPERM:		/* Operation not permitted */
+#if WITH_LIBUSB_0_1	/* limit to libusb 0.1 implementation */
+		case -EPERM:			/* Operation not permitted */
 #endif
-		case LIBUSB_ERROR_NO_DEVICE: /* No such device */
-		case LIBUSB_ERROR_ACCESS:    /* Permission denied */
-#if WITH_LIBUSB_0_1           /* limit to libusb 0.1 implementation */
-		case -ENXIO:		  /* No such device or address */
+		case LIBUSB_ERROR_NO_DEVICE:	/* No such device */
+		case LIBUSB_ERROR_ACCESS:	/* Permission denied */
+#if WITH_LIBUSB_0_1	/* limit to libusb 0.1 implementation */
+		case -ENXIO:			/* No such device or address */
 #endif
-		case LIBUSB_ERROR_NOT_FOUND: /* No such file or directory */
-		case LIBUSB_ERROR_NO_MEM:    /* Insufficient memory */
+		case LIBUSB_ERROR_NOT_FOUND:	/* No such file or directory */
+		case LIBUSB_ERROR_NO_MEM:	/* Insufficient memory */
+#if !((defined SHUT_MODE) && SHUT_MODE)
+			upsdebugx(1, "%s: HIDGetDataValue(): libusb fault: %s", __func__, nut_usb_strerror(retcode));;
+			goto fallthrough_reconnect;
+#endif
 		fallthrough_reconnect:
 			/* Uh oh, got to reconnect! */
 			dstate_setinfo("driver.state", "reconnect.trying");
 			hd = NULL;
 			return FALSE;
 
-		case LIBUSB_ERROR_IO:        /* I/O error */
+		case LIBUSB_ERROR_IO:		/* I/O error */
 			/* Some devices have firmware bugs causing transient I/O errors
 			 * on specific HID reports. Rather than triggering expensive
 			 * reconnects, skip the failing report and continue. If device
 			 * is truly disconnected, other error codes will catch it, or
 			 * all polls fail and safety check below triggers reconnect. */
-			upsdebugx(3, "Got LIBUSB_ERROR_IO on item '%s' ReportID=0x%02x - skipping",
+			upsdebugx(3, "%s: HIDGetDataValue(): Got LIBUSB_ERROR_IO "
+				"on item '%s' ReportID=0x%02x - skipping",
+				__func__,
 				item->info_type ? item->info_type : "(null)",
 				item->hiddata ? item->hiddata->ReportID : 0xFFU);
 			interrupt_pipe_EIO_count++;
 			continue;
 
 		case 1:
-			items_succeeded++; /* Count successful data retrieval */
-			break;	/* Found! */
+			items_succeeded++;	/* Count successful data retrieval */
+			break;			/* Found! */
 
 		case 0:
 			continue;
 
-		case LIBUSB_ERROR_TIMEOUT:   /* Connection timed out */
+		case LIBUSB_ERROR_TIMEOUT:	/* Connection timed out */
 /* libusb win32 does not know EPROTO and EOVERFLOW,
  * it only returns EIO for any IO errors */
 #ifndef WIN32
-		case LIBUSB_ERROR_OVERFLOW:  /* Value too large for defined data type */
+		case LIBUSB_ERROR_OVERFLOW:	/* Value too large for defined data type */
 # if EPROTO && WITH_LIBUSB_0_1
-		case -EPROTO:		/* Protocol error */
+		case -EPROTO:			/* Protocol error */
 # endif
 #endif	/* !WIN32 */
-		case LIBUSB_ERROR_PIPE:      /* Broken pipe */
+		case LIBUSB_ERROR_PIPE:		/* Broken pipe */
+#if !((defined SHUT_MODE) && SHUT_MODE)
+			upsdebugx(1, "%s: HIDGetDataValue(): libusb fault: %s", __func__, nut_usb_strerror(retcode));;
+#endif
+			continue;
+
 		default:
 			/* Don't know what happened, try again later... */
-			upsdebugx(1, "HIDGetDataValue unknown retcode '%i'", retcode);
+			upsdebugx(1, "%s: HIDGetDataValue unknown retcode '%i'", __func__, retcode);
 			continue;
 		}
 
