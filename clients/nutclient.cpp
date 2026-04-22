@@ -1976,6 +1976,8 @@ SSLConfig::~SSLConfig()
 {
 }
 
+const std::string SSLConfig::_empty_str = "";
+
 void SSLConfig::apply(TcpClient& client) const
 {
 	client.setSslForce(_forcessl);
