@@ -1098,7 +1098,7 @@ detect_platform_PKG_CONFIG_PATH_and_FLAGS() {
 
 # Would hold full path to the CONFIGURE_SCRIPT="${SCRIPTDIR}/${CONFIGURE_SCRIPT_FILENAME}"
 CONFIGURE_SCRIPT=""
-autogen_get_CONFIGURE_SCRIPT() {
+do_autogen_get_CONFIGURE_SCRIPT() {
     # Autogen once (delete the file if some scenario ever requires to re-autogen)
     if [ -n "${CONFIGURE_SCRIPT}" -a -s "${CONFIGURE_SCRIPT}" ] ; then return 0 ; fi
 
@@ -1131,6 +1131,32 @@ autogen_get_CONFIGURE_SCRIPT() {
     popd || exit
 }
 
+# If it is non-trivial later, we use it
+unset CI_CACHE_NUT_HASHDIR || true
+autogen_get_CONFIGURE_SCRIPT() {
+    do_autogen_get_CONFIGURE_SCRIPT
+
+    unset CI_CACHE_NUT_HASHDIR || true
+    # Allow regular runners dedicate a persistent cache to re-run same configs
+    # more quickly. Opt-in, not applicable to all scenarios.
+    # FIXME: consider locking (one creator at least)?
+    if [ -n "$CI_CACHE_NUT_BASEDIR" ] && [ x"$CI_CACHE_NUT_ENABLED" = xtrue ] ; then
+        # FIXME later: any hash would do to detect changes
+        command -v md5sum && \
+        AUTOCONF_HASH="$(cat `ls -1 configure.ac m4/*.m4 | sort` | md5sum | awk '${print $1}')" \
+        || AUTOCONF_HASH=''
+        if [ -n "${AUTOCONF_HASH}" ]; then
+            CI_CACHE_NUT_HASHDIR="${CI_CACHE_NUT_BASEDIR}/${AUTOCONF_HASH}"
+            if [ ! -d "${CI_CACHE_NUT_HASHDIR}" ] ; then
+                mkdir -p "${CI_CACHE_NUT_HASHDIR}"
+                # Just for info so far:
+                ls -lad configure.ac m4/*.m4 > "${CI_CACHE_NUT_HASHDIR}/ci_listing.txt"
+                md5sum configure.ac m4/*.m4 > "${CI_CACHE_NUT_HASHDIR}/ci_hashes.txt"
+            fi
+        fi
+    fi
+}
+
 configure_CI_BUILDDIR() {
     autogen_get_CONFIGURE_SCRIPT
 
@@ -1160,8 +1186,19 @@ configure_nut() {
     while : ; do # Note the CI_SHELL_IS_FLAKY=true support below
       echo "=== CONFIGURING NUT: $CONFIGURE_SCRIPT ${CONFIG_OPTS_STR}"
       echo "=== CC='$CC' CXX='$CXX' CPP='$CPP'"
+      unset CI_CACHE_NUT_HASHDIR_CFG
+      if [ -n "${CI_CACHE_NUT_HASHDIR}" ] && [ -d "${CI_CACHE_NUT_HASHDIR}" ] ; then
+          CI_CACHE_NUT_HASHDIR_CFG="${CI_CACHE_NUT_HASHDIR}/`echo \"${CONFIG_OPTS_STR} CC='$CC' CXX='$CXX' CPP='$CPP'\" | md5sum | awk '{print $1}'`" \
+          || CI_CACHE_NUT_HASHDIR_CFG=''
+          if [ -n "${CI_CACHE_NUT_HASHDIR_CFG}" ] ; then
+              if [ ! -d "${CI_CACHE_NUT_HASHDIR_CFG}" ] ; then
+                  mkdir -p "${CI_CACHE_NUT_HASHDIR_CFG}"
+                  echo "${CONFIG_OPTS_STR} CC='$CC' CXX='$CXX' CPP='$CPP'" > "${CI_CACHE_NUT_HASHDIR_CFG}/ci_cfg.txt"
+              fi
+          fi
+      fi
       [ -z "${CI_SHELL_IS_FLAKY-}" ] || echo "=== CI_SHELL_IS_FLAKY='$CI_SHELL_IS_FLAKY'"
-      $CI_TIME $CONFIGURE_SCRIPT "${CONFIG_OPTS[@]}" \
+      $CI_TIME $CONFIGURE_SCRIPT ${CI_CACHE_NUT_HASHDIR_CFG:+--cache-file="${CI_CACHE_NUT_HASHDIR_CFG}"} "${CONFIG_OPTS[@]}" \
       && echo "$0: configure phase complete (0)" >&2 \
       && return 0 \
       || { RES_CFG=$?
