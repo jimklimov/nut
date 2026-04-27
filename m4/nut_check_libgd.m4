@@ -116,31 +116,42 @@ if test -z "${nut_have_libgd_seen}"; then
 	LDFLAGS="${LDFLAGS_ORIG} ${depLDFLAGS}"
 	LIBS="${LIBS_ORIG} ${depLIBS}"
 	AC_CHECK_HEADERS(gd.h gdfontmb.h, [nut_have_libgd=yes], [nut_have_libgd=no], [AC_INCLUDES_DEFAULT])
-	AC_SEARCH_LIBS(gdImagePng, gd, [], [
-		dnl If using pkg-config, query additionally for Libs.private
-		dnl to pull -L/usr/X11R6/lib or whatever current OS wants
-		AC_MSG_CHECKING([for more gd library flags])
-		AS_IF([test -n "${with_gd_libs}" || test x"$have_PKG_CONFIG" != xyes], [nut_have_libgd=no], [
-			depLIBS_PRIVATE="`$PKG_CONFIG --silence-errors --libs gdlib --static 2>/dev/null`"
-			AS_IF([test -z "${depLIBS_PRIVATE}"], [nut_have_libgd=no], [
-				AC_MSG_CHECKING([with gdlib.pc Libs.private])
-				depLDFLAGS="$depLDFLAGS $depLIBS_PRIVATE"
-				unset ac_cv_search_gdImagePng
-				LDFLAGS="${LDFLAGS_ORIG} ${depLDFLAGS}"
-				AC_SEARCH_LIBS(gdImagePng, gd, [nut_have_libgd=yes], [nut_have_libgd=no])
-			])
-			unset depLIBS_PRIVATE
-			dnl At least mingw 32-bit builds of the DLL seem to not
-			dnl tell the linker how to get from GD to PNG lib
-			AS_IF([test x"$nut_have_libgd" = xno], [
-				AC_MSG_CHECKING([with explicit -lpng in the loop])
-				depLDFLAGS="$depLDFLAGS -lgd"
-				unset ac_cv_search_gdImagePng
-				LDFLAGS="${LDFLAGS_ORIG} ${depLDFLAGS}"
-				AC_SEARCH_LIBS(gdImagePng, png png16, [nut_have_libgd=yes], [nut_have_libgd=no])
+	AC_CACHE_CHECK([for gdImagePng in gd], [ac_cv_search_gdImagePng], [
+		ac_cv_search_gdImagePng="no"
+		LIBS_SEARCH_ORIG="${LIBS}"
+		AC_SEARCH_LIBS(gdImagePng, gd, [ac_cv_search_gdImagePng="${ac_cv_search_gdImagePng}"], [
+			dnl If using pkg-config, query additionally for Libs.private
+			dnl to pull -L/usr/X11R6/lib or whatever current OS wants
+			AC_MSG_CHECKING([for more gd library flags])
+			AS_IF([test -n "${with_gd_libs}" || test x"$have_PKG_CONFIG" != xyes], [ac_cv_search_gdImagePng="no"], [
+				depLIBS_PRIVATE="`$PKG_CONFIG --silence-errors --libs gdlib --static 2>/dev/null`"
+				AS_IF([test -z "${depLIBS_PRIVATE}"], [ac_cv_search_gdImagePng="no"], [
+					AC_MSG_CHECKING([with gdlib.pc Libs.private])
+					LDFLAGS="${LDFLAGS_ORIG} ${depLDFLAGS} ${depLIBS_PRIVATE}"
+					LIBS="${LIBS_SEARCH_ORIG}"
+					AC_SEARCH_LIBS(gdImagePng, gd, [
+						ac_cv_search_gdImagePng="${ac_cv_search_gdImagePng}"
+						depLDFLAGS="$depLDFLAGS $depLIBS_PRIVATE"
+					], [ac_cv_search_gdImagePng="no"])
+				])
+				unset depLIBS_PRIVATE
+				dnl At least mingw 32-bit builds of the DLL seem to not
+				dnl tell the linker how to get from GD to PNG lib
+				AS_IF([test x"$ac_cv_search_gdImagePng" = xno], [
+					AC_MSG_CHECKING([with explicit -lpng in the loop])
+					LDFLAGS="${LDFLAGS_ORIG} ${depLDFLAGS} -lgd"
+					LIBS="${LIBS_SEARCH_ORIG}"
+					AC_SEARCH_LIBS(gdImagePng, png png16, [
+						ac_cv_search_gdImagePng="${ac_cv_search_gdImagePng}"
+						depLDFLAGS="$depLDFLAGS -lgd"
+					], [ac_cv_search_gdImagePng="no"])
+				])
 			])
 		])
+		LIBS="${LIBS_SEARCH_ORIG}"
 	])
+
+	AS_IF([test x"$ac_cv_search_gdImagePng" != xno], [nut_have_libgd=yes], [nut_have_libgd=no])
 
 	dnl Collect possibly updated dependencies after AC SEARCH LIBS:
 	AS_IF([test x"${LIBS}" != x"${LIBS_ORIG} ${depLIBS}"], [

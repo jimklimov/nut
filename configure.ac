@@ -1343,16 +1343,30 @@ AC_CHECK_HEADER([semaphore.h],
      dnl Solaris 8 builds complain about indirect dependency involved:
      dnl   sem_init   nut_scanner-nut-scanner.o
      dnl   (symbol belongs to implicit dependency /usr/lib/librt.so.1)
-     AC_SEARCH_LIBS([sem_init], [pthread], [], [
-        unset ac_cv_search_sem_init
-        AC_SEARCH_LIBS([sem_init], [pthread], [SEMLIBS_LRT=" -lrt"], [], [-lrt])])
-     AC_SEARCH_LIBS([sem_open], [pthread], [], [
-        unset ac_cv_search_sem_open
-        AC_SEARCH_LIBS([sem_open], [pthread], [SEMLIBS_LRT=" -lrt"], [], [-lrt])])
+     AC_CACHE_CHECK([for sem_init in pthread], [ac_cv_search_sem_init], [
+        ac_cv_search_sem_init="no"
+        AC_SEARCH_LIBS([sem_init], [pthread], [ac_cv_search_sem_init="${ac_cv_search_sem_init}"], [
+           AC_SEARCH_LIBS([sem_init], [pthread], [
+              ac_cv_search_sem_init="${ac_cv_search_sem_init} -lrt"
+              SEMLIBS_LRT=" -lrt"
+           ], [ac_cv_search_sem_init="no"], [-lrt])
+        ])
+     ])
+
+     AC_CACHE_CHECK([for sem_open in pthread], [ac_cv_search_sem_open], [
+        ac_cv_search_sem_open="no"
+        AC_SEARCH_LIBS([sem_open], [pthread], [ac_cv_search_sem_open="${ac_cv_search_sem_open}"], [
+           AC_SEARCH_LIBS([sem_open], [pthread], [
+              ac_cv_search_sem_open="${ac_cv_search_sem_open} -lrt"
+              SEMLIBS_LRT=" -lrt"
+           ], [ac_cv_search_sem_open="no"], [-lrt])
+        ])
+     ])
 
      AS_CASE([${ac_cv_search_sem_init}], [no*], [], [SEMLIBS="${ac_cv_search_sem_init}"])
      AS_CASE([${ac_cv_search_sem_open}], [no*], [], ["${SEMLIBS}"], [], [SEMLIBS="${ac_cv_search_sem_open}"])
-     SEMLIBS="${SEMLIBS}${SEMLIBS_LRT}"
+     dnl If we found something with -lrt above, it's already in SEMLIBS (as -lpthread -lrt or similar)
+     dnl but the old code also had a separate SEMLIBS_LRT. Let's keep SEMLIBS consistent.
 
      LIBS="${SEMLIBS}"
 
@@ -1810,11 +1824,12 @@ dnl https://github.com/openbsd/src/blob/master/bin/ps/ps.c
 dnl https://kaashif.co.uk/2015/06/18/how-to-get-a-list-of-processes-on-openbsd-in-c/
 BSDKVMPROCLIBS=""
 myLIBS="$LIBS"
-LIBS="$LIBS -lkvm"
 AC_CACHE_CHECK([for BSD KVM process info libs],
     [ac_cv_lib_bsd_kvm_proc],
-    [AC_LINK_IFELSE(
-        [AC_LANG_PROGRAM([[
+    [AC_CACHE_VAL([ac_cv_lib_bsd_kvm_proc_BSDKVMPROCLIBS],
+        [LIBS="$myLIBS -lkvm"
+         AC_LINK_IFELSE(
+            [AC_LANG_PROGRAM([[
 #include <stdio.h>
 #include <kvm.h>
 #include <limits.h>
@@ -1833,16 +1848,17 @@ AC_CACHE_CHECK([for BSD KVM process info libs],
 /* autoconf adds ";return 0;" */
 /* we hope the code above fails if type is not defined or range is not sufficient */
 ]])],
-        [ac_cv_lib_bsd_kvm_proc=yes
-         AC_CACHE_VAL([ac_cv_lib_bsd_kvm_proc_BSDKVMPROCLIBS], [ac_cv_lib_bsd_kvm_proc_BSDKVMPROCLIBS="-lkvm"])
-        ], [ac_cv_lib_bsd_kvm_proc=no]
-    )])
+            [ac_cv_lib_bsd_kvm_proc=yes
+             ac_cv_lib_bsd_kvm_proc_BSDKVMPROCLIBS="-lkvm"
+            ], [ac_cv_lib_bsd_kvm_proc=no]
+        )])
+    ])
 LIBS="$myLIBS"
 
 AS_IF([test x"${ac_cv_lib_bsd_kvm_proc}" = xyes],
     [AC_DEFINE([HAVE_LIB_BSD_KVM_PROC], 1, [defined if we have libs, includes and methods for BSD KVM process info])
-     BSDKVMPROCLIBS="${ac_cv_lib_bsd_kvm_proc_BSDKVMPROCLIBS}"
     ])
+BSDKVMPROCLIBS="${ac_cv_lib_bsd_kvm_proc_BSDKVMPROCLIBS}"
 
 dnl https://github.com/illumos/illumos-gate/blob/master/usr/src/uts/common/sys/procfs.h#L318
 dnl https://github.com/illumos/illumos-gate/blob/master/usr/src/cmd/ps/ps.c

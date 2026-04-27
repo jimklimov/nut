@@ -249,29 +249,37 @@ if test -z "${nut_have_libusb_seen}"; then
 					])
 				],
 				[AC_INCLUDES_DEFAULT])
-			AC_CHECK_FUNCS(usb_init, [], [
-				dnl Some systems may just have libusb in their standard
-				dnl paths, but not the pkg-config or libusb-config data
-				AS_IF([test "${nut_have_libusb}" = "yes" && test "$LIBUSB_VERSION" = "none" && test -z "$LIBS" -o x"$LIBS" = x"-lusb" ],
-					[AC_MSG_CHECKING([if libusb is just present in path])
-					 depLIBS="-L/usr/lib -L/usr/local/lib -lusb"
-					 dnl TODO: Detect bitness for trying /mingw32 or /usr/$ARCH as well?
-					 dnl This currently caters to mingw-w64-x86_64-libusb-win32 of MSYS2:
-					 AS_CASE(["${target_os}"],
-						[*mingw*], [depLIBS="-L/mingw64/lib $depLIBS"])
-					 unset ac_cv_func_usb_init || true
-					 LIBS="${LIBS_ORIG} ${depLIBS}"
-					 AC_CHECK_FUNCS(usb_init, [], [
-						AC_MSG_CHECKING([if libusb0 is just present in path])
-						depLIBS="$depLIBS"0
-						unset ac_cv_func_usb_init || true
-						LIBS="${LIBS_ORIG} ${depLIBS}"
-						AC_CHECK_FUNCS(usb_init, [nut_usb_lib="(libusb-0.1)"], [nut_have_libusb=no])
+			AC_CACHE_CHECK([for usb_init], [ac_cv_func_usb_init], [
+				ac_cv_func_usb_init="no"
+				AC_CHECK_FUNCS(usb_init, [ac_cv_func_usb_init=yes], [
+					dnl Some systems may just have libusb in their standard
+					dnl paths, but not the pkg-config or libusb-config data
+					AS_IF([test "${nut_have_libusb}" = "yes" && test "$LIBUSB_VERSION" = "none" && test -z "$LIBS" -o x"$LIBS" = x"-lusb" ],
+						[AC_MSG_CHECKING([if libusb is just present in path])
+						 depLIBS_TRY="-L/usr/lib -L/usr/local/lib -lusb"
+						 dnl TODO: Detect bitness for trying /mingw32 or /usr/$ARCH as well?
+						 dnl This currently caters to mingw-w64-x86_64-libusb-win32 of MSYS2:
+						 AS_CASE(["${target_os}"],
+							[*mingw*], [depLIBS_TRY="-L/mingw64/lib $depLIBS_TRY"])
+						 LIBS="${LIBS_ORIG} ${depLIBS_TRY}"
+						 AC_CHECK_FUNCS(usb_init, [
+							ac_cv_func_usb_init=yes
+							depLIBS="${depLIBS_TRY}"
+						 ], [
+							AC_MSG_CHECKING([if libusb0 is just present in path])
+							depLIBS_TRY="${depLIBS_TRY}0"
+							LIBS="${LIBS_ORIG} ${depLIBS_TRY}"
+							AC_CHECK_FUNCS(usb_init, [
+								ac_cv_func_usb_init=yes
+								nut_usb_lib="(libusb-0.1)"
+								depLIBS="${depLIBS_TRY}"
+							], [ac_cv_func_usb_init=no])
+						 ])
+						 AC_MSG_RESULT([${ac_cv_func_usb_init}])
 						])
-					 AC_MSG_RESULT([${nut_have_libusb}])
-					], [nut_have_libusb=no]
-				)]
-			)
+				])
+			])
+			AS_IF([test x"$ac_cv_func_usb_init" = xyes], [nut_have_libusb=yes], [nut_have_libusb=no])
 			dnl Check for libusb "force driver unbind" availability
 			if test "${nut_have_libusb}" = "yes"; then
 				AC_CHECK_FUNCS(usb_detach_kernel_driver_np)

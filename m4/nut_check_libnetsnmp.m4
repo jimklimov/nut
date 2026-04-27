@@ -135,35 +135,36 @@ if test -z "${nut_have_libnetsnmp_seen}"; then
 		 ])
 		], [], [AC_INCLUDES_DEFAULT])
 
-	AC_CHECK_FUNCS(init_snmp, [], [
-		dnl Probably is dysfunctional, except one case...
-		nut_have_libnetsnmp=no
-		AS_IF([test x"$depLIBS_SOURCE" = x"pkg-config"], [
-			AS_CASE(["${target_os}"],
-				[*mingw*], [
-					AC_MSG_NOTICE([mingw builds of net-snmp might provide only a static library - retrying for that])
-					depLIBS="`$PKG_CONFIG --silence-errors --libs --static netsnmp 2>/dev/null`"
-					dnl # Some workarouds here, to avoid libtool bailing out like this:
-					dnl # *** Warning: This system cannot link to static lib archive /usr/x86_64-w64-mingw32/lib//libnetsnmp.la.
-					dnl # *** I have the capability to make that library automatically link in when
-					dnl # *** you link to this library.  But I can only do this if you have a
-					dnl # *** shared version of the library, which you do not appear to have.
-					dnl # In Makefiles be sure to use _LDFLAGS (not _LIBADD) to smuggle linker
-					dnl # arguments when building "if WITH_SNMP_STATIC" recipe blocks!
-					dnl # For a practical example, see tools/nut-scanner/Makefile.am.
-					depLIBS="`echo \" $depLIBS\" | sed 's/ -l/ -Wl,-l/g'`"
-					LIBS="${LIBS_ORIG} ${depLIBS}"
-					AS_UNSET([ac_cv_func_init_snmp])
-					AC_CHECK_FUNCS(init_snmp, [
-						nut_have_libnetsnmp=yes
-						nut_have_libnetsnmp_static=yes
-						dnl Get into this code path upon re-runs even with config.cache:
-						AS_UNSET([ac_cv_func_init_snmp])
-					])
-				]
-			)
+	AC_CACHE_CHECK([for init_snmp], [ac_cv_func_init_snmp], [
+		AC_CHECK_FUNCS(init_snmp, [ac_cv_func_init_snmp=yes], [
+			dnl Probably is dysfunctional, except one case...
+			ac_cv_func_init_snmp=no
+			AS_IF([test x"$depLIBS_SOURCE" = x"pkg-config"], [
+				AS_CASE(["${target_os}"],
+					[*mingw*], [
+						AC_MSG_NOTICE([mingw builds of net-snmp might provide only a static library - retrying for that])
+						depLIBS_TRY="`$PKG_CONFIG --silence-errors --libs --static netsnmp 2>/dev/null`"
+						dnl # Some workarouds here, to avoid libtool bailing out like this:
+						dnl # *** Warning: This system cannot link to static lib archive /usr/x86_64-w64-mingw32/lib//libnetsnmp.la.
+						dnl # *** I have the capability to make that library automatically link in when
+						dnl # *** you link to this library.  But I can only do this if you have a
+						dnl # *** shared version of the library, which you do not appear to have.
+						dnl # In Makefiles be sure to use _LDFLAGS (not _LIBADD) to smuggle linker
+						dnl # arguments when building "if WITH_SNMP_STATIC" recipe blocks!
+						dnl # For a practical example, see tools/nut-scanner/Makefile.am.
+						depLIBS_TRY="`echo \" $depLIBS_TRY\" | sed 's/ -l/ -Wl,-l/g'`"
+						LIBS="${LIBS_ORIG} ${depLIBS_TRY}"
+						AC_CHECK_FUNCS(init_snmp, [
+							ac_cv_func_init_snmp=yes
+							depLIBS="${depLIBS_TRY}"
+							nut_have_libnetsnmp_static=yes
+						], [ac_cv_func_init_snmp=no])
+					]
+				)
+			])
 		])
 	])
+	AS_IF([test x"$ac_cv_func_init_snmp" = xyes], [nut_have_libnetsnmp=yes], [nut_have_libnetsnmp=no])
 	AS_UNSET([depLIBS_SOURCE])
 	AS_UNSET([depCFLAGS_SOURCE])
 

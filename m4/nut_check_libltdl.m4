@@ -46,29 +46,40 @@ if test -z "${nut_have_libltdl_seen}"; then
 
 	CFLAGS="${CFLAGS_ORIG} ${depCFLAGS}"
 	LIBS="${LIBS_ORIG} ${depLIBS}"
-	AC_CHECK_HEADERS(ltdl.h, [nut_have_libltdl=yes], [
-		dnl Double-check if we stashed include paths to try above
-		AS_IF([test -n "$myCFLAGS"], [
-			depCFLAGS="$myCFLAGS"
-			AS_UNSET([ac_cv_header_ltdl_h])
-			CFLAGS="${CFLAGS_ORIG} ${depCFLAGS}"
-			AC_CHECK_HEADERS(ltdl.h, [nut_have_libltdl=yes], [nut_have_libltdl=no], [AC_INCLUDES_DEFAULT])
-			dnl Get into this code path upon re-runs even with config.cache:
-			AS_UNSET([ac_cv_header_ltdl_h])
-			],[nut_have_libltdl=no]
-		)], [AC_INCLUDES_DEFAULT])
+	AC_CACHE_CHECK([for ltdl.h], [nut_cv_header_ltdl_h], [
+		nut_cv_header_ltdl_h=no
+		AC_CHECK_HEADERS(ltdl.h, [nut_cv_header_ltdl_h=yes], [
+			dnl Double-check if we stashed include paths to try above
+			AS_IF([test -n "$myCFLAGS"], [
+				depCFLAGS_TRY="$myCFLAGS"
+				CFLAGS="${CFLAGS_ORIG} ${depCFLAGS_TRY}"
+				AC_CHECK_HEADERS(ltdl.h, [
+					nut_cv_header_ltdl_h=yes
+					depCFLAGS="${depCFLAGS_TRY}"
+				], [nut_cv_header_ltdl_h=no], [AC_INCLUDES_DEFAULT])
+			])
+		], [AC_INCLUDES_DEFAULT])
+	])
+	AS_IF([test x"$nut_cv_header_ltdl_h" = xyes], [nut_have_libltdl=yes], [nut_have_libltdl=no])
+
 	AS_IF([test x"$nut_have_libltdl" = xyes], [
-		dnl ltdl-number may help find it for MingW DLLs naming
-		AC_SEARCH_LIBS(lt_dlinit, ltdl ltdl-7, [], [
-			nut_have_libltdl=no
-			AS_IF([test -n "$myCFLAGS" -a x"$myCFLAGS" != x"$CFLAGS"], [
-				depCFLAGS="$myCFLAGS"
-				dnl No ltdl-7 here, this codepath is unlikely on Windows where that matters:
-				CFLAGS="${CFLAGS_ORIG} ${depCFLAGS}"
-				unset ac_cv_search_lt_dlinit
-				AC_SEARCH_LIBS(lt_dlinit, ltdl, [nut_have_libltdl=yes], [])
+		CFLAGS="${CFLAGS_ORIG} ${depCFLAGS}"
+		AC_CACHE_CHECK([for lt_dlinit in ltdl], [ac_cv_search_lt_dlinit], [
+			ac_cv_search_lt_dlinit="no"
+			dnl ltdl-number may help find it for MingW DLLs naming
+			AC_SEARCH_LIBS(lt_dlinit, ltdl ltdl-7, [ac_cv_search_lt_dlinit="${ac_cv_search_lt_dlinit}"], [
+				AS_IF([test -n "$myCFLAGS" -a x"$myCFLAGS" != x"$depCFLAGS"], [
+					depCFLAGS_TRY="$myCFLAGS"
+					dnl No ltdl-7 here, this codepath is unlikely on Windows where that matters:
+					CFLAGS="${CFLAGS_ORIG} ${depCFLAGS_TRY}"
+					AC_SEARCH_LIBS(lt_dlinit, ltdl, [
+						ac_cv_search_lt_dlinit="${ac_cv_search_lt_dlinit}"
+						depCFLAGS="${depCFLAGS_TRY}"
+					], [ac_cv_search_lt_dlinit="no"])
+				])
 			])
 		])
+		AS_IF([test x"$ac_cv_search_lt_dlinit" = xno], [nut_have_libltdl=no], [nut_have_libltdl=yes])
 	])
 
 	dnl Collect possibly updated dependencies after AC SEARCH LIBS:
