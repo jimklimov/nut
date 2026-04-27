@@ -993,8 +993,10 @@ fi
 # defaulted CI_CACHE_NUT_BASEDIR, if DO_USE_NIT_TESTCERT_CACHE=yes
 [ -n "$DO_CLEAN_NUTCI_CACHE_BEFORE" ] || DO_CLEAN_NUTCI_CACHE_BEFORE="no"
 [ -n "$DO_USE_NUTCI_CACHE" ] || DO_USE_NUTCI_CACHE="no"
+[ -n "$DO_USE_NUTCI_CACHE_DEBUG" ] || DO_USE_NUTCI_CACHE_DEBUG="no"
 [ -n "$DO_CLEAN_NIT_TESTCERT_CACHE_BEFORE" ] || DO_CLEAN_NIT_TESTCERT_CACHE_BEFORE="${DO_CLEAN_NUTCI_CACHE_BEFORE}"
 [ -n "$DO_USE_NIT_TESTCERT_CACHE" ] || DO_USE_NIT_TESTCERT_CACHE="${DO_USE_NUTCI_CACHE}"
+[ -n "$DO_USE_NIT_TESTCERT_CACHE_DEBUG" ] || DO_USE_NIT_TESTCERT_CACHE_DEBUG="${DO_USE_NUTCI_CACHE_DEBUG}"
 
 unset CI_CACHE_NIT_HASHDIR
 if [ x"${DO_USE_NIT_TESTCERT_CACHE-}" = xyes ] ; then
@@ -3367,9 +3369,9 @@ setenv_ssl_perl() {
     case "${NUT_CAPATH}" in
         ?":\\"*|?":/"*)
             # Perl uses a platform-dependent PATH separator,
-            # however in mingw/msys2 is uses ":" which clashes
+            # however in mingw/msys2 it uses ":" which clashes
             # with "C:\..." that Python insists on in this var.
-            _NUT_CAPATH="`realpath \"${NUT_CAPATH}\"`" && [ -n "${_NUT_CAPATH}" ] && NUT_CAPATH="${_NUT_CAPATH}" || true
+	    _NUT_CAPATH="`realpath \"${NUT_CAPATH}\" | sed -e 's,^\(.\):/,/\1/,'`" && [ -n "${_NUT_CAPATH}" ] && NUT_CAPATH="${_NUT_CAPATH}" || true
             ;;
     esac
 
