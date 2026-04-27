@@ -3373,15 +3373,6 @@ setenv_ssl_perl() {
             ;;
     esac
 
-    case "${NUT_CAPATH}" in
-        ?":\\"*)
-            # Perl uses a platform-dependent PATH separator,
-            # however in mingw/msys2 is uses ":" which clashes
-            # with "C:\..." that Python insists on in this var.
-            _NUT_CAPATH="`realpath \"${NUT_CAPATH}\"`" && [ -n "${_NUT_CAPATH}" ] && NUT_CAPATH="${_NUT_CAPATH}" || true
-            ;;
-    esac
-
     if isTestablePerl && [ -n "${PERL}" ] ; then
         $PERL -e "use IO::Socket::SSL;" || {
             log_warn "The perl interpreter '$PERL' can not use IO::Socket::SSL module, so we will not FORCESSL in the test"
