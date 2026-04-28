@@ -1019,10 +1019,12 @@ check_NIT_certs() {
         if [ x"${WITH_SSL_TESTS}" = xrequired-conditional ]; then
             die "Aborting because SSL tests are required (due to WITH_SSL_TESTS='${WITH_SSL_TESTS}') and something failed with crypto material setup"
         fi
-        log_warn "Something failed about setup of crypto credential stores, will skip SSL tests"
         if [ x"$1" = xset-none-on-fail ] ; then
+            log_warn "Something failed about setup of crypto credential stores, will skip SSL tests"
             WITH_SSL_CLIENT="none"
             WITH_SSL_SERVER="none"
+        else
+            log_warn "Something failed about setup of crypto credential stores, will retry populating the store"
         fi
         return 1
     }
