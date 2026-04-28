@@ -1856,8 +1856,13 @@ EOF
                     log_info "Populating NIT certificate cache in ${CI_CACHE_NIT_HASHDIR}"
                     mkdir -p "${CI_CACHE_NIT_HASHDIR}"
                     cp -pr "${TESTCERT_PATH_BASE}"/* "${CI_CACHE_NIT_HASHDIR}/"
+
                     set | ${EGREP} '^TESTCERT[^ ]*=' | grep -v PATH \
                     > "${CI_CACHE_NIT_HASHDIR}/TESTCERT_VARS.env"
+
+                    find "${CI_CACHE_NIT_HASHDIR}/" -ls \
+                    || ls -laR "${CI_CACHE_NIT_HASHDIR}/" \
+                    || true
                 fi
                 rm -f "${CI_CACHE_NIT_HASHDIR}.lock"
             fi
