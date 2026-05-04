@@ -124,7 +124,7 @@ AC_DEFUN([NUT_CHECK_LIBLTDL],
                 CFLAGS_ORIG="${CFLAGS}"
                 CFLAGS="${nut_cv_LIBLTDL_CFLAGS}"
                 dnl Should restore the cached value and be done with it
-                AC_CHECK_HEADERS(ltdl.h, [nut_have_libltdl=yes], [nut_have_libltdl=no])
+                AC_CHECK_HEADERS(ltdl.h, [], [nut_have_libltdl=no])
                 CFLAGS="${CFLAGS_ORIG}"
                 unset CFLAGS_ORIG
             ])
