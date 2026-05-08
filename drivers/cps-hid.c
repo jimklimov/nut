@@ -32,7 +32,7 @@
 #include "cps-hid.h"
 #include "usb-common.h"
 
-#define CPS_HID_VERSION      "CyberPower HID 0.85"
+#define CPS_HID_VERSION      "CyberPower HID 0.86"
 
 /* Cyber Power Systems */
 #define CPS_VENDORID	0x0764
@@ -85,7 +85,7 @@ static usb_device_id_t cps_usb_device_table[] = {
 	/* 900AVR/BC900D */
 	{ USB_DEVICE(CPS_VENDORID, 0x0005), NULL },
 	/* Dynex DX-800U?, CP1200AVR/BC1200D, CP825AVR-G, CP1000AVRLCD, CP1000PFCLCD, CP1500C, CP550HG, etc. */
-	{ USB_DEVICE(CPS_VENDORID, 0x0501), &cps_battery_scale },
+	{ USB_DEVICE(CPS_VENDORID, 0x0501), cps_battery_scale },
 	/* OR2200LCDRM2U, OR700LCDRM1U, PR6000LCDRTXL5U, CP1350EPFCLCD */
 	{ USB_DEVICE(CPS_VENDORID, 0x0601), NULL },
 
