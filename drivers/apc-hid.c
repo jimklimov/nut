@@ -44,9 +44,13 @@ static char * tweak_max_report[] = {
 	/* Back-UPS ES 525 overflows on ReportID 0x0c
 	 * (UPS.PowerSummary.RemainingCapacity). */
 	"Back-UPS ES 525",
+
 	/* Back-UPS CS 650 overflows on ReportID 0x46 */
 	"Back-UPS CS",
-	NULL};
+
+	/* Terminating entry */
+	NULL
+};
 
 /* Don't use interrupt pipe on 5G models (used by proprietary protocol) */
 static void *disable_interrupt_pipe(USBDevice_t *device)
@@ -64,7 +68,7 @@ static void *disable_interrupt_pipe(USBDevice_t *device)
 /* Some models need special tweaks */
 static void *general_apc_check(USBDevice_t *device)
 {
-	int i = 0;
+	int	i = 0;
 
 	if (!device->Product) {
 		upslogx(LOG_WARNING, "device->Product is NULL so it is not possible to determine whether to activate max_report_size workaround");
@@ -75,14 +79,16 @@ static void *general_apc_check(USBDevice_t *device)
 	 * This results in some data not being exposed and IO errors on
 	 * WIN32, causing endless reconnection or driver's failure */
 
-	while( tweak_max_report[i] != NULL ) {
-		if(!strncmp(device->Product, tweak_max_report[i],
-			strlen(tweak_max_report[i]))) {
+	while (tweak_max_report[i] != NULL) {
+		if (!strncmp(device->Product, tweak_max_report[i],
+			strlen(tweak_max_report[i]))
+		) {
 			max_report_size = 1;
 			return NULL;
 		}
 		i++;
 	}
+
 	return NULL;
 }
 
@@ -113,8 +119,8 @@ static usb_device_id_t apc_usb_device_table[] = {
    done with result! */
 static const char *apc_date_conversion_fun(double value)
 {
-	static char buf[20];
-	int year, month, day;
+	static char	buf[20];
+	int	year, month, day;
 
 	if ((long)value == 0) {
 		return "not set";
@@ -140,11 +146,11 @@ static const char *apc_date_conversion_fun(double value)
 
 static double apc_date_conversion_reverse(const char *date_string)
 {
-	int year, month, day;
-	long date;
+	int	year, month, day;
+	long	date;
 
 	sscanf(date_string, "%04d/%02d/%02d", &year, &month, &day);
-	if(year >= 2070 || month > 12 || day > 31)
+	if (year >= 2070 || month > 12 || day > 31)
 		return 0;
 	year %= 100;
 	date = ((year / 10 & 0x0F) << 4) + (year % 10);
@@ -163,6 +169,8 @@ static info_lkp_t apcstatusflag_info[] = {
 	{ 8, "!off", NULL, NULL },	/* Normal operation */
 	{ 16, "!off", NULL, NULL },	/* This occurs briefly during power-on, and corresponds to status 'DISCHRG'. */
 	{ 0, "off", NULL, NULL },
+
+	/* Terminating entry */
 	{ 0, NULL, NULL, NULL }
 };
 
@@ -174,12 +182,16 @@ static info_lkp_t apc_linefailcause_vrange_info[] = {
 	{ 8, "vrange", NULL, NULL },	/* Notch or blackout */
 	{ 9, "vrange", NULL, NULL },	/* Spike or blackout */
 	{ 0, "!vrange", NULL, NULL },	/* No transfers have ocurred */
+
+	/* Terminating entry */
 	{ 0, NULL, NULL, NULL }
 };
 
 static info_lkp_t apc_linefailcause_frange_info[] = {
 	{ 7, "frange", NULL, NULL },		/* Input frequency out of range */
 	{ 0, "!frange", NULL, NULL },		/* No transfers have ocurred */
+
+	/* Terminating entry */
 	{ 0, NULL, NULL, NULL }
 };
 
@@ -193,6 +205,8 @@ static info_lkp_t apc_linefailcause_frange_info[] = {
 	{ 11, "self test", NULL, NULL },	/* Test usage invoked */
 	{ 12, "self test", NULL, NULL },	/* Front button initiated self test */
 	{ 13, "self test", NULL, NULL },	/* 2 week self test */
+
+	/* Terminating entry */
 	{ 0, NULL, NULL, NULL }
 #endif
 
@@ -200,6 +214,8 @@ static info_lkp_t apc_sensitivity_info[] = {
 	{ 0, "low", NULL, NULL },
 	{ 1, "medium", NULL, NULL },
 	{ 2, "high", NULL, NULL },
+
+	/* Terminating entry */
 	{ 0, NULL, NULL, NULL }
 };
 
@@ -282,6 +298,7 @@ static usage_lkp_t apc_usage_lkp[] = {
 	{ "BUPDelayBeforeStartup",	0x00860076 }, /* FIXME: exploit */
 	{ "BUPSelfTest",		0x00860010 }, /* FIXME: exploit */
 
+	/* Terminating entry */
 	{ NULL, 0 }
 };
 
@@ -471,8 +488,8 @@ static hid_info_t apc_hid2nut[] = {
 };
 
 static const char *apc_format_model(HIDDevice_t *hd) {
-	static char model[64];
-	char *ptr1, *ptr2;
+	static char	model[64];
+	char	*ptr1, *ptr2;
 
 	/* FIXME?: what is the path "UPS.APC_UPS_FirmwareRevision"? */
 	snprintf(model, sizeof(model), "%s", hd->Product ? hd->Product : "unknown");
@@ -505,7 +522,7 @@ static const char *apc_format_serial(HIDDevice_t *hd) {
  * the device is supported by this subdriver, else 0. */
 static int apc_claim(HIDDevice_t *hd) {
 
-	int status = is_usb_device_supported(apc_usb_device_table, hd);
+	int	status = is_usb_device_supported(apc_usb_device_table, hd);
 
 	switch (status) {
 
