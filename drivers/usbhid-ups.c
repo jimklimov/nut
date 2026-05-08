@@ -2003,7 +2003,8 @@ void possibly_supported(const char *mfr, HIDDevice_t *arghd)
 "'-x productid=%04x' option, or iterate with explicit '-x subdriver=...'\n"
 "option. Please report your results to the NUT user's mailing list\n"
 "at <nut-upsuser@lists.alioth.debian.org>.\n",
-	mfr, arghd->VendorID, arghd->ProductID, arghd->ProductID);
+		NUT_STRARG(mfr),
+		arghd->VendorID, arghd->ProductID, arghd->ProductID);
 
 	if (arghd->VendorID == 0x06da) {
 		upsdebugx(0,
