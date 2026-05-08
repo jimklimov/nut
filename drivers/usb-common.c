@@ -23,8 +23,8 @@
 
 int is_usb_device_supported(usb_device_id_t *usb_device_id_list, USBDevice_t *device)
 {
-	int retval = NOT_SUPPORTED;
-	usb_device_id_t *usbdev;
+	int	retval = NOT_SUPPORTED;
+	usb_device_id_t	*usbdev;
 
 	upsdebugx(3, "%s: checking if this driver can support USB device VID:PID 0x%04X:0x%04X",
 		__func__, (unsigned int)device->VendorID, (unsigned int)device->ProductID);
@@ -55,8 +55,9 @@ int is_usb_device_supported(usb_device_id_t *usb_device_id_list, USBDevice_t *de
 
 		/* call the specific handler, if it exists */
 		if (usbdev->fun != NULL) {
+			void	*res_callback = NULL;
 			upsdebugx(4, "%s: call the custom init handler", __func__);
-			(*usbdev->fun)(device);
+			res_callback = (*usbdev->fun)(device);
 		}
 
 		upsdebugx(4, "%s: SUPPORTED: known vendor and product IDs", __func__);
@@ -212,7 +213,7 @@ typedef struct regex_matcher_data_s {
 static int match_function_regex(USBDevice_t *hd, void *privdata)
 {
 	regex_matcher_data_t	*data = (regex_matcher_data_t *)privdata;
-	int r;
+	int	r;
 
 	upsdebugx(3, "%s: matching a device...", __func__);
 
@@ -441,8 +442,8 @@ static int nut_usb_get_string_descriptor(
 	char *buf,
 	size_t buflen)
 {
-	int ret = -1;
-	int tries = MAX_STRING_DESC_TRIES;
+	int	ret = -1;
+	int	tries = MAX_STRING_DESC_TRIES;
 
 	while (tries--) {
 		ret = usb_get_string(udev, (usb_ctrl_strindex)StringIdx, langid, (usb_ctrl_charbuf)buf, buflen);
@@ -466,11 +467,11 @@ int nut_usb_get_string(
 	char *buf,
 	size_t buflen)
 {
-	int ret;
-	char buffer[255];
-	int langid;
-	int len;
-	int i;
+	int	ret;
+	char	buffer[255];
+	int	langid;
+	int	len;
+	int	i;
 
 	if (!udev || StringIdx < 1 || StringIdx > 255) {
 		return -1;

@@ -546,7 +546,7 @@ void USBFreeRegexMatcher(USBDeviceMatcher_t *matcher);
 typedef struct {
 	uint16_t	vendorID;
 	uint16_t	productID;
-	void	*(*fun)(USBDevice_t *);		/* handler for specific processing */
+	void	*(*fun)(USBDevice_t *);		/* handler for model-specific init processing */
 } usb_device_id_t;
 
 #define NOT_SUPPORTED		0
