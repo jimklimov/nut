@@ -1246,6 +1246,7 @@ SPS
 SRC
 SRVS
 SSD
+SSLBACKEND
 SSLContext
 SSSS
 STARTTLS
@@ -1699,6 +1700,7 @@ authPassword
 authPriv
 authProtocol
 authType
+authconf
 autoboot
 autoconf
 autodetect
@@ -2208,6 +2210,7 @@ formatconfig
 formatstring
 fosshost
 fp
+fprintf
 freebsd
 freedesktop
 freeipmi
@@ -2856,6 +2859,7 @@ numa
 numbatteries
 numlogins
 numq
+nutauth
 nutclient
 nutclientmem
 nutconf
