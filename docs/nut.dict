@@ -1,4 +1,4 @@
-personal_ws-1.1 en 3784 utf-8
+personal_ws-1.1 en 3785 utf-8
 AAC
 AAS
 ABI
@@ -3314,6 +3314,7 @@ spectype
 spellcheck
 spellchecked
 splitaddr
+splitauth
 splitname
 sprintf
 squasher
