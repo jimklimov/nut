@@ -63,6 +63,7 @@
 #include "nut_float.h"
 #include "timehead.h"
 #include "upsclient.h"
+#include "strcasestr-static.h"
 
 /* WA for Solaris/i386 bug: non-blocking connect sets errno to ENOENT */
 #if (defined NUT_PLATFORM_SOLARIS)
