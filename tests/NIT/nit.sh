@@ -2546,7 +2546,7 @@ EOF
       # Keep credentials in sync with generatecfg_upsdusers_trivial()
       cat << EOF
     # Default credentials for access to this server
-    USER = reader
+    USERNAME = reader
     PASS = "$TESTPASS_READER"
 
 [admin@:${NUT_PORT}]
