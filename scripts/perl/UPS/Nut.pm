@@ -1526,6 +1526,98 @@ sub new {
     return $self;
 }
 
+sub readAuthConfFile {
+    my $class = shift;
+    my $filename = shift;
+    my $fatal_errors = shift || 0;
+
+    if (!defined $filename) {
+        my $confpath = $ENV{NUT_CONFPATH} || "/etc/nut";
+        $filename = "$confpath/nutauth.conf";
+    }
+
+    if (!-e $filename) {
+        die "Could not open $filename" if $fatal_errors;
+        return ();
+    }
+
+    if (!open(my $fh, '<', $filename)) {
+        die "Error opening $filename: $!" if $fatal_errors;
+        return ();
+    }
+
+    my @auth_configs;
+    my $current_ac;
+
+    while (my $line = <$fh>) {
+        chomp $line;
+        $line =~ s/^\s+|\s+$//g;
+        next if !$line || $line =~ /^#/;
+
+        if ($line =~ /^\[(.*)\]$/) {
+            $current_ac = UPS::Nut::AuthConf->new($line);
+            push @auth_configs, $current_ac;
+            next;
+        }
+
+        next if !$current_ac;
+
+        if ($line =~ /^([^=]+)=(.*)$/) {
+            my ($key, $value) = ($1, $2);
+            $key =~ s/^\s+|\s+$//g;
+            $key = lc($key);
+            $value =~ s/^\s+|\s+$//g;
+            $value =~ s/^["']|["']$//g;
+
+            if ($key eq 'user') { $current_ac->{user} = $value; }
+            elsif ($key eq 'password') { $current_ac->{pass} = $value; }
+            elsif ($key eq 'certpath') { $current_ac->{certpath} = $value; }
+            elsif ($key eq 'certfile') { $current_ac->{certfile} = $value; }
+            elsif ($key eq 'certident') { $current_ac->{certident} = $value; }
+            elsif ($key eq 'certpasswd') { $current_ac->{certpasswd} = $value; }
+            elsif ($key eq 'ssl_backend') { $current_ac->{ssl_backend} = $value; }
+            elsif ($key eq 'certhost') { $current_ac->{certhost} = $value; }
+            elsif ($key eq 'certverify') { $current_ac->{certverify} = ($value =~ /^(on|yes|1)$/i) ? 1 : 0; }
+            elsif ($key eq 'forcessl') { $current_ac->{forcessl} = ($value =~ /^(on|yes|1)$/i) ? 1 : 0; }
+        }
+    }
+    close($fh);
+    return @auth_configs;
+}
+
+sub findAuthConf {
+    my $class = shift;
+    my ($user, $host, $port, $auth_configs_ref) = @_;
+    my @auth_configs = $auth_configs_ref ? @$auth_configs_ref : $class->readAuthConfFile();
+
+    my $star_match;
+    foreach my $ac (@auth_configs) {
+        my $section = $ac->{section};
+        $section =~ s/^\[//;
+        $section =~ s/\]$//;
+
+        my $target = "";
+        $target .= "$user\@" if defined $user;
+        $target .= $host || 'localhost';
+        $target .= ":$port" if defined $port;
+
+        return $ac if $section eq $target;
+        
+        # fallback matches
+        if (!defined $user && defined $host && defined $port && $section eq "$host:$port") {
+            return $ac;
+        }
+        if (!defined $user && !defined $port && defined $host && $section eq $host) {
+            return $ac;
+        }
+
+        $star_match = $ac if $section eq '*';
+    }
+
+    return $star_match if defined $star_match;
+    return undef;
+}
+
 sub to_nut_args {
     my $self = shift;
     my %args;
