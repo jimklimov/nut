@@ -190,6 +190,39 @@ static inline char *xstrdup(const char *string){return strdup(string);}
 namespace nut
 {
 
+AuthConf::AuthConf(upscli_authconf_t* ac, bool owner) :
+	_ac(ac),
+	_owner(owner)
+{
+}
+
+AuthConf::~AuthConf()
+{
+	if (_owner && _ac) {
+		upscli_free_authconf_item(_ac);
+	}
+}
+
+bool AuthConf::readFile(const char* filename, bool fatal_errors)
+{
+	return upscli_read_authconf_file(filename, fatal_errors ? 1 : 0) == 1;
+}
+
+void AuthConf::freeList()
+{
+	upscli_free_authconf_list();
+}
+
+AuthConf AuthConf::get(const char* user, const char* host, const char* port, bool add_to_list)
+{
+	return AuthConf(upscli_get_authconf_item(user, host, port, add_to_list ? 1 : 0), !add_to_list);
+}
+
+AuthConf AuthConf::find(const char* user, const char* host, const char* port)
+{
+	return AuthConf(upscli_find_authconf_item(user, host, port), false);
+}
+
 SystemException::SystemException():
 NutException(err())
 {
@@ -3236,6 +3269,63 @@ void TcpClient::connect(const std::string& host, uint16_t port)
 	connect();
 }
 
+void TcpClient::connect(const AuthConf& ac)
+{
+	upscli_authconf_t* raw = ac.getRaw();
+	if (!raw) {
+		throw NutException("Invalid AuthConf");
+	}
+
+	char* host = nullptr;
+	char* user = nullptr;
+	char* port_s = nullptr;
+	if (upscli_split_authconf_section(raw->section, nullptr, &user, nullptr, &host, &port_s) != 0) {
+		throw NutException("Failed to split AuthConf section");
+	}
+
+	_host = host;
+	if (port_s) {
+		_port = (uint16_t)atoi(port_s);
+	}
+	free(host);
+	free(user);
+	free(port_s);
+
+	if (raw->forcessl == 1) {
+		setSslForce(true);
+		setSslTry(true);
+	} else if (raw->forcessl == 0) {
+		setSslForce(false);
+		setSslTry(true);
+	}
+
+	if (raw->certverify != -1) {
+		setSslCertVerify(raw->certverify);
+	}
+
+	if (raw->certpath) {
+		setSslCAPath(raw->certpath);
+	}
+
+	if (raw->certfile) {
+		setSslCertFile(raw->certfile);
+	}
+
+	if (raw->certident) {
+		setSslCertIdentName(raw->certident);
+	}
+
+	if (raw->certpasswd) {
+		setSslKeyPass(raw->certpasswd);
+	}
+
+	if (raw->certhost) {
+		setSslCertHostName(raw->certhost);
+	}
+
+	connect();
+}
+
 void TcpClient::connect(const std::string& host, uint16_t port, bool tryssl)
 {
 	_tryssl = tryssl;
@@ -3556,6 +3646,14 @@ void TcpClient::authenticate(const std::string& user, const std::string& passwd)
 {
 	detectError(sendQuery("USERNAME " + user));
 	detectError(sendQuery("PASSWORD " + passwd));
+}
+
+void TcpClient::authenticate(const AuthConf& ac)
+{
+	if (!ac || !ac.user() || !ac.pass()) {
+		throw NutException("Invalid AuthConf for authentication");
+	}
+	authenticate(ac.user(), ac.pass());
 }
 
 void TcpClient::logout()

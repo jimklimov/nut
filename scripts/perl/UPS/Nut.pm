@@ -10,6 +10,61 @@
 # ### changelog: 1.61: JK 2026-04-08: Make TrackingID a class, similar to C++.
 # ### changelog: 1.62: JK 2026-04-10: Added a testing script nearby; revised API and NUT protocol support, notably TRACKING and STARTTLS.
 
+package UPS::Nut::AuthConf;
+
+sub new {
+    my ($class, $filename) = @_;
+    my $self = {
+        list => [],
+        global => { certverify => -1, forcessl => -1 },
+    };
+    bless $self, $class;
+    $self->parse($filename) if defined $filename;
+    return $self;
+}
+
+sub parse {
+    my ($self, $filename) = @_;
+    # TBD: Simplified parser for .conf files
+    # For now, let's just allow manual construction or basic parsing if needed
+    if (!open(my $fh, "<", $filename)) {
+        carp "Could not open $filename: $!";
+        return undef;
+    }
+    my $current = $self->{global};
+    while (<$fh>) {
+        chomp;
+        s/^\s*//; s/\s*$//;
+        next if /^#/ || /^$/;
+        if (/^\[(.*)\]$/) {
+            $current = { section => $1, certverify => -1, forcessl => -1 };
+            push @{$self->{list}}, $current;
+        } elsif (/^([^=\s]+)\s*=\s*(.*)$/) {
+            my ($key, $val) = (lc($1), $2);
+            $val =~ s/^"(.*)"$/$1/;
+            $current->{$key} = $val;
+        }
+    }
+    close($fh);
+    return $self;
+}
+
+sub get {
+    my ($self, $user, $host, $port) = @_;
+    my $best = { %{$self->{global}} };
+    $port ||= 3493;
+    foreach my $item (@{$self->{list}}) {
+        my $sec = $item->{section};
+        # Simple match for now: [user@host:port]
+        if ($sec eq "$user\@$host:$port" || $sec eq "$user\@$host" || $sec eq "\@$host:$port" || $sec eq "\@$host") {
+            foreach my $k (keys %$item) {
+                $best->{$k} = $item->{$k} if defined $item->{$k} && $item->{$k} ne "-1";
+            }
+        }
+    }
+    return $best;
+}
+
 package UPS::Nut;
 use strict;
 # Absent on antique versions like perl-5.005 (Solaris 8)
@@ -382,11 +437,45 @@ sub _initialize {
 # Author: Kit Peters
   my $self = shift;
   my %arg = @_;
+
   my $host = $arg{HOST}     || 'localhost'; # Host running upsd and probably drivers
   my $port = $arg{PORT}     || '3493'; # 3493 is IANA assigned port for NUT
-  my $proto = $arg{PROTO}   || 'tcp'; # use tcp unless user tells us to
   my $user = $arg{USERNAME} || undef; # username passed to upsd
   my $pass = $arg{PASSWORD} || undef; # password passed to upsd
+
+  if ($arg{AUTHCONF}) {
+      $self->_debug("Using AUTHCONF item for connection setup");
+      my $ac = $arg{AUTHCONF};
+      my $section = $ac->{section};
+      # Parse section name [user@host:port]
+      if ($section =~ /^(?:([^@]+)@)?([^:]+)(?::(\d+))?$/) {
+          $user = $1 if defined $1;
+          $host = $2;
+          $port = $3 if defined $3;
+      }
+      $user = $ac->{user} if defined $ac->{user};
+      $pass = $ac->{pass} if defined $ac->{pass};
+
+      $arg{CERTVERIFY} = $ac->{certverify} if defined $ac->{certverify} && $ac->{certverify} != -1;
+      if (defined $ac->{forcessl}) {
+          if ($ac->{forcessl} == 1) {
+              $arg{USESSL} = 1;
+              $arg{FORCESSL} = 1;
+          } elsif ($ac->{forcessl} == 0) {
+              $arg{USESSL} = 0;
+              $arg{FORCESSL} = 0;
+          }
+      }
+      $arg{SSL_CA_PATH} = $ac->{certpath} if defined $ac->{certpath};
+      $arg{SSL_CA_FILE} = $ac->{certfile} if defined $ac->{certfile};
+      $arg{CERTIDENT} = $ac->{certident} if defined $ac->{certident};
+      $arg{CERTPASSWD} = $ac->{certpasswd} if defined $ac->{certpasswd};
+      $arg{CERTHOST_NAME} = $ac->{certhost} if defined $ac->{certhost};
+  }
+
+  my $proto = $arg{PROTO}   || 'tcp'; # use tcp unless user tells us to
+  $user = $arg{USERNAME} || $user; # allow override
+  $pass = $arg{PASSWORD} || $pass; # allow override
   my $login = $arg{LOGIN}   || 0; # login to upsd on init?
 
   # Explicitly enable/disable TRACKING mode for SETVAR/INSTCMD on init?

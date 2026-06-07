@@ -115,6 +115,55 @@ class PyNUTError( Exception ) :
     """ Base class for custom exceptions """
 
 
+import os
+import sys
+
+class PyNUTAuthConf:
+    """ Authentication configuration handling for PyNUT """
+    def __init__(self, filename=None):
+        self.list = []
+        self.global_defaults = {'certverify': -1, 'forcessl': -1}
+        if filename:
+            self.parse(filename)
+
+    def parse(self, filename):
+        if not os.path.exists(filename):
+            return
+        current = self.global_defaults
+        with open(filename, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if line.startswith('[') and line.endswith(']'):
+                    section_name = line[1:-1]
+                    current = {'section': section_name, 'certverify': -1, 'forcessl': -1}
+                    self.list.append(current)
+                elif '=' in line:
+                    key, val = line.split('=', 1)
+                    key = key.strip().lower()
+                    val = val.strip()
+                    if val.startswith('"') and val.endswith('"'):
+                        val = val[1:-1]
+                    current[key] = val
+
+    def get(self, user, host, port=3493):
+        best = self.global_defaults.copy()
+        for item in self.list:
+            sec = item.get('section', '')
+            # Simple match for now
+            matches = [
+                "%s@%s:%s" % (user, host, port),
+                "%s@%s" % (user, host),
+                "@%s:%s" % (host, port),
+                "@%s" % (host)
+            ]
+            if sec in matches:
+                for k, v in item.items():
+                    if v != -1 and v is not None:
+                        best[k] = v
+        return best
+
 class PyNUTClient :
     """ Abstraction class to access NUT (Network UPS Tools) server """
 
@@ -140,7 +189,8 @@ class PyNUTClient :
 
     def __init__( self, host="127.0.0.1", port=3493, login=None, password=None, debug=False, timeout=NUT_DEFAULT_CONNECT_TIMEOUT, tracking=False,
                   use_ssl=False, ssl_context=None, cert_verify=None, ca_file=None, ca_path=None,
-                  cert_file=None, key_file=None, key_pass=None, force_ssl=False, cert_ident=None, certhost=None ) :
+                  cert_file=None, key_file=None, key_pass=None, force_ssl=False, cert_ident=None, certhost=None,
+                  authconf=None ) :
         """ Class initialization method
 
 host        : Host to connect (default to localhost)
@@ -163,8 +213,40 @@ cert_ident  : Optional string, expected Common Name (CN) or Subject Alternative 
 certhost    : Optional dict or list of dict/lists: {hostname: [certname, certverify, forcessl]}
                 or [{hostname: [certname, certverify, forcessl]}, ...]
                 or [[hostname, certname, certverify, forcessl], ...]
+authconf    : Optional dict or PyNUTAuthConf item
         """
         self.__debug = debug
+
+        if authconf:
+            if isinstance(authconf, PyNUTAuthConf):
+                authconf = authconf.get(login, host, port)
+            if isinstance(authconf, dict):
+                if self.__debug:
+                    print("[DEBUG] Using authconf for connection setup")
+                # Parse section name [user@host:port]
+                sec = authconf.get('section', '')
+                match = re.match(r'^(?:([^@]+)@)?([^:]+)(?::(\d+))?$', sec)
+                if match:
+                    if match.group(1): login = match.group(1)
+                    host = match.group(2)
+                    if match.group(3): port = int(match.group(3))
+                
+                if authconf.get('user'): login = authconf.get('user')
+                if authconf.get('pass'): password = authconf.get('pass')
+                if cert_verify is None and authconf.get('certverify') is not None and authconf.get('certverify') != -1:
+                    cert_verify = (int(authconf['certverify']) == 1)
+                if authconf.get('forcessl') is not None:
+                    if int(authconf['forcessl']) == 1:
+                        use_ssl = True
+                        force_ssl = True
+                    elif int(authconf['forcessl']) == 0:
+                        use_ssl = False
+                        force_ssl = False
+                if authconf.get('certpath'): ca_path = authconf['certpath']
+                if authconf.get('certfile'): cert_file = authconf['certfile']
+                if authconf.get('certident'): cert_ident = authconf['certident']
+                if authconf.get('certpasswd'): key_pass = authconf['certpasswd']
+                if authconf.get('certhost'): certhost = {host: [authconf['certhost'], 1 if cert_verify else 0, 1 if force_ssl else 0]}
 
         if self.__debug :
             print( "[DEBUG] Class initialization..." )

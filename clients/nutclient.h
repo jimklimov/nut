@@ -47,6 +47,8 @@
 #include <cstdint>
 #include <ctime>
 
+#include "authconf.h"
+
 /* See include/common.h for details behind this */
 #ifndef NUT_UNUSED_VARIABLE
 # define NUT_UNUSED_VARIABLE(x) (void)(x)
@@ -86,6 +88,85 @@ class TcpClient;
 class Device;
 class Variable;
 class Command;
+
+/**
+ * Authentication configuration.
+ * It wraps the upscli_authconf_t structure.
+ */
+class AuthConf
+{
+public:
+	/**
+	 * Construct an AuthConf object.
+	 * \param ac Pointer to the C structure to wrap.
+	 * \param owner If true, the AuthConf object owns the C structure and will free it.
+	 */
+	AuthConf(upscli_authconf_t* ac = nullptr, bool owner = false);
+	~AuthConf();
+
+	AuthConf(const AuthConf&) = default;
+	AuthConf& operator=(const AuthConf&) = default;
+
+	/**
+	 * Read the authentication configuration file.
+	 * \param filename Filename to read, or NULL for default.
+	 * \param fatal_errors If true, errors are fatal.
+	 * \return true on success.
+	 */
+	static bool readFile(const char* filename = nullptr, bool fatal_errors = false);
+
+	/**
+	 * Free the list of authentication configurations.
+	 */
+	static void freeList();
+
+	/**
+	 * Find the best matching authconf for a given connection string.
+	 * \param user User name.
+	 * \param host Host name.
+	 * \param port Port.
+	 * \param add_to_list If true, the returned item is added to the list.
+	 * \return The AuthConf object.
+	 */
+	static AuthConf get(const char* user, const char* host, const char* port = nullptr, bool add_to_list = false);
+
+	/**
+	 * Find the best matching authconf for a given connection string.
+	 * \param user User name.
+	 * \param host Host name.
+	 * \param port Port.
+	 * \return The AuthConf object.
+	 */
+	static AuthConf find(const char* user, const char* host, const char* port = nullptr);
+
+	/**
+	 * Retrieve the wrapped structure.
+	 * \return The wrapped structure.
+	 */
+	upscli_authconf_t* getRaw() const { return _ac; }
+
+	/**
+	 * Test if the AuthConf object is valid.
+	 * \return true if valid.
+	 */
+	operator bool() const { return _ac != nullptr; }
+
+	const char* section() const { return _ac ? _ac->section : nullptr; }
+	const char* user() const { return _ac ? _ac->user : nullptr; }
+	const char* pass() const { return _ac ? _ac->pass : nullptr; }
+	const char* certpath() const { return _ac ? _ac->certpath : nullptr; }
+	const char* certfile() const { return _ac ? _ac->certfile : nullptr; }
+	const char* certident() const { return _ac ? _ac->certident : nullptr; }
+	const char* certpasswd() const { return _ac ? _ac->certpasswd : nullptr; }
+	const char* ssl_backend() const { return _ac ? _ac->ssl_backend : nullptr; }
+	const char* certhost() const { return _ac ? _ac->certhost : nullptr; }
+	int certverify() const { return _ac ? _ac->certverify : -1; }
+	int forcessl() const { return _ac ? _ac->forcessl : -1; }
+
+private:
+	upscli_authconf_t* _ac;
+	bool _owner;
+};
 
 /**
  * Base class for certificate store location information
@@ -821,6 +902,12 @@ public:
 	virtual void authenticate(const std::string& user, const std::string& passwd) = 0;
 
 	/**
+	 * Intend to authenticate to a NUTD server using an AuthConf.
+	 * \param ac AuthConf object.
+	 */
+	virtual void authenticate(const AuthConf& ac) = 0;
+
+	/**
 	 * Disconnect from the NUTD server.
 	 * \todo Is his method is global to all connection protocol or is it specific to TCP ?
 	 */
@@ -1114,6 +1201,12 @@ public:
 	void connect(const std::string& host, uint16_t port = NUT_PORT);
 
 	/**
+	 * Connect it to the specified server using an AuthConf.
+	 * \param ac AuthConf object.
+	 */
+	void connect(const AuthConf& ac);
+
+	/**
 	 * Connect it to the specified server with explicit toggle
 	 * to allow (or not) use of SSL/TLS.
 	 * \param host Server host name.
@@ -1169,6 +1262,7 @@ public:
 	uint16_t getPort()const;
 
 	virtual void authenticate(const std::string& user, const std::string& passwd) override;
+	virtual void authenticate(const AuthConf& ac) override;
 	virtual void logout() override;
 
 	virtual bool isValidProtocolVersion(const std::string& version_re = std::string()) override;
