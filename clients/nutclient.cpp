@@ -25,6 +25,8 @@
 
 #include "config.h"
 #include "nutclient.h"
+#include "upsclient.h"
+#include "authconf.h"
 
 #include <sstream>
 #include <chrono>
@@ -1994,6 +1996,100 @@ bool Client::hasFeature(const Feature& feature)
 
 /*
  *
+ * AuthConf implementation
+ *
+ */
+
+AuthConf::AuthConf(const std::string& section)
+	: section(section), certverify(-1), forcessl(-1)
+{
+}
+
+AuthConf::AuthConf(const AuthConf& source, const std::string& section)
+	: section(section), user(source.user), pass(source.pass),
+	  certpath(source.certpath), certfile(source.certfile),
+	  certident(source.certident), certpasswd(source.certpasswd),
+	  ssl_backend(source.ssl_backend), certhost(source.certhost),
+	  certverify(source.certverify), forcessl(source.forcessl)
+{
+}
+
+AuthConf::~AuthConf()
+{
+}
+
+/*static*/ std::vector<AuthConf> AuthConf::getAuthConfList()
+{
+	std::vector<AuthConf> res;
+	upscli_authconf_t *ac = upscli_get_authconf_list();
+	while (ac) {
+		AuthConf item(ac->section ? ac->section : "");
+		item.user = ac->user ? ac->user : "";
+		item.pass = ac->pass ? ac->pass : "";
+		item.certpath = ac->certpath ? ac->certpath : "";
+		item.certfile = ac->certfile ? ac->certfile : "";
+		item.certident = ac->certident ? ac->certident : "";
+		item.certpasswd = ac->certpasswd ? ac->certpasswd : "";
+		item.ssl_backend = ac->ssl_backend ? ac->ssl_backend : "";
+		item.certhost = ac->certhost ? ac->certhost : "";
+		item.certverify = ac->certverify;
+		item.forcessl = ac->forcessl;
+		res.push_back(item);
+		ac = ac->next;
+	}
+	return res;
+}
+
+/*static*/ int AuthConf::readAuthConfFile(const std::string& filename, int fatal_errors)
+{
+	return upscli_read_authconf_file(filename.empty() ? nullptr : filename.c_str(), fatal_errors);
+}
+
+static AuthConf ac_from_c(upscli_authconf_t *ac)
+{
+	if (!ac) return AuthConf();
+	AuthConf item(ac->section ? ac->section : "");
+	item.user = ac->user ? ac->user : "";
+	item.pass = ac->pass ? ac->pass : "";
+	item.certpath = ac->certpath ? ac->certpath : "";
+	item.certfile = ac->certfile ? ac->certfile : "";
+	item.certident = ac->certident ? ac->certident : "";
+	item.certpasswd = ac->certpasswd ? ac->certpasswd : "";
+	item.ssl_backend = ac->ssl_backend ? ac->ssl_backend : "";
+	item.certhost = ac->certhost ? ac->certhost : "";
+	item.certverify = ac->certverify;
+	item.forcessl = ac->forcessl;
+	return item;
+}
+
+/*static*/ AuthConf AuthConf::findAuthConf(const std::string& user, const std::string& host, const std::string& port)
+{
+	return ac_from_c(upscli_find_authconf_item(
+		user.empty() ? nullptr : user.c_str(),
+		host.empty() ? nullptr : host.c_str(),
+		port.empty() ? nullptr : port.c_str()));
+}
+
+/*static*/ AuthConf AuthConf::getAuthConf(const std::string& user, const std::string& host, const std::string& port)
+{
+	/* getAuthConf version which returns a clone not on the list, so we can wrap and free it */
+	upscli_authconf_t *ac = upscli_get_authconf_item(
+		user.empty() ? nullptr : user.c_str(),
+		host.empty() ? nullptr : host.c_str(),
+		port.empty() ? nullptr : port.c_str(),
+		0);
+	AuthConf item = ac_from_c(ac);
+	upscli_free_authconf_item(ac);
+	return item;
+}
+
+/*static*/ void AuthConf::freeAuthConfList()
+{
+	upscli_free_authconf_list();
+}
+
+/*
+ *
  * TCP Client implementation
  *
  */
@@ -3242,6 +3338,28 @@ void TcpClient::connect(const std::string& host, uint16_t port, bool tryssl)
 	connect(host, port);
 }
 
+void TcpClient::connect(const AuthConf& ac)
+{
+	char *hostname = nullptr;
+	uint16_t portnum = NUT_PORT;
+	if (upscli_splitaddr(ac.section.c_str(), &hostname, &portnum) == 0) {
+		_host = hostname ? hostname : "localhost";
+		_port = portnum;
+		free(hostname);
+	}
+
+	_tryssl = (ac.forcessl != 0);
+
+	if (ac.ssl_backend == "nss") {
+		setSSLConfig_NSS(ac.forcessl, ac.certverify, ac.certpath, ac.certpasswd, "", ac.certident, "", ac.certhost);
+	} else {
+		/* Default to OpenSSL if not specified or "openssl" */
+		setSSLConfig_OpenSSL(ac.forcessl, ac.certverify, ac.certpath, "", ac.certfile, "", "", ac.certident, "", ac.certhost);
+	}
+
+	connect();
+}
+
 void TcpClient::connect()
 {
 	_socket->connect(_host, _port);
@@ -3556,6 +3674,11 @@ void TcpClient::authenticate(const std::string& user, const std::string& passwd)
 {
 	detectError(sendQuery("USERNAME " + user));
 	detectError(sendQuery("PASSWORD " + passwd));
+}
+
+void TcpClient::authenticate(const AuthConf& ac)
+{
+	authenticate(ac.user, ac.pass);
 }
 
 void TcpClient::logout()

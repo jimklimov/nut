@@ -41,7 +41,13 @@ sub new {
 # Author: Kit Peters
   my $proto = shift;
   my $class = ref($proto) || $proto;
-  my %arg = @_; # hash of arguments
+  my %arg;
+  if (scalar(@_) == 1 && ref($_[0]) eq 'UPS::Nut::AuthConf') {
+    my $ac = shift;
+    %arg = $ac->to_nut_args();
+  } else {
+    %arg = @_; # hash of arguments
+  }
   my $self = {};	# _initialize will fill it later
   bless $self, $class;
   unless ($self->_initialize(%arg)) { # can't initialize
@@ -1497,6 +1503,63 @@ accessor methods for all supported vars.
 This module is distributed under the same license as Perl itself.
 
 =cut
+
+package UPS::Nut::AuthConf;
+
+sub new {
+    my $class = shift;
+    my $section = shift || "";
+    my $self = {
+        section     => $section,
+        user        => undef,
+        pass        => undef,
+        certpath    => undef,
+        certfile    => undef,
+        certident   => undef,
+        certpasswd  => undef,
+        ssl_backend => undef,
+        certhost    => undef,
+        certverify  => -1,
+        forcessl    => -1,
+    };
+    bless $self, $class;
+    return $self;
+}
+
+sub to_nut_args {
+    my $self = shift;
+    my %args;
+    
+    # Extract HOST and PORT from section
+    my $host = 'localhost';
+    my $port = '3493';
+    my $sect = $self->{section};
+    $sect =~ s/^\[//;
+    $sect =~ s/\]$//;
+    if ($sect =~ /@/) {
+        $sect =~ s/^[^@]*@//;
+    }
+    if ($sect =~ /:/) {
+        ($host, $port) = split(/:/, $sect, 2);
+    } elsif ($sect ne "") {
+        $host = $sect;
+    }
+    
+    $args{HOST} = $host;
+    $args{PORT} = $port;
+    $args{USERNAME} = $self->{user} if defined $self->{user};
+    $args{PASSWORD} = $self->{pass} if defined $self->{pass};
+    $args{LOGIN} = 1 if defined $self->{user};
+    $args{USESSL} = 1 if $self->{forcessl} > 0;
+    $args{FORCESSL} = 1 if $self->{forcessl} > 0;
+    $args{CERTVERIFY} = ($self->{certverify} > 0) if $self->{certverify} != -1;
+    $args{CERTPATH} = $self->{certpath} if defined $self->{certpath};
+    $args{CERTFILE} = $self->{certfile} if defined $self->{certfile};
+    $args{CERTIDENT} = $self->{certident} if defined $self->{certident};
+    $args{CERTPASSWD} = $self->{certpasswd} if defined $self->{certpasswd};
+    
+    return %args;
+}
 
 package UPS::Nut::TrackingID;
 use strict;
