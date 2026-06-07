@@ -125,6 +125,10 @@ public:
 	std::string certhost;
 	int certverify;	/* -1 = unset, 0 = off, 1 = on */
 	int forcessl;	/* -1 = unset, 0 = off, 1 = on */
+
+private:
+	static std::vector<AuthConf> authconf_list;
+	static AuthConf* global_defaults;
 };
 
 /**
