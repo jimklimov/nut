@@ -2009,13 +2009,13 @@ bool Client::hasFeature(const Feature& feature)
 std::vector<AuthConf> AuthConf::authconf_list;
 AuthConf* AuthConf::global_defaults = nullptr;
 
-AuthConf::AuthConf(const std::string& section)
-	: section(section), certverify(-1), forcessl(-1)
+AuthConf::AuthConf(const std::string& section_name)
+	: section(section_name), certverify(-1), forcessl(-1)
 {
 }
 
-AuthConf::AuthConf(const AuthConf& source, const std::string& section)
-	: section(section), user(source.user), pass(source.pass),
+AuthConf::AuthConf(const AuthConf& source, const std::string& section_name)
+	: section(section_name), user(source.user), pass(source.pass),
 	  certpath(source.certpath), certfile(source.certfile),
 	  certident(source.certident), certpasswd(source.certpasswd),
 	  ssl_backend(source.ssl_backend), certhost(source.certhost),
@@ -2101,9 +2101,13 @@ static int parse_authconf_file(const std::string& filename, int fatal_errors, bo
 	PCONF_CTX_t ctx;
 	AuthConf* current_section = nullptr;
 
-	if (pconf_init(&ctx, nullptr) != 1) return -1;
+	if (pconf_init(&ctx, nullptr) != 1) {
+		if (fatal_errors) throw nut::IOException("Failed to initialize parser");
+		return -1;
+	}
 	if (pconf_file_begin(&ctx, filename.c_str()) != 1) {
 		pconf_finish(&ctx);
+		if (fatal_errors) throw nut::IOException("Can't open authconf file: " + filename);
 		return -1;
 	}
 
@@ -2175,7 +2179,7 @@ static int splitaddr(const std::string& buf, std::string& hostname, uint16_t& po
 	}
 
 	if (colon != std::string::npos && colon + 1 < buf.length()) {
-		port = (uint16_t)strtol(buf.substr(colon + 1).c_str(), nullptr, 10);
+		port = static_cast<uint16_t>(strtol(buf.substr(colon + 1).c_str(), nullptr, 10));
 	} else {
 		port = NUT_PORT;
 	}
@@ -2188,7 +2192,7 @@ static void normalize_parts(std::string& normalized_name, std::string& user, std
 	if (host.empty()) host = "localhost";
 	if (port.empty()) {
 		char portbuf[16];
-		snprintf(portbuf, sizeof(portbuf), "%u", (unsigned int)NUT_PORT);
+		snprintf(portbuf, sizeof(portbuf), "%u", static_cast<unsigned int>(NUT_PORT));
 		port = portbuf;
 	}
 	normalized_name = user + "@" + host + ":" + port;
