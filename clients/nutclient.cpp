@@ -26,16 +26,17 @@
 #include "config.h"
 #include "nutclient.h"
 #include "parseconf.h"
+
 #include <sstream>
 #include <chrono>
 #include <thread>
 #include <vector>
 
 #ifndef WIN32
-#include <unistd.h>
+# include <unistd.h>
 #else
-#include <io.h>
-#define R_OK 4
+# include <io.h>
+# define R_OK 4
 #endif
 
 /* TODO: Make it a run-time option like upsdebugx(),
