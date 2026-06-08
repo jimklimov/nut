@@ -1506,6 +1506,18 @@ This module is distributed under the same license as Perl itself.
 
 package UPS::Nut::AuthConf;
 
+my @authconf_list;
+my $global_defaults_ref;
+
+sub getAuthConfList {
+    return @authconf_list;
+}
+
+sub freeAuthConfList {
+    @authconf_list = ();
+    $global_defaults_ref = undef;
+}
+
 sub new {
     my $class = shift;
     my $section = shift || "";
@@ -1559,14 +1571,14 @@ sub readAuthConfFile {
         if ($line =~ /^\[(.*)\]$/) {
             my $sectname = $1;
             if ($sectname eq "_global_defaults" || $sectname eq "") {
-                if (!defined $global_defaults) {
-                    $global_defaults = UPS::Nut::AuthConf->new("");
-                    push @auth_configs, $global_defaults;
+                if (!defined $global_defaults_ref) {
+                    $global_defaults_ref = UPS::Nut::AuthConf->new("");
+                    push @authconf_list, $global_defaults_ref;
                 }
-                $current_ac = $global_defaults;
+                $current_ac = $global_defaults_ref;
             } else {
                 $current_ac = UPS::Nut::AuthConf->new($line);
-                push @auth_configs, $current_ac;
+                push @authconf_list, $current_ac;
             }
             next;
         }
@@ -1593,7 +1605,7 @@ sub readAuthConfFile {
         }
     }
     close($fh);
-    return @auth_configs;
+    return @authconf_list;
 }
 
 sub merge {
@@ -1624,11 +1636,11 @@ sub merge {
 sub getAuthConf {
     my $class = shift;
     my ($user, $host, $port, $auth_configs_ref) = @_;
-    my @auth_configs = $auth_configs_ref ? @$auth_configs_ref : $class->readAuthConfFile();
+    my @auth_configs = $auth_configs_ref ? @$auth_configs_ref : ( @authconf_list ? @authconf_list : $class->readAuthConfFile() );
 
     my $norm_host = $host || 'localhost';
     my $norm_port = $port; # may be undef
-    
+
     my $target_user_host_port = "";
     $target_user_host_port .= "$user\@" if defined $user;
     $target_user_host_port .= $norm_host;
@@ -1638,7 +1650,7 @@ sub getAuthConf {
     $target_host_port .= ":$norm_port" if defined $norm_port;
 
     my $res = UPS::Nut::AuthConf->new("[$target_user_host_port]");
-    
+
     my ($retval_user, $retval_host, $global_defaults);
 
     foreach my $ac (@auth_configs) {
@@ -1670,7 +1682,7 @@ sub getAuthConf {
 sub findAuthConf {
     my $class = shift;
     my ($user, $host, $port, $auth_configs_ref) = @_;
-    my @auth_configs = $auth_configs_ref ? @$auth_configs_ref : $class->readAuthConfFile();
+    my @auth_configs = $auth_configs_ref ? @$auth_configs_ref : ( @authconf_list ? @authconf_list : $class->readAuthConfFile() );
 
     my $star_match;
     foreach my $ac (@auth_configs) {
@@ -1684,7 +1696,7 @@ sub findAuthConf {
         $target .= ":$port" if defined $port;
 
         return $ac if $section eq $target;
-        
+
         # fallback matches
         if (!defined $user && defined $host && defined $port && $section eq "$host:$port") {
             return $ac;
@@ -1703,7 +1715,7 @@ sub findAuthConf {
 sub to_nut_args {
     my $self = shift;
     my %args;
-    
+
     # Extract HOST and PORT from section
     my $host = 'localhost';
     my $port = '3493';
@@ -1718,7 +1730,7 @@ sub to_nut_args {
     } elsif ($sect ne "") {
         $host = $sect;
     }
-    
+
     $args{HOST} = $host;
     $args{PORT} = $port;
     $args{USERNAME} = $self->{user} if defined $self->{user};
@@ -1731,7 +1743,7 @@ sub to_nut_args {
     $args{CERTFILE} = $self->{certfile} if defined $self->{certfile};
     $args{CERTIDENT} = $self->{certident} if defined $self->{certident};
     $args{CERTPASSWD} = $self->{certpasswd} if defined $self->{certpasswd};
-    
+
     return %args;
 }
 
