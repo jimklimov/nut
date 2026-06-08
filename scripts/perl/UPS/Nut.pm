@@ -1549,6 +1549,7 @@ sub readAuthConfFile {
 
     my @auth_configs;
     my $current_ac;
+    my $global_defaults;
 
     while (my $line = <$fh>) {
         chomp $line;
@@ -1556,8 +1557,17 @@ sub readAuthConfFile {
         next if !$line || $line =~ /^#/;
 
         if ($line =~ /^\[(.*)\]$/) {
-            $current_ac = UPS::Nut::AuthConf->new($line);
-            push @auth_configs, $current_ac;
+            my $sectname = $1;
+            if ($sectname eq "_global_defaults" || $sectname eq "") {
+                if (!defined $global_defaults) {
+                    $global_defaults = UPS::Nut::AuthConf->new("");
+                    push @auth_configs, $global_defaults;
+                }
+                $current_ac = $global_defaults;
+            } else {
+                $current_ac = UPS::Nut::AuthConf->new($line);
+                push @auth_configs, $current_ac;
+            }
             next;
         }
 
@@ -1584,6 +1594,77 @@ sub readAuthConfFile {
     }
     close($fh);
     return @auth_configs;
+}
+
+sub merge {
+    my ($self, $source) = @_;
+    return if !defined $source;
+
+    my $sect = $self->{section};
+    $sect =~ s/^\[//;
+    $sect =~ s/\]$//;
+
+    if ($sect =~ /^([^@]+)@/) {
+        $self->{user} = $1 if !defined $self->{user};
+    } else {
+        $self->{user} = $source->{user} if !defined $self->{user} && defined $source->{user};
+    }
+
+    $self->{pass} = $source->{pass} if !defined $self->{pass} && defined $source->{pass};
+    $self->{certpath} = $source->{certpath} if !defined $self->{certpath} && defined $source->{certpath};
+    $self->{certfile} = $source->{certfile} if !defined $self->{certfile} && defined $source->{certfile};
+    $self->{certident} = $source->{certident} if !defined $self->{certident} && defined $source->{certident};
+    $self->{certpasswd} = $source->{certpasswd} if !defined $self->{certpasswd} && defined $source->{certpasswd};
+    $self->{ssl_backend} = $source->{ssl_backend} if !defined $self->{ssl_backend} && defined $source->{ssl_backend};
+    $self->{certhost} = $source->{certhost} if !defined $self->{certhost} && defined $source->{certhost};
+    $self->{certverify} = $source->{certverify} if $self->{certverify} == -1 && $source->{certverify} != -1;
+    $self->{forcessl} = $source->{forcessl} if $self->{forcessl} == -1 && $source->{forcessl} != -1;
+}
+
+sub getAuthConf {
+    my $class = shift;
+    my ($user, $host, $port, $auth_configs_ref) = @_;
+    my @auth_configs = $auth_configs_ref ? @$auth_configs_ref : $class->readAuthConfFile();
+
+    my $norm_host = $host || 'localhost';
+    my $norm_port = $port; # may be undef
+    
+    my $target_user_host_port = "";
+    $target_user_host_port .= "$user\@" if defined $user;
+    $target_user_host_port .= $norm_host;
+    $target_user_host_port .= ":$norm_port" if defined $norm_port;
+
+    my $target_host_port = "\@$norm_host";
+    $target_host_port .= ":$norm_port" if defined $norm_port;
+
+    my $res = UPS::Nut::AuthConf->new("[$target_user_host_port]");
+    
+    my ($retval_user, $retval_host, $global_defaults);
+
+    foreach my $ac (@auth_configs) {
+        my $sect = $ac->{section};
+        $sect =~ s/^\[//;
+        $sect =~ s/\]$//;
+
+        if ($sect eq $target_user_host_port) {
+            $retval_user = $ac;
+        }
+        if ($sect eq $target_host_port) {
+            $retval_host = $ac;
+        }
+        if ($sect eq "" || $sect eq "_global_defaults") {
+            $global_defaults = $ac;
+        }
+    }
+
+    $res->merge($retval_user) if defined $retval_user;
+    $res->merge($retval_host) if defined $retval_host;
+    $res->merge($global_defaults) if defined $global_defaults;
+
+    # Final enforcement of user if requested
+    $res->{user} = $user if defined $user;
+
+    return $res;
 }
 
 sub findAuthConf {
