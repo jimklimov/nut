@@ -246,7 +246,7 @@ typedef struct {
 	int	verbose_mode;
 	int	verify_depth;
 	int	always_continue;
-	
+
 	/* In this context, hostname is by default a copy of Socket->_host.c_str(),
 	 * which should be freed (we should set hostname_allocated!=0) */
 	const char	*hostname;
@@ -2060,7 +2060,7 @@ static void handle_authconf_args(size_t numargs, char **arg, AuthConf*& current_
 	if (arg[0][0] == '[' && arg[0][strlen(arg[0])-1] == ']') {
 		std::string sectname = arg[0];
 		sectname = sectname.substr(1, sectname.length() - 2);
-		
+
 		if (sectname == "*") {
 			if (!global_defaults) {
 				global_defaults = new AuthConf("*");
@@ -2144,7 +2144,7 @@ static int parse_authconf_file(const std::string& filename, int fatal_errors, bo
 				if (access(path, R_OK) == 0) fn = path;
 			}
 		}
-		
+
 		if (fn.empty()) {
 			snprintf(path, sizeof(path), "%s/nutauth.conf", confpath());
 			if (access(path, R_OK) == 0) fn = path;
