@@ -1541,7 +1541,8 @@ sub readAuthConfFile {
         return ();
     }
 
-    if (!open(my $fh, '<', $filename)) {
+    my $fh;
+    if (!open($fh, '<', $filename)) {
         die "Error opening $filename: $!" if $fatal_errors;
         return ();
     }
