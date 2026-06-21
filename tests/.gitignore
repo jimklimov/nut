@@ -11,6 +11,7 @@
 /gpiotest.log
 /gpiotest.trs
 /test-suite.log
+/test_authconf
 /selftest-rw/*
 /nutlogtest-nofail.sh
 /nutlogtest
