@@ -853,6 +853,8 @@ static subdriver_t *match_function_subdriver_name(int fatal_mismatch) {
 	char	*subdrv = getval("subdriver");
 	subdriver_t	*info = NULL;
 
+	upsdebugx(2, "%s: enter, fatal_mismatch=%d, subdrv='%s'", __func__, fatal_mismatch, NUT_STRARG(subdrv));
+
 	/* Pick up the subdriver name if set explicitly */
 	if (subdrv) {
 		int	i, flag_HAVE_LIBREGEX = 0;
@@ -974,6 +976,8 @@ found:
 static int match_function_subdriver(HIDDevice_t *d, void *privdata) {
 	int	i;
 	NUT_UNUSED_VARIABLE(privdata);
+
+	upsdebugx(2, "%s: enter", __func__);
 
 	if (match_function_subdriver_name(1)) {
 		/* This driver can handle this device. Guessing so... */
