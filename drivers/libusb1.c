@@ -381,6 +381,9 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 		atexit(nut_libusb_cleanup_atexit);
 	}
 
+	/* Add debugging: announce start of device scan */
+	upsdebugx(2, "%s: starting libusb device scan", __func__);
+
 /* TODO: Find a place for this, from Windows branch made for libusb0.c */
 /*
 #ifdef WIN32
@@ -406,8 +409,8 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 
 		count_open_attempts++;
 		libusb_get_device_descriptor(device, &dev_desc);
-		upsdebugx(2, "Checking device %" PRIuSIZE " of %" PRIiSIZE " (%04X/%04X)",
-			devnum + 1, devcount,
+		upsdebugx(2, "%s: Checking device %" PRIuSIZE " of %" PRIiSIZE " (%04X/%04X)",
+			__func__, devnum + 1, devcount,
 			dev_desc.idVendor, dev_desc.idProduct);
 
 		/* supported vendors are now checked by the supplied matcher */
@@ -415,7 +418,8 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 		/* open the device */
 		ret = libusb_open(device, udevp);
 		if (ret != 0) {
-			upsdebugx(1, "Failed to open device (%04X/%04X), skipping: %s",
+			upsdebugx(1, "%s: Failed to open device (%04X/%04X), skipping: %s",
+				__func__,
 				dev_desc.idVendor,
 				dev_desc.idProduct,
 				libusb_strerror((enum libusb_error)ret));
@@ -560,11 +564,11 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 				usb_subdriver.hid_desc_index = 1;
 		}
 
-		upsdebugx(2, "Trying to match device");
+		upsdebugx(2, "%s: Trying to match device", __func__);
 		for (m = matcher; m; m=m->next) {
 			ret = matches(m, curDevice);
 			if (ret==0) {
-				upsdebugx(2, "Device does not match - skipping");
+				upsdebugx(2, "%s: Device does not match - skipping", __func__);
 				goto next_device;
 			} else if (ret==-1) {
 				libusb_free_device_list(devlist, 1);
@@ -580,24 +584,24 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 # endif
 #endif
 			} else if (ret==-2) {
-				upsdebugx(2, "matcher: unspecified error");
+				upsdebugx(2, "%s: matcher: unspecified error", __func__);
 				goto next_device;
 			}
 		}
 
 		/* If we got here, none of the matchers said
 		 * that the device is not what we want. */
-		upsdebugx(2, "Device matches");
+		upsdebugx(2, "%s: Device matches", __func__);
 
-		upsdebugx(2, "Reading configuration descriptor %d of %d",
-			usb_subdriver.usb_config_index+1, dev_desc.bNumConfigurations);
+		upsdebugx(2, "%s: Reading configuration descriptor %d of %d",
+			__func__, usb_subdriver.usb_config_index+1, dev_desc.bNumConfigurations);
 		ret = libusb_get_config_descriptor(device,
 			(uint8_t)usb_subdriver.usb_config_index,
 			&conf_desc);
 		/*ret = libusb_get_active_config_descriptor(device, &conf_desc);*/
 		if (ret < 0)
-			upsdebugx(2, "result: %i (%s)",
-				ret, libusb_strerror((enum libusb_error)ret));
+			upsdebugx(2, "%s: result: %i (%s)",
+				__func__, ret, libusb_strerror((enum libusb_error)ret));
 
 		/* Now we have matched the device we wanted. Claim it. */
 
@@ -611,20 +615,22 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 		 * Is the kernel driver active? Consider the unimplemented
 		 * return code to be equivalent to inactive here.
 		 */
+		upsdebugx(2, "%s: checking kernel driver active for interface %d",
+			__func__, usb_subdriver.hid_rep_index);
 		if((ret = libusb_kernel_driver_active(udev, usb_subdriver.hid_rep_index)) == 1) {
-			upsdebugx(3, "libusb_kernel_driver_active() returned 1 (driver active)");
+			upsdebugx(3, "%s: libusb_kernel_driver_active() returned 1 (driver active)", __func__);
 			/* Try the auto-detach kernel driver method.
 			 * This function is not available on FreeBSD 10.1-10.3 */
 			if ((ret = libusb_set_auto_detach_kernel_driver (udev, 1)) != LIBUSB_SUCCESS) {
-				upsdebugx(1, "failed to set kernel driver auto-detach "
+				upsdebugx(1, "%s: failed to set kernel driver auto-detach "
 					"driver flag for USB device: %s",
-					libusb_strerror((enum libusb_error)ret));
+					__func__, libusb_strerror((enum libusb_error)ret));
 			} else {
-				upsdebugx(2, "successfully set kernel driver auto-detach flag");
+				upsdebugx(2, "%s: successfully set kernel driver auto-detach flag", __func__);
 			}
 		} else {
-			upsdebugx(3, "libusb_kernel_driver_active() returned %d: %s",
-				ret, libusb_strerror((enum libusb_error)ret));
+			upsdebugx(3, "%s: libusb_kernel_driver_active() returned %d: %s",
+				__func__, ret, libusb_strerror((enum libusb_error)ret));
 		}
 #endif
 
@@ -637,12 +643,13 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 # endif	/* WIN32 */
 
 		retries = 3;
+		upsdebugx(2, "%s: attempting to claim interface %d", __func__, usb_subdriver.hid_rep_index);
 		while ((ret = libusb_claim_interface(udev, usb_subdriver.hid_rep_index)) != LIBUSB_SUCCESS) {
-			upsdebugx(2, "failed to claim USB device: %s",
-				libusb_strerror((enum libusb_error)ret));
+			upsdebugx(2, "%s: libusb_claim_interface returned %d (%s)",
+				__func__, ret, libusb_strerror((enum libusb_error)ret));
 
 			if (ret == LIBUSB_ERROR_BUSY && testvar("allow_duplicates")) {
-				upsdebugx(2, "Configured to allow_duplicates so looking for another similar device");
+				upsdebugx(2, "%s: Configured to allow_duplicates so looking for another similar device", __func__);
 				goto next_device;
 			}
 
@@ -653,13 +660,13 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 # endif
 				if (ret == LIBUSB_ERROR_NOT_FOUND) {
 					/* logged as "Entity not found" if this persists */
-					upsdebugx(2, "Kernel driver already detached");
+					upsdebugx(2, "%s: Kernel driver already detached", __func__);
 				} else {
-					upsdebugx(1, "failed to detach kernel driver from USB device: %s",
-						libusb_strerror((enum libusb_error)ret));
+					upsdebugx(1, "%s: failed to detach kernel driver from USB device: %s",
+						__func__, libusb_strerror((enum libusb_error)ret));
 				}
 			} else {
-				upsdebugx(2, "detached kernel driver from USB device...");
+				upsdebugx(2, "%s: detached kernel driver from USB device", __func__);
 			}
 
 			if (retries-- > 0) {
@@ -679,7 +686,7 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 #else
 		if ((ret = libusb_claim_interface(udev, usb_subdriver.hid_rep_index)) != LIBUSB_SUCCESS ) {
 			if (ret == LIBUSB_ERROR_BUSY && testvar("allow_duplicates")) {
-				upsdebugx(2, "Configured to allow_duplicates so looking for another similar device");
+				upsdebugx(2, "%s: Configured to allow_duplicates so looking for another similar device", __func__);
 				goto next_device;
 			}
 
@@ -695,8 +702,8 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 		}
 #endif
 		/* if_claimed = 1; */
-		upsdebugx(2, "Claimed interface %d successfully",
-			usb_subdriver.hid_rep_index);
+		upsdebugx(2, "%s: Claimed interface %d successfully",
+			__func__, usb_subdriver.hid_rep_index);
 
 		nut_libusb_set_altinterface(udev);
 
@@ -711,8 +718,8 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 		}
 
 		if (!conf_desc) { /* ?? this should never happen */
-			upsdebugx(2, "  Couldn't retrieve config descriptor [%04x:%04x]@%d",
-				curDevice->VendorID, curDevice->ProductID,
+			upsdebugx(2, "%s:  Couldn't retrieve config descriptor [%04x:%04x]@%d",
+				__func__, curDevice->VendorID, curDevice->ProductID,
 				usb_subdriver.usb_config_index
 			);
 			goto next_device;
@@ -733,21 +740,21 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 			buf, 0x9, USB_TIMEOUT);
 
 		if (res < 0) {
-			upsdebugx(2, "Unable to get HID descriptor (%s)",
-				libusb_strerror((enum libusb_error)res));
+			upsdebugx(2, "%s: Unable to get HID descriptor (%s)",
+				__func__, libusb_strerror((enum libusb_error)res));
 		} else if (res < 9) {
-			upsdebugx(2, "HID descriptor too short (expected %d, got %d)", 9, res);
+			upsdebugx(2, "%s: HID descriptor too short (expected %d, got %d)", __func__, 9, res);
 		} else {
-			upsdebugx(2, "Retrieved HID descriptor (expected %d, got %d)", 9, res);
-			upsdebug_hex(3, "HID descriptor, method 1", buf, 9);
+			upsdebugx(2, "%s: Retrieved HID descriptor (expected %d, got %d)", __func__, 9, res);
+			upsdebug_hex(3, "%s: HID descriptor, method 1", __func__, buf, 9);
 
 			rdlen1 = ((uint8_t)buf[7]) | (((uint8_t)buf[8]) << 8);
 		}
 
 		if (rdlen1 < -1) {
-			upsdebugx(2, "Warning: HID descriptor, method 1 failed");
+			upsdebugx(2, "%s: Warning: HID descriptor, method 1 failed", __func__);
 		}
-		upsdebugx(3, "HID descriptor length (method 1) %" PRIi32, rdlen1);
+		upsdebugx(3, "%s: HID descriptor length (method 1) %" PRIi32, __func__, rdlen1);
 
 		/* SECOND METHOD: find HID descriptor among "extra" bytes of
 		 * interface descriptor, i.e., bytes tucked onto the end of
@@ -761,11 +768,11 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 
 		if_desc = &(conf_desc->interface[usb_subdriver.hid_rep_index].altsetting[0]);
 		for (i = 0; i < if_desc->extra_length; i += if_desc->extra[i]) {
-			upsdebugx(4, "i=%d, extra[i]=%02x, extra[i+1]=%02x", i,
+			upsdebugx(4, "%s: i=%d, extra[i]=%02x, extra[i+1]=%02x", __func__, i,
 				if_desc->extra[i], if_desc->extra[i+1]);
 			if (i+9 <= if_desc->extra_length && if_desc->extra[i] >= 9 && if_desc->extra[i+1] == 0x21) {
 				p = &if_desc->extra[i];
-				upsdebug_hex(3, "HID descriptor, method 2", p, 9);
+				upsdebug_hex(3, "%s: HID descriptor, method 2", __func__, p, 9);
 				rdlen2 = ((uint8_t)p[7]) | (((uint8_t)p[8]) << 8);
 				break;
 			}
@@ -775,16 +782,16 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 		libusb_free_config_descriptor(conf_desc);
 
 		if (rdlen2 < -1) {
-			upsdebugx(2, "Warning: HID descriptor, method 2 failed");
+			upsdebugx(2, "%s: Warning: HID descriptor, method 2 failed", __func__);
 		}
-		upsdebugx(3, "HID descriptor length (method 2) %" PRIi32, rdlen2);
+		upsdebugx(3, "%s: HID descriptor length (method 2) %" PRIi32, __func__, rdlen2);
 
 		/* when available, always choose the second value, as it
 		 * seems to be more reliable (it is the one reported e.g. by
 		 * lsusb). Note: if the need arises, can change this to use
 		 * the maximum of the two values instead. */
 		if ((curDevice->VendorID == 0x463) && (curDevice->bcdDevice == 0x0202)) {
-			upsdebugx(1, "Eaton device v2.02. Using full report descriptor");
+			upsdebugx(1, "%s: Eaton device v2.02. Using full report descriptor", __func__);
 			rdlens[0] = rdlen1;
 			rdlens[1] = rdlen2;
 		}
@@ -794,13 +801,13 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 		}
 
 		if (rdlen1 < 0 && rdlen2 < 0) {
-			upsdebugx(2, "Unable to retrieve any HID descriptor");
+			upsdebugx(2, "%s: Unable to retrieve any HID descriptor", __func__);
 			goto next_device;
 		}
 		if (rdlen1 >= 0 && rdlen2 >= 0 && rdlen1 != rdlen2) {
-			upsdebugx(2, "Warning: two different HID descriptors retrieved "
+			upsdebugx(2, "%s: Warning: two different HID descriptors retrieved "
 				"(Reportlen = %" PRIi32 " vs. %" PRIi32 ")",
-				rdlen1, rdlen2);
+				__func__, rdlen1, rdlen2);
 		} else {
 			if (rdlen1 == rdlen2) {
 				rdlens[1] = -1;
@@ -812,11 +819,11 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 			if (rdlen < 0)
 				continue;
 
-			upsdebugx(2, "Trying HID descriptor length %" PRIi32, rdlen);
+			upsdebugx(2, "%s: Trying HID descriptor length %" PRIi32, __func__, rdlen);
 
 			if (rdlen > (int)sizeof(rdbuf)) {
-				upsdebugx(2, "HID descriptor too long %" PRIi32 " (max %d)",
-					rdlen, (int)sizeof(rdbuf));
+				upsdebugx(2, "%s: HID descriptor too long %" PRIi32 " (max %d)",
+					__func__, rdlen, (int)sizeof(rdbuf));
 				continue;
 			}
 
@@ -836,8 +843,8 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 #if (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_PUSH_POP) && ( (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_TYPE_LIMITS) || (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_TAUTOLOGICAL_CONSTANT_OUT_OF_RANGE_COMPARE) || (defined HAVE_PRAGMA_GCC_DIAGNOSTIC_IGNORED_TAUTOLOGICAL_UNSIGNED_ZERO_COMPARE) )
 # pragma GCC diagnostic pop
 #endif
-				upsdebugx(2, "HID descriptor too long %" PRIi32
-					" (max %" PRIuMAX ")",
+				upsdebugx(2, "%s: HID descriptor too long %" PRIi32
+					" (max %" PRIuMAX ")", __func__,
 					rdlen, (uintmax_t)UINT16_MAX);
 				continue;
 			}
@@ -852,26 +859,26 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 
 			if (res < 0)
 			{
-				upsdebug_with_errno(2, "Unable to get Report descriptor");
+				upsdebug_with_errno(2, "%s: Unable to get Report descriptor", __func__);
 				continue;
 			}
 
 			if (res < rdlen)
 			{
 #ifndef WIN32
-				upsdebugx(2, "Warning: report descriptor too short "
-					"(expected %" PRIi32 ", got %d)", rdlen, res);
+				upsdebugx(2, "%s: Warning: report descriptor too short "
+					"(expected %" PRIi32 ", got %d)", __func__, rdlen, res);
 #else	/* WIN32 */
 				/* https://github.com/networkupstools/nut/issues/1690#issuecomment-1455206002 */
-				upsdebugx(0, "Warning: report descriptor too short "
-					"(expected %" PRIi32 ", got %d)", rdlen, res);
-				upsdebugx(0, "Please check your Windows Device Manager: "
+				upsdebugx(0, "%s: Warning: report descriptor too short "
+					"(expected %" PRIi32 ", got %d)", __func__, rdlen, res);
+				upsdebugx(0, "%s: Please check your Windows Device Manager: "
 					"perhaps the UPS was recognized by default OS\n"
 					"driver such as HID UPS Battery (hidbatt.sys, "
 					"hidusb.sys or similar). It could have been\n"
 					"\"restored\" by Windows Update. You can try "
 					"https://zadig.akeo.ie/ to handle it with\n"
-					"either WinUSB, libusb0.sys or libusbK.sys.");
+					"either WinUSB, libusb0.sys or libusbK.sys.", __func__);
 #endif	/* WIN32 */
 				rdlen = res; /* correct rdlen if necessary */
 			}
@@ -880,16 +887,16 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 			||  (uintmax_t)rdlen > (uintmax_t)USB_CTRL_CHARBUFSIZE_MAX
 			) {
 				upsdebugx(2,
-					"Report descriptor length is out of range on this device: "
+					"%s: Report descriptor length is out of range on this device: "
 					"should be %" PRIdMAX " < %" PRIi32 " < %" PRIuMAX,
-						(intmax_t)USB_CTRL_CHARBUFSIZE_MIN, rdlen,
+						__func__, (intmax_t)USB_CTRL_CHARBUFSIZE_MIN, rdlen,
 						(uintmax_t)USB_CTRL_CHARBUFSIZE_MAX);
 				goto next_device;
 			}
 
 			res = callback(udev, curDevice, rdbuf, (usb_ctrl_charbufsize)rdlen);
 			if (res < 1) {
-				upsdebugx(2, "Caller doesn't like this device");
+				upsdebugx(2, "%s: Caller doesn't like this device", __func__);
 				continue;
 			}
 
@@ -902,14 +909,15 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 			goto next_device;
 		}
 
-		upsdebugx(2, "Report descriptor retrieved (Reportlen = %" PRIi32 ")",
-			rdlen);
-		upsdebugx(2, "Found HID device");
+		upsdebugx(2, "%s: Report descriptor retrieved (Reportlen = %" PRIi32 ")",
+			__func__, rdlen);
+		upsdebugx(2, "%s: Found HID device", __func__);
 
-		upsdebugx(3, "Using default, detected or customized USB HID numbers: "
+		upsdebugx(3, "%s: Using default, detected or customized USB HID numbers: "
 			"usb_config_index=%d usb_hid_rep_index=%d "
 			"usb_hid_desc_index=%d "
 			"usb_hid_ep_in=%d usb_hid_ep_out=%d",
+			__func__,
 			usb_subdriver.usb_config_index,
 			usb_subdriver.hid_rep_index,
 			usb_subdriver.hid_desc_index,
@@ -930,6 +938,7 @@ static int nut_libusb_open(libusb_device_handle **udevp,
 			libusb_close(udev);
 			/* reset any parameters modified by unmatched drivers back to defaults */
 			nut_libusb_subdriver_defaults(&usb_subdriver);
+			upsdebugx(2, "%s: moving to next device", __func__);
 	}
 
 	/* If we got here, we did not return a successfully chosen device above */
