@@ -877,6 +877,38 @@ static int openssl_cert_verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
 
 #endif
 
+int upscli_authconf_update_conn_flags(const upscli_authconf_t *ac, int *flags)
+{
+	if (!ac || !flags)
+		return 0;
+
+	/* Initial default is usually "TRYSSL".
+	 * Does the user force or avoid SSL mode? */
+	switch (ac->forcessl) {
+		case 0:	/* Do not try, rather require */
+			*flags ^= UPSCLI_CONN_TRYSSL;
+			*flags ^= UPSCLI_CONN_REQSSL;
+			break;
+		case 1:	/* Neither require nor even try, explicitly */
+			*flags ^= UPSCLI_CONN_TRYSSL;
+			*flags |= UPSCLI_CONN_REQSSL;
+			break;
+		case -1:	/* Keep previous value, no override at this level */
+			/* *flags |= UPSCLI_CONN_TRYSSL; */
+			break;
+		default: break;
+	}
+
+	switch (ac->certverify) {
+		case 0: *flags ^= UPSCLI_CONN_CERTVERIF; break;
+		case 1: *flags |= UPSCLI_CONN_CERTVERIF; break;
+		case -1: break;
+		default: break;
+	}
+
+	return 1;
+}
+
 /** Initialize SSL support with specific requirements.
  * Call this or a related method before upscli_sslinit() to initiate STARTTLS
  * in a connection to the server.
