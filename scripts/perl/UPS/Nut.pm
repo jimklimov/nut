@@ -1542,14 +1542,36 @@ sub readAuthConfFile {
     my $class = shift;
     my $filename = shift;
     my $fatal_errors = shift || 0;
+    my $global_scope = shift;
+    $global_scope = 1 if !defined $global_scope;
 
     if (!defined $filename) {
-        my $confpath = $ENV{NUT_CONFPATH} || "/etc/nut";
-        $filename = "$confpath/nutauth.conf";
+        my $s;
+        if (($s = $ENV{NUT_AUTHCONF_FILE}) && -r $s) {
+            $filename = $s;
+        } elsif (($s = $ENV{NUT_AUTHCONF_PATH}) && -r "$s/nutauth.conf") {
+            $filename = "$s/nutauth.conf";
+        } elsif ($s = $ENV{HOME}) {
+            if (-r "$s/.config/nut/nutauth.conf") {
+                $filename = "$s/.config/nut/nutauth.conf";
+            } elsif (-r "$s/.nutauth.conf") {
+                $filename = "$s/.nutauth.conf";
+            }
+        }
+
+        if (!defined $filename) {
+            my $confpath = $ENV{NUT_CONFPATH} || "/etc/nut";
+            if (-r "$confpath/nutauth.conf") {
+                $filename = "$confpath/nutauth.conf";
+            }
+        }
     }
 
-    if (!-e $filename) {
-        die "Could not open $filename" if $fatal_errors;
+    if (!defined $filename || !-e $filename) {
+        if ($fatal_errors) {
+            die "Can't open a user/site-provided default nutauth.conf file" if !defined $filename;
+            die "Could not open $filename";
+        }
         return ();
     }
 
@@ -1559,9 +1581,9 @@ sub readAuthConfFile {
         return ();
     }
 
-    my @auth_configs;
     my $current_ac;
-    my $global_defaults;
+    # If we are in global scope (no section yet), we might be re-populating global_defaults
+    $current_ac = $global_defaults_ref if $global_scope;
 
     while (my $line = <$fh>) {
         chomp $line;
@@ -1577,13 +1599,33 @@ sub readAuthConfFile {
                 }
                 $current_ac = $global_defaults_ref;
             } else {
-                $current_ac = UPS::Nut::AuthConf->new($line);
-                push @authconf_list, $current_ac;
+                # Check if section already exists
+                $current_ac = undef;
+                foreach my $ac (@authconf_list) {
+                    my $ac_sect = $ac->{section};
+                    $ac_sect =~ s/^\[//;
+                    $ac_sect =~ s/\]$//;
+                    if ($ac_sect eq $sectname) {
+                        $current_ac = $ac;
+                        last;
+                    }
+                }
+                if (!defined $current_ac) {
+                    $current_ac = UPS::Nut::AuthConf->new("[$sectname]");
+                    push @authconf_list, $current_ac;
+                }
             }
             next;
         }
 
-        next if !$current_ac;
+        # INCLUDE support
+        if ($line =~ /^INCLUDE(?:_REQUIRED)?\s+(.*)$/i) {
+            my $inc_file = $1;
+            $inc_file =~ s/^["']|["']$//g;
+            my $is_required = ($line =~ /^INCLUDE_REQUIRED/i);
+            $class->readAuthConfFile($inc_file, $is_required, (!defined $current_ac || $current_ac == $global_defaults_ref));
+            next;
+        }
 
         if ($line =~ /^([^=]+)=(.*)$/) {
             my ($key, $value) = ($1, $2);
@@ -1591,6 +1633,18 @@ sub readAuthConfFile {
             $key = lc($key);
             $value =~ s/^\s+|\s+$//g;
             $value =~ s/^["']|["']$//g;
+
+            if (!defined $current_ac) {
+                if ($global_scope) {
+                    if (!defined $global_defaults_ref) {
+                        $global_defaults_ref = UPS::Nut::AuthConf->new("");
+                        push @authconf_list, $global_defaults_ref;
+                    }
+                    $current_ac = $global_defaults_ref;
+                } else {
+                    next;
+                }
+            }
 
             if ($key eq 'user') { $current_ac->{user} = $value; }
             elsif ($key eq 'password') { $current_ac->{pass} = $value; }

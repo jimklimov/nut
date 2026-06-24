@@ -2053,10 +2053,13 @@ static void set_authconf_val(AuthConf& conf, const std::string& var, const std::
 	}
 }
 
+static int parse_authconf_file(const std::string& filename, int fatal_errors, bool global_scope, std::vector<AuthConf>& authconf_list, AuthConf*& global_defaults);
+
 static void handle_authconf_args(size_t numargs, char **arg, AuthConf*& current_section, bool global_scope, std::vector<AuthConf>& authconf_list, AuthConf*& global_defaults)
 {
 	if (numargs < 1) return;
 
+	/* Section header [section] */
 	if (arg[0][0] == '[' && arg[0][strlen(arg[0])-1] == ']') {
 		std::string sectname = arg[0];
 		sectname = sectname.substr(1, sectname.length() - 2);
@@ -2070,9 +2073,34 @@ static void handle_authconf_args(size_t numargs, char **arg, AuthConf*& current_
 			}
 			current_section = global_defaults;
 		} else {
-			authconf_list.push_back(AuthConf(sectname));
-			current_section = &authconf_list.back();
+			/* Check if section already exists */
+			current_section = nullptr;
+			for (auto& ac : authconf_list) {
+				if (ac.section == sectname) {
+					current_section = &ac;
+					break;
+				}
+			}
+			if (!current_section) {
+				authconf_list.push_back(AuthConf(sectname));
+				current_section = &authconf_list.back();
+			}
 		}
+		return;
+	}
+
+	/* INCLUDE support */
+	if (!strcasecmp(arg[0], "INCLUDE_REQUIRED")) {
+		if (numargs < 2) {
+			throw nut::IOException("INCLUDE_REQUIRED missing filename");
+		}
+		parse_authconf_file(arg[1], 1, (current_section == nullptr), authconf_list, global_defaults);
+		return;
+	}
+
+	if (!strcasecmp(arg[0], "INCLUDE")) {
+		if (numargs < 2) return;
+		parse_authconf_file(arg[1], 0, (current_section == nullptr), authconf_list, global_defaults);
 		return;
 	}
 
@@ -2152,7 +2180,9 @@ static int parse_authconf_file(const std::string& filename, int fatal_errors, bo
 	}
 
 	if (fn.empty()) {
-		if (fatal_errors) throw nut::IOException("Can't open a default nutauth.conf file");
+		if (fatal_errors) {
+			throw nut::IOException("Can't open a user/site-provided default nutauth.conf file");
+		}
 		return -1;
 	}
 
@@ -2207,9 +2237,10 @@ void AuthConf::merge(const AuthConf& source)
 
 	size_t at = section.find('@');
 	if (at != std::string::npos && at > 0) {
-		/* Section title defines a user name */
+		/* Section title strictly defines a user name */
 		user = section.substr(0, at);
 	} else {
+		/* No '@' or no username chars before it in target section title */
 		if (user.empty() && !source.user.empty()) {
 			user = source.user;
 		}
@@ -2266,7 +2297,7 @@ void AuthConf::merge(const AuthConf& source)
 		if (ac.section == normalized_name) return ac;
 	}
 
-	// Retry without user if we have one
+	// Retry without user if we have one (host defaults)
 	size_t at = normalized_name.find('@');
 	if (at != std::string::npos) {
 		std::string userless_name = normalized_name.substr(at);
@@ -2280,7 +2311,7 @@ void AuthConf::merge(const AuthConf& source)
 	return global_defaults ? *global_defaults : AuthConf();
 }
 
-/*static*/ AuthConf AuthConf::getAuthConf(const std::string& user, const std::string& host, const std::string& port)
+/*static*/ AuthConf AuthConf::getAuthConf(const std::string& user, const std::string& host, const std::string& port, bool add_to_list)
 {
 	std::string norm_user = user;
 	std::string norm_host = host;
@@ -2288,9 +2319,8 @@ void AuthConf::merge(const AuthConf& source)
 	std::string normalized_name;
 	normalize_parts(normalized_name, norm_user, norm_host, norm_port);
 
-	AuthConf res(normalized_name);
-	AuthConf *retval_user = nullptr;
-	AuthConf *retval_host = nullptr;
+	AuthConf* retval_user = nullptr;
+	AuthConf* retval_host = nullptr;
 
 	for (auto& ac : authconf_list) {
 		if (ac.section == normalized_name) {
@@ -2310,6 +2340,25 @@ void AuthConf::merge(const AuthConf& source)
 		}
 	}
 
+	if (add_to_list) {
+		if (!retval_user) {
+			authconf_list.push_back(AuthConf(normalized_name));
+			retval_user = &authconf_list.back();
+		}
+
+		if (retval_host) {
+			retval_user->merge(*retval_host);
+		}
+		if (global_defaults) {
+			retval_user->merge(*global_defaults);
+		}
+		if (!user.empty()) {
+			retval_user->user = user;
+		}
+		return *retval_user;
+	}
+
+	AuthConf res(normalized_name);
 	if (retval_user) {
 		res.merge(*retval_user);
 	}

@@ -108,8 +108,13 @@ public:
 
 	/** Find the best matching authconf for a given connection string, and fill in
 	 * the missing points from higher levels (exact match => host defaults => global).
+	 * Based on `add_to_list` flag, the returned item is always new and unique and
+	 * not on the list (can adapt to changes in higher levels but must be freed by
+	 * caller), or will be edited on or added to the list (subsequent calls would
+	 * likely not add anything new, but memory management is easier, data is cached).
+	 * if all args are empty, return the global section or empty if none such in the list.
 	 */
-	static AuthConf getAuthConf(const std::string& user, const std::string& host, const std::string& port);
+	static AuthConf getAuthConf(const std::string& user, const std::string& host, const std::string& port, bool add_to_list = false);
 
 	/** Merge contents of another configuration item into this one.
 	 *  Follows C upscli_merge_authconf_item() logic.

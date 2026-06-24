@@ -143,18 +143,37 @@ class AuthConf:
         self.forcessl = -1
 
     @staticmethod
-    def readAuthConfFile(filename=None, fatal_errors=False):
+    def readAuthConfFile(filename=None, fatal_errors=False, global_scope=True):
         """ Read the authentication configuration file (usually nutauth.conf) """
         if filename is None:
             # Matches C implementation logic for default path
-            filename = os.path.join(os.environ.get("NUT_CONFPATH", "/etc/nut"), "nutauth.conf")
+            s = os.environ.get("NUT_AUTHCONF_FILE")
+            if s and os.path.exists(s):
+                filename = s
+            else:
+                s = os.environ.get("NUT_AUTHCONF_PATH")
+                if s and os.path.exists(os.path.join(s, "nutauth.conf")):
+                    filename = os.path.join(s, "nutauth.conf")
+                else:
+                    s = os.environ.get("HOME")
+                    if s:
+                        p = os.path.join(s, ".config", "nut", "nutauth.conf")
+                        if os.path.exists(p):
+                            filename = p
+                        else:
+                            p = os.path.join(s, ".nutauth.conf")
+                            if os.path.exists(p):
+                                filename = p
+
+            if filename is None:
+                filename = os.path.join(os.environ.get("NUT_CONFPATH", "@CONFPATH@"), "nutauth.conf")
 
         if not os.path.exists(filename):
             if fatal_errors:
-                raise PyNUTError(f"Could not open {filename}")
-            return []
+                raise PyNUTError(f"Can't open a user/site-provided default nutauth.conf file" if filename is None else f"Could not open {filename}")
+            return AuthConf.__authconf_list
 
-        current_ac = None
+        current_ac = AuthConf.__global_defaults if global_scope else None
 
         try:
             with open(filename, 'r') as f:
@@ -171,12 +190,31 @@ class AuthConf:
                                 AuthConf.__authconf_list.append(AuthConf.__global_defaults)
                             current_ac = AuthConf.__global_defaults
                         else:
-                            current_ac = AuthConf(line)
-                            AuthConf.__authconf_list.append(current_ac)
+                            # Check if section already exists
+                            current_ac = None
+                            for ac in AuthConf.__authconf_list:
+                                ac_sect = ac.section
+                                if ac_sect.startswith('[') and ac_sect.endswith(']'):
+                                    ac_sect = ac_sect[1:-1]
+                                if ac_sect == sectname:
+                                    current_ac = ac
+                                    break
+                            if current_ac is None:
+                                current_ac = AuthConf(line)
+                                AuthConf.__authconf_list.append(current_ac)
                         continue
 
-                    if current_ac is None:
-                        # Global settings if any, but NUT usually expects sections
+                    # INCLUDE support
+                    m = re.match(r'^(INCLUDE(?:_REQUIRED)?)\s+(.*)$', line, re.I)
+                    if m:
+                        inc_type = m.group(1).upper()
+                        inc_file = m.group(2).strip()
+                        if (inc_file.startswith('"') and inc_file.endswith('"')) or \
+                           (inc_file.startswith("'") and inc_file.endswith("'")):
+                            inc_file = inc_file[1:-1]
+
+                        is_required = (inc_type == "INCLUDE_REQUIRED")
+                        AuthConf.readAuthConfFile(inc_file, is_required, (current_ac is None or current_ac == AuthConf.__global_defaults))
                         continue
 
                     if '=' in line:
@@ -187,6 +225,15 @@ class AuthConf:
                         if (value.startswith('"') and value.endswith('"')) or \
                            (value.startswith("'") and value.endswith("'")):
                             value = value[1:-1]
+
+                        if current_ac is None:
+                            if global_scope:
+                                if AuthConf.__global_defaults is None:
+                                    AuthConf.__global_defaults = AuthConf("")
+                                    AuthConf.__authconf_list.append(AuthConf.__global_defaults)
+                                current_ac = AuthConf.__global_defaults
+                            else:
+                                continue
 
                         if key == 'user':
                             current_ac.user = value
@@ -219,7 +266,10 @@ class AuthConf:
         if source is None:
             return
 
-        sect = self.section[1:-1]
+        sect = self.section
+        if sect.startswith('[') and sect.endswith(']'):
+            sect = sect[1:-1]
+
         if '@' in sect and sect.find('@') > 0:
             self.user = sect.split('@')[0]
         else:
