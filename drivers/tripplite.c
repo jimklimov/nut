@@ -135,6 +135,8 @@ static unsigned int offdelay = DEFAULT_OFFDELAY;
 static unsigned int startdelay = DEFAULT_STARTDELAY;
 static unsigned int bootdelay = DEFAULT_BOOTDELAY;
 
+static int reconnect_ups(void);
+
 static long hex2d(char *start, unsigned int len)
 {
 	char buf[32];
@@ -405,6 +407,20 @@ void upsdrv_shutdown(void)
 		set_exit_flag(ret == STAT_INSTCMD_HANDLED ? EF_EXIT_SUCCESS : EF_EXIT_FAILURE);
 }
 
+static int reconnect_ups(void)
+{
+	reconnect_trying(RECONNECT_TRYING);
+	upslogx(LOG_WARNING, "Communications with UPS lost; attempting to re-establish the connection");
+
+	upsdrv_cleanup();
+	upsdrv_initups();
+	upsdrv_initinfo();
+
+	reconnect_trying(RECONNECT_UPDATEINFO);
+	reconnect_trying(RECONNECT_SUCCESS);
+	return 1;
+}
+
 void upsdrv_updateinfo(void)
 {
 	static int numfails;
@@ -419,8 +435,11 @@ void upsdrv_updateinfo(void)
 	if (len != 21) {
 		++numfails;
 		if (numfails > MAXTRIES) {
-			ser_comm_fail("Data command failed: [%" PRIiSIZE "] bytes != 21 bytes.", len);
-			dstate_datastale();
+			ser_comm_fail("Data command failed: [" PRIiSIZE "] bytes != 21 bytes.", len);
+			if (!reconnect_ups()) {
+				dstate_datastale();
+			}
+			numfails = 0;
 		}
 		return;
 	}
@@ -441,7 +460,10 @@ void upsdrv_updateinfo(void)
 		if (numfails > MAXTRIES) {
 			ser_comm_fail("Data out of bounds: [%0ld,%3d,%3ld,%02.2f]",
 					volt, temp, load, freq);
-			dstate_datastale();
+			if (!reconnect_ups()) {
+				dstate_datastale();
+			}
+			numfails = 0;
 		}
 		return;
 	}
@@ -452,7 +474,10 @@ void upsdrv_updateinfo(void)
 		++numfails;
 		if (numfails > MAXTRIES) {
 			ser_comm_fail("Battery voltage out of bounds: [%02.1f]", bv);
-			dstate_datastale();
+			if (!reconnect_ups()) {
+				dstate_datastale();
+			}
+			numfails = 0;
 		}
 		return;
 	}
@@ -463,7 +488,10 @@ void upsdrv_updateinfo(void)
 		++numfails;
 		if (numfails > MAXTRIES) {
 			ser_comm_fail("InVoltMax out of bounds: [%ld]", vmax);
-			dstate_datastale();
+			if (!reconnect_ups()) {
+				dstate_datastale();
+			}
+			numfails = 0;
 		}
 		return;
 	}
@@ -474,7 +502,10 @@ void upsdrv_updateinfo(void)
 		++numfails;
 		if (numfails > MAXTRIES) {
 			ser_comm_fail("InVoltMin out of bounds: [%ld]", vmin);
-			dstate_datastale();
+			if (!reconnect_ups()) {
+				dstate_datastale();
+			}
+			numfails = 0;
 		}
 		return;
 	}
@@ -486,7 +517,10 @@ void upsdrv_updateinfo(void)
 		++numfails;
 		if (numfails > MAXTRIES) {
 			ser_comm_fail("Self test is out of range: [%ld]", stest);
-			dstate_datastale();
+			if (!reconnect_ups()) {
+				dstate_datastale();
+			}
+			numfails = 0;
 		}
 		return;
 	}
@@ -494,7 +528,10 @@ void upsdrv_updateinfo(void)
 		++numfails;
 		if (numfails > MAXTRIES) {
 			ser_comm_fail("Self test returned non-numeric data.");
-			dstate_datastale();
+			if (!reconnect_ups()) {
+				dstate_datastale();
+			}
+			numfails = 0;
 		}
 		return;
 	}
@@ -502,7 +539,10 @@ void upsdrv_updateinfo(void)
 		++numfails;
 		if (numfails > MAXTRIES) {
 			ser_comm_fail("Self test out of bounds: [%ld]", stest);
-			dstate_datastale();
+			if (!reconnect_ups()) {
+				dstate_datastale();
+			}
+			numfails = 0;
 		}
 		return;
 	}

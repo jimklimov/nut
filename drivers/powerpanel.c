@@ -50,6 +50,20 @@ upsdrv_info_t upsdrv_info = {
 };
 /* FIXME: add a sub version for binary and text subdrivers? */
 
+static int reconnect_ups(void)
+{
+	reconnect_trying(RECONNECT_TRYING);
+	upslogx(LOG_WARNING, "Communications with UPS lost; attempting to re-establish the connection");
+
+	upsdrv_cleanup();
+	upsdrv_initups();
+	upsdrv_initinfo();
+
+	reconnect_trying(RECONNECT_UPDATEINFO);
+	reconnect_trying(RECONNECT_SUCCESS);
+	return 1;
+}
+
 void upsdrv_initinfo(void)
 {
 	char	*s;
@@ -79,21 +93,11 @@ void upsdrv_initinfo(void)
 
 void upsdrv_updateinfo(void)
 {
-	static int	retry = 0;
-
 	if (subdriver[mode]->updateinfo() < 0) {
 		ser_comm_fail("Status read failed!");
-
-		if (retry < 3) {
-			retry++;
-		} else {
-			dstate_datastale();
-		}
-
+		reconnect_ups();
 		return;
 	}
-
-	retry = 0;
 
 	ser_comm_good();
 

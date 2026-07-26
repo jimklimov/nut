@@ -180,6 +180,20 @@ static void parse_input_signals(const char *value, int *line, int *val)
 	upsdebugx(4, "%s: exit", __func__);
 }
 
+static int reconnect_ups(void)
+{
+	reconnect_trying(RECONNECT_TRYING);
+	upslogx(LOG_WARNING, "Communications with UPS lost; attempting to re-establish the connection");
+
+	upsdrv_cleanup();
+	upsdrv_initups();
+	upsdrv_initinfo();
+
+	reconnect_trying(RECONNECT_UPDATEINFO);
+	reconnect_trying(RECONNECT_SUCCESS);
+	return 1;
+}
+
 void upsdrv_initinfo(void)
 {
 	char	*v;
@@ -231,7 +245,7 @@ void upsdrv_updateinfo(void)
 	if (ret != 0) {
 		upslog_with_errno(LOG_INFO, "ioctl failed");
 		ser_comm_fail("Status read failed");
-		dstate_datastale();
+		reconnect_ups();
 		return;
 	}
 
