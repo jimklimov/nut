@@ -1245,6 +1245,19 @@ public:
 	void setTimeout(time_t timeout);
 
 	/**
+	 * Retrieve the SSL context for the connection.
+	 * \return Pointer to the SSL context.
+	 */
+	void* getSSLContext() const;
+
+	/**
+	 * Set the SSL context for the connection.
+	 * \param ctx Pointer to the SSL context.
+	 * \return Pointer to the previous SSL context.
+	 */
+	void* setSSLContext(void* ctx);
+
+	/**
 	 * Retrieve the timeout.
 	 * \returns Current timeout in seconds.
 	 */
@@ -1470,6 +1483,7 @@ private:
 	SSLConfig_OpenSSL* _ssl_config_openssl;
 	SSLConfig_NSS* _ssl_config_nss;
 	int _ssl_configured;
+	void* _ssl_ctx;
 	/* general info */
 	time_t _timeout;
 	internal::Socket* _socket;

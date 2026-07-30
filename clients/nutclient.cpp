@@ -2616,6 +2616,7 @@ _tryssl(false),
 _ssl_config_openssl(nullptr),
 _ssl_config_nss(nullptr),
 _ssl_configured(UPSCLI_SSL_CAPS_NONE),
+_ssl_ctx(nullptr),
 _timeout(0),
 _socket(new internal::Socket)
 {
@@ -2623,14 +2624,14 @@ _socket(new internal::Socket)
 }
 
 TcpClient::TcpClient(const std::string& host, uint16_t port)
-	: Client(), _host(host), _port(port), _tryssl(true), _ssl_config_openssl(nullptr), _ssl_config_nss(nullptr), _ssl_configured(UPSCLI_SSL_CAPS_NONE), _timeout(-1), _socket(new internal::Socket)
+	: Client(), _host(host), _port(port), _tryssl(true), _ssl_config_openssl(nullptr), _ssl_config_nss(nullptr), _ssl_configured(UPSCLI_SSL_CAPS_NONE), _ssl_ctx(nullptr), _timeout(-1), _socket(new internal::Socket)
 {
 	// No SSL settings, so just plaintext protocol
 	connect();
 }
 
 TcpClient::TcpClient(const std::string& host, uint16_t port, const SSLConfig& config)
-	: Client(), _host(host), _port(port), _tryssl(true), _ssl_config_openssl(nullptr), _ssl_config_nss(nullptr), _ssl_configured(UPSCLI_SSL_CAPS_NONE), _timeout(-1), _socket(new internal::Socket)
+	: Client(), _host(host), _port(port), _tryssl(true), _ssl_config_openssl(nullptr), _ssl_config_nss(nullptr), _ssl_configured(UPSCLI_SSL_CAPS_NONE), _ssl_ctx(nullptr), _timeout(-1), _socket(new internal::Socket)
 {
 	setSSLConfig(config);
 	connect();
@@ -4191,6 +4192,18 @@ void TcpClient::setTimeout(time_t timeout)
 time_t TcpClient::getTimeout()const
 {
 	return _timeout;
+}
+
+void* TcpClient::getSSLContext() const
+{
+	return _ssl_ctx;
+}
+
+void* TcpClient::setSSLContext(void* ctx)
+{
+	void* previous = _ssl_ctx;
+	_ssl_ctx = ctx;
+	return previous;
 }
 
 void TcpClient::authenticate(const std::string& user, const std::string& passwd)
