@@ -213,6 +213,10 @@ static int upscli_default_connect_timeout_initialized = 0;
 #endif
 
 #ifdef WITH_OPENSSL
+/* Default SSL context (for legacy compatibility and apps that only
+ * make one connection per process); see ups->ssl_ctx if your app
+ * wants to connect to different NUT servers under separate management
+ * (CA realms, client certificates, etc.) simultaneously. */
 static SSL_CTX	*ssl_ctx = NULL;
 #endif	/* WITH_OPENSSL */
 
@@ -1661,6 +1665,28 @@ void upscli_free_host_cert_list(void)
 #endif /* ! SSL */
 }
 
+void *upscli_set_ssl_context(UPSCONN_t *ups, void *ssl_ctx_in)
+{
+	void	*previous = NULL;
+
+	if (!ups) {
+		return NULL;
+	}
+
+	previous = ups->ssl_ctx;
+	ups->ssl_ctx = ssl_ctx_in;
+	return previous;
+}
+
+void *upscli_get_ssl_context(UPSCONN_t *ups)
+{
+	if (!ups) {
+		return NULL;
+	}
+
+	return ups->ssl_ctx;
+}
+
 int upscli_cleanup(void)
 {
 #ifdef WITH_OPENSSL
@@ -2189,12 +2215,15 @@ static int upscli_sslinit(UPSCONN_t *ups, int verifycert)
 
 # ifdef WITH_OPENSSL
 
+	if (ups->ssl_ctx) {
+		upsdebugx(3, "%s: Using per-connection SSL context", __func__);
+	} else	/* try using global default SSL context (legacy-compatible) */
 	if (!ssl_ctx) {
 		upsdebugx(3, "%s: SSL context is not available", __func__);
 		return 0;
 	}
 
-	ups->ssl = SSL_new(ssl_ctx);
+	ups->ssl = SSL_new((SSL_CTX *)(ups->ssl_ctx ? ups->ssl_ctx : ssl_ctx));
 	if (!ups->ssl) {
 		upsdebugx(3, "%s: Can not create SSL socket", __func__);
 		return 0;
@@ -3425,6 +3454,11 @@ int upscli_disconnect(UPSCONN_t *ups)
 		SSL_shutdown(ups->ssl);
 		SSL_free(ups->ssl);
 		ups->ssl = NULL;
+	}
+
+	if (ups->ssl_ctx && ups->ssl_ctx_owned) {
+		SSL_CTX_free(ups->ssl_ctx);
+		ups->ssl_ctx = NULL;
 	}
 #elif defined(WITH_NSS) /* !WITH_OPENSSL */
 	if (ups->ssl) {

@@ -114,9 +114,12 @@ typedef struct {
 	 * same for different builds! */
 #ifdef WITH_OPENSSL
 	openssl_cert_verify_data_t	*openssl_cert_verify_data;
+	SSL_CTX	*ssl_ctx;
 #else
 	void	*extra_reserved;
+	void	*ssl_ctx;	/* essentially padding for struct size in different build variants */
 #endif /* WITH_OPENSSL | WITH_NSS */
+	char	ssl_ctx_owned;	/* if not 0, we own the SSL_CTX and should free it on cleanup (if applicable) - meaning nobody else refers to that memory */
 
 }	UPSCONN_t;
 
@@ -162,6 +165,9 @@ int upscli_init(int certverify, const char *certpath, const char *certname, cons
 int upscli_init2(int certverify, const char *certpath, const char *certname, const char *certpasswd, const char *certfile);
 int upscli_init_authconf(upscli_authconf_t *ac);
 int upscli_cleanup(void);
+
+void *upscli_set_ssl_context(UPSCONN_t *ups, void *ssl_ctx);
+void *upscli_get_ssl_context(UPSCONN_t *ups);
 
 int upscli_tryconnect(UPSCONN_t *ups, const char *host, uint16_t port, int flags, struct timeval *tv);
 /* blocking unless default timeout is specified, see also: upscli_init_default_connect_timeout() */
