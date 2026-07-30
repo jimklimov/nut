@@ -114,7 +114,6 @@ CPPUNIT_TEST_SUITE_REGISTRATION( NutClientTest );
 
 #include "../clients/nutclient.h"
 #include "../clients/nutclientmem.h"
-#include "../clients/upsclient.h"
 
 namespace nut {
 
@@ -257,22 +256,21 @@ void NutClientTest::test_copy_assignment_dev() {
 }
 
 void NutClientTest::test_ssl_context_registry() {
-	UPSCONN_t ups;
-	memset(&ups, 0, sizeof(ups));
+	nut::TcpClient client;
 
 	void *ctx = reinterpret_cast<void *>(0x1234);
-	void *previous = upscli_set_ssl_context(&ups, ctx);
+	void *previous = client.setSSLContext(ctx);
 
 	CPPUNIT_ASSERT_MESSAGE("Expected no previous SSL context", previous == nullptr);
 	CPPUNIT_ASSERT_EQUAL_MESSAGE("Expected the registered SSL context to be returned",
-		ctx, upscli_get_ssl_context(&ups));
+		ctx, client.getSSLContext());
 
 	void *replacement = reinterpret_cast<void *>(0x5678);
-	previous = upscli_set_ssl_context(&ups, replacement);
+	previous = client.setSSLContext(replacement);
 	CPPUNIT_ASSERT_EQUAL_MESSAGE("Expected the previous SSL context to be returned on update",
 		ctx, previous);
 	CPPUNIT_ASSERT_EQUAL_MESSAGE("Expected the updated SSL context to be stored",
-		replacement, upscli_get_ssl_context(&ups));
+		replacement, client.getSSLContext());
 }
 
 void NutClientTest::test_copy_constructor_cmd() {
