@@ -312,6 +312,9 @@ typedef struct {
 #if WITH_DMF_FUNCTIONS
 	char *function_language;
 	char *function_code;
+
+	/* Optional extra arguments for stdlib pseudo-language conversions */
+	char *function_args;
 # if WITH_DMF_LUA
 	lua_State *luaContext;
 # endif /* WITH_DMF_LUA  */
@@ -320,9 +323,9 @@ typedef struct {
 
 #if WITH_DMF_FUNCTIONS
 # if WITH_DMF_LUA
-#  define snmp_info_default(_1, _2, _3, _4, _5, _6, _7)	{_1, _2, _3, _4, _5, _6, _7, NULL, NULL, NULL}
+#  define snmp_info_default(_1, _2, _3, _4, _5, _6, _7)	{_1, _2, _3, _4, _5, _6, _7, NULL, NULL, NULL, NULL}
 # else
-#  define snmp_info_default(_1, _2, _3, _4, _5, _6, _7)	{_1, _2, _3, _4, _5, _6, _7, NULL, NULL}
+#  define snmp_info_default(_1, _2, _3, _4, _5, _6, _7)	{_1, _2, _3, _4, _5, _6, _7, NULL, NULL, NULL}
 # endif /* WITH_DMF_LUA  */
 #else
 #  define snmp_info_default(_1, _2, _3, _4, _5, _6, _7)	{_1, _2, _3, _4, _5, _6, _7}

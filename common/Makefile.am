@@ -317,7 +317,8 @@ if WITH_DMF_LUA
   libnutdmfsnmp_la_CFLAGS += -DWITH_DMF_LUA=1 -DWITH_DMF_FUNCTIONS=1 $(LUA_INCLUDE)
   libnutdmfsnmp_la_LIBADD += $(LUA_LIB)
 else !WITH_DMF_LUA
-  libnutdmfsnmp_la_CFLAGS += -DWITH_DMF_LUA=0
+  # Even if LUA is not enabled, keep DMF function support on for stdlib pseudo-language
+  libnutdmfsnmp_la_CFLAGS += -DWITH_DMF_LUA=0 -DWITH_DMF_FUNCTIONS=1
 endif !WITH_DMF_LUA
 
 # Mention libxml2 last, its search paths seem to upset builds on FreeBSD

@@ -227,6 +227,9 @@
 #define SNMP_INPUT_3 "input_3_phase"
 #define SNMP_BYPASS_1 "bypass_1_phase"
 #define SNMP_BYPASS_3 "bypass_3_phase"
+/* Optional conversion via stdlib pseudo-language */
+#define SNMP_CONVERSION "conversion"
+#define SNMP_CONVERSION_ARGS "conversion_args"
 /* Setvar */
 #define SETVAR_INPUT_PHASES "input_phases"
 #define SETVAR_OUTPUT_PHASES "output_phases"
@@ -435,7 +438,7 @@ snmp_info_t *
 		, int *setvar
 #endif	/* WITH_DMF_SETVAR */
 #if WITH_DMF_FUNCTIONS
-		,char **function_language, char **function_code
+		,char **function_language, char **function_code, char **function_args
 #endif	/* WITH_DMF_FUNCTIONS */
 );
 

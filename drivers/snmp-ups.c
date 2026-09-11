@@ -40,6 +40,7 @@
 #include "nut_stdint.h"
 #include "snmp-ups.h"
 #include "parseconf.h"
+#include "dmf_stdlib.h"
 
 #include <ctype.h> /* for isprint() */
 
@@ -4114,6 +4115,21 @@ bool_t su_ups_get(snmp_info_t *su_info_p)
 					snprintf(buf, sizeof(buf), "%.2f", tmp_dvalue);
 				}
 			}
+			/* Apply stdlib conversion if requested for a string value */
+#if WITH_DMF_FUNCTIONS
+			if (su_info_p->function_language && su_info_p->function_code
+			 && strcmp(su_info_p->function_language, "stdlib") == 0) {
+				const char *cvt = nut_dmf_apply_conversion(
+					su_info_p->function_code,
+					su_info_p->function_args,
+					0.0,
+					buf,
+					su_info_p->info_type);
+				if (cvt) {
+					snprintf(buf, sizeof(buf), "%s", cvt);
+				}
+			}
+#endif
 			/* Check if there is a string reformatting function */
 			fmt_buf = NULL;
 			if ((fmt_buf = su_find_strval(su_info_p->oid2info, buf)) != NULL) {
@@ -4136,6 +4152,23 @@ bool_t su_ups_get(snmp_info_t *su_info_p)
 				free_info(tmp_info_p);
 				return FALSE;
 			}
+			/* Apply stdlib conversion if requested for a numeric value */
+#if WITH_DMF_FUNCTIONS
+			if (su_info_p->function_language && su_info_p->function_code
+			 && strcmp(su_info_p->function_language, "stdlib") == 0) {
+				const char *cvt = nut_dmf_apply_conversion(
+					su_info_p->function_code,
+					su_info_p->function_args,
+					(double)value,
+					NULL,
+					su_info_p->info_type);
+				if (cvt) {
+					snprintf(buf, sizeof(buf), "%s", cvt);
+					/* Skip default lookup/formatting if converted */
+					goto after_numeric_format;
+				}
+			}
+#endif
 			/* Check if there is a value to be looked up */
 			if ((strValue = su_find_infoval(su_info_p->oid2info, &value)) != NULL)
 				snprintf(buf, sizeof(buf), "%s", strValue);
@@ -4151,6 +4184,7 @@ bool_t su_ups_get(snmp_info_t *su_info_p)
 				else
 					snprintf(buf, sizeof(buf), "%.2f", (float)dvalue);
 			}
+	after_numeric_format: ;
 		}
 	}
 
