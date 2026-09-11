@@ -4117,18 +4117,21 @@ bool_t su_ups_get(snmp_info_t *su_info_p)
 			}
 			/* Apply stdlib conversion if requested for a string value */
 #if WITH_DMF_FUNCTIONS
-			if (su_info_p->function_language && su_info_p->function_code
-			 && strcmp(su_info_p->function_language, "stdlib") == 0) {
-				const char *cvt = nut_dmf_apply_conversion(
-					su_info_p->function_code,
-					su_info_p->function_args,
-					0.0,
-					buf,
-					su_info_p->info_type);
-				if (cvt) {
-					snprintf(buf, sizeof(buf), "%s", cvt);
-				}
-			}
+   if (su_info_p->function_language && su_info_p->function_code
+    && strcmp(su_info_p->function_language, "stdlib") == 0) {
+       const char *method = su_info_p->function_code;
+       const char *args_str = NULL; /* most string-based converters need no args */
+       /* Currently only usdate_to_isodate is applicable on string inputs */
+       const char *cvt = nut_dmf_apply_conversion(
+           method,
+           args_str,
+           0.0,
+           buf,
+           su_info_p->info_type);
+       if (cvt) {
+           snprintf(buf, sizeof(buf), "%s", cvt);
+       }
+   }
 #endif
 			/* Check if there is a string reformatting function */
 			fmt_buf = NULL;
@@ -4154,20 +4157,46 @@ bool_t su_ups_get(snmp_info_t *su_info_p)
 			}
 			/* Apply stdlib conversion if requested for a numeric value */
 #if WITH_DMF_FUNCTIONS
-			if (su_info_p->function_language && su_info_p->function_code
-			 && strcmp(su_info_p->function_language, "stdlib") == 0) {
-				const char *cvt = nut_dmf_apply_conversion(
-					su_info_p->function_code,
-					su_info_p->function_args,
-					(double)value,
-					NULL,
-					su_info_p->info_type);
-				if (cvt) {
-					snprintf(buf, sizeof(buf), "%s", cvt);
-					/* Skip default lookup/formatting if converted */
-					goto after_numeric_format;
-				}
-			}
+   if (su_info_p->function_language && su_info_p->function_code
+    && strcmp(su_info_p->function_language, "stdlib") == 0) {
+       char args_buf[64];
+       args_buf[0] = '\0';
+       const char *method = su_info_p->function_code;
+       /* Derive args from mapping data where needed */
+       if (strcmp(method, "scale_format") == 0) {
+           /* Use info_len as factor; default printf format of "%.2f" */
+           snprintf(args_buf, sizeof(args_buf), "%g,%%.2f", su_info_p->info_len);
+       } else if (strcmp(method, "temperature_deci_to_celsius") == 0) {
+           /* Default to celsius if not otherwise implied */
+           snprintf(args_buf, sizeof(args_buf), "%s", "celsius");
+       } else if (strcmp(method, "phase_name") == 0) {
+           int total = 1;
+           const char *t = su_info_p->info_type ? su_info_p->info_type : "";
+           if (strstr(t, "L2") || strstr(t, "L3") || strstr(t, "-L")) total = 3;
+           snprintf(args_buf, sizeof(args_buf), "%d", total);
+       } else if (strcmp(method, "phase_pair_name") == 0) {
+           int n2 = 0;
+           const char *t = su_info_p->info_type ? su_info_p->info_type : "";
+           const char *p = strstr(t, "-L");
+           if (p) {
+               p += 2; /* skip "-L" */
+               n2 = atoi(p);
+           }
+           snprintf(args_buf, sizeof(args_buf), "%d", n2);
+       }
+       const char *args_str = (args_buf[0] != '\0') ? args_buf : NULL;
+       const char *cvt = nut_dmf_apply_conversion(
+           method,
+           args_str,
+           (double)value,
+           NULL,
+           su_info_p->info_type);
+       if (cvt) {
+           snprintf(buf, sizeof(buf), "%s", cvt);
+           /* Skip default lookup/formatting if converted */
+           goto after_numeric_format;
+       }
+   }
 #endif
 			/* Check if there is a value to be looked up */
 			if ((strValue = su_find_infoval(su_info_p->oid2info, &value)) != NULL)
