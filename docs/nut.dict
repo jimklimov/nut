@@ -1,4 +1,4 @@
-personal_ws-1.1 en 3892 utf-8
+personal_ws-1.1 en 3896 utf-8
 AAC
 AAS
 ABI
@@ -2320,6 +2320,7 @@ getClients
 getDescription
 getDevice
 getDevicesVariableValues
+getSection
 getTrackingResult
 getValue
 getVariable
@@ -3675,6 +3676,7 @@ upsclient
 upscmd
 upscode
 upscommon
+upsconf
 upsct
 upsd
 upsdebug
@@ -3707,6 +3709,7 @@ upssched
 upssched's
 upsset
 upsstats
+upstable
 upstype
 upsuser
 upswired
@@ -3737,6 +3740,7 @@ usermod
 username
 usernames
 userspace
+usertable
 usleep
 usr
 utalk
