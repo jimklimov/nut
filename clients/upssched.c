@@ -1201,6 +1201,9 @@ static int sock_arg(conn_t *conn)
 		return 1;
 	}
 
+	if (conn->ctx.numargs < 2)
+		return 0;
+
 	/* CANCEL <name> [<cmd>] [<NOTIFYTYPE> <UPSNAME> <NOTIFYMSG_FOR_LOGINFO>] */
 	{ /* scoping */
 		int	do_cancel = !strcmp(conn->ctx.arglist[0], "CANCEL"),

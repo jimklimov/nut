@@ -912,7 +912,10 @@ static int parse_data_file(TYPE_FD arg_upsfd)
 		{
 			/* TIMER <seconds> will wait "seconds" before
 			 * continuing the parsing */
-			int delay = atoi (ctx->arglist[1]);
+			int delay = 0;
+			if (ctx->numargs > 1) {
+				delay = atoi (ctx->arglist[1]);
+			}
 			time(&next_update);
 			next_update += delay;
 			upsdebugx(3, "parse_data_file: TIMER instruction with value \"%i\"", delay);
@@ -923,6 +926,7 @@ static int parse_data_file(TYPE_FD arg_upsfd)
 		/* ALARM instruction */
 		if (!strncmp(ctx->arglist[0], "ALARM", 5))
 		{
+			var_value[0] = '\0';
 			if (ctx->numargs > 1) {
 				for (counter = 1, value_args = ctx->numargs ;
 					counter < value_args ; counter++)
@@ -974,6 +978,7 @@ static int parse_data_file(TYPE_FD arg_upsfd)
 		}
 		else
 		{
+			var_value[0] = '\0';
 			for (counter = 1, value_args = ctx->numargs ;
 				counter < value_args ; counter++)
 			{
